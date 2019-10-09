@@ -1,6 +1,6 @@
 #lang info
 
-(define collection "voxel-tamagotchi")
-(define deps '("base"))
-(define build-deps '())
-(define scribblings '(("scribblings/voxel-tamagotchi.scrbl")))
+(define collection "voxel")
+(define deps '("base" "glm" "rfc6455" "web-server-lib"))
+(define build-deps '("racket-doc" "scribble-lib"))
+(define scribblings '(("scribblings/voxel.scrbl")))

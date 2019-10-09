@@ -1,8 +1,8 @@
 #lang scribble/manual
 
-@title{Voxel Tamagotchi}
+@title{Voxel Programming}
 @author{@author+email["Eric Griffis" "dedbox@gmail.com"]}
 
-@defmodule[voxel-tamagotchi]
+@defmodule[voxel]
 
 Hello, world!

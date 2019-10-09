@@ -1,5 +1,5 @@
 {
-  "name": "racket-voxel-tamagotchi",
+  "name": "racket-voxel",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
@@ -8,16 +8,13 @@
   },
   "scripts": {
     "build": "./node_modules/.bin/browserify htdocs/index.js -o htdocs/bundle.js",
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "echo \"open localhost:8080/\" && ./node_modules/.bin/browservefy htdocs/index.js 8080 -- -d"
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "Eric Griffis <dedbox@gmail.com> (http://eric.emdti.com/)",
+  "author": "Eric Griffis <dedbox@gmail.com> (https://dedbox.github.io/)",
   "license": "UNLICENSED",
   "devDependencies": {
-    "browservefy": "0.0.10",
     "three": "^0.109.0",
     "voxel-engine": "^0.20.2",
-    "voxel-hello-world": "^0.6.0",
     "voxel-player": "^0.1.0"
   }
 }

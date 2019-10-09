@@ -1,208 +1,2768 @@
-(function(){var require = function (file, cwd) {
-    var resolved = require.resolve(file, cwd || '/');
-    var mod = require.modules[resolved];
-    if (!mod) throw new Error(
-        'Failed to resolve module ' + file + ', tried ' + resolved
-    );
-    var cached = require.cache[resolved];
-    var res = cached? cached.exports : mod();
-    return res;
-};
+(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
+'use strict'
 
-require.paths = [];
-require.modules = {};
-require.cache = {};
-require.extensions = [".js",".coffee",".json"];
+exports.byteLength = byteLength
+exports.toByteArray = toByteArray
+exports.fromByteArray = fromByteArray
 
-require._core = {
-    'assert': true,
-    'events': true,
-    'fs': true,
-    'path': true,
-    'vm': true
-};
+var lookup = []
+var revLookup = []
+var Arr = typeof Uint8Array !== 'undefined' ? Uint8Array : Array
 
-require.resolve = (function () {
-    return function (x, cwd) {
-        if (!cwd) cwd = '/';
-        
-        if (require._core[x]) return x;
-        var path = require.modules.path();
-        cwd = path.resolve('/', cwd);
-        var y = cwd || '/';
-        
-        if (x.match(/^(?:\.\.?\/|\/)/)) {
-            var m = loadAsFileSync(path.resolve(y, x))
-                || loadAsDirectorySync(path.resolve(y, x));
-            if (m) return m;
-        }
-        
-        var n = loadNodeModulesSync(x, y);
-        if (n) return n;
-        
-        throw new Error("Cannot find module '" + x + "'");
-        
-        function loadAsFileSync (x) {
-            x = path.normalize(x);
-            if (require.modules[x]) {
-                return x;
-            }
-            
-            for (var i = 0; i < require.extensions.length; i++) {
-                var ext = require.extensions[i];
-                if (require.modules[x + ext]) return x + ext;
-            }
-        }
-        
-        function loadAsDirectorySync (x) {
-            x = x.replace(/\/+$/, '');
-            var pkgfile = path.normalize(x + '/package.json');
-            if (require.modules[pkgfile]) {
-                var pkg = require.modules[pkgfile]();
-                var b = pkg.browserify;
-                if (typeof b === 'object' && b.main) {
-                    var m = loadAsFileSync(path.resolve(x, b.main));
-                    if (m) return m;
-                }
-                else if (typeof b === 'string') {
-                    var m = loadAsFileSync(path.resolve(x, b));
-                    if (m) return m;
-                }
-                else if (pkg.main) {
-                    var m = loadAsFileSync(path.resolve(x, pkg.main));
-                    if (m) return m;
-                }
-            }
-            
-            return loadAsFileSync(x + '/index');
-        }
-        
-        function loadNodeModulesSync (x, start) {
-            var dirs = nodeModulesPathsSync(start);
-            for (var i = 0; i < dirs.length; i++) {
-                var dir = dirs[i];
-                var m = loadAsFileSync(dir + '/' + x);
-                if (m) return m;
-                var n = loadAsDirectorySync(dir + '/' + x);
-                if (n) return n;
-            }
-            
-            var m = loadAsFileSync(x);
-            if (m) return m;
-        }
-        
-        function nodeModulesPathsSync (start) {
-            var parts;
-            if (start === '/') parts = [ '' ];
-            else parts = path.normalize(start).split('/');
-            
-            var dirs = [];
-            for (var i = parts.length - 1; i >= 0; i--) {
-                if (parts[i] === 'node_modules') continue;
-                var dir = parts.slice(0, i + 1).join('/') + '/node_modules';
-                dirs.push(dir);
-            }
-            
-            return dirs;
-        }
-    };
-})();
-
-require.alias = function (from, to) {
-    var path = require.modules.path();
-    var res = null;
-    try {
-        res = require.resolve(from + '/package.json', '/');
-    }
-    catch (err) {
-        res = require.resolve(from, '/');
-    }
-    var basedir = path.dirname(res);
-    
-    var keys = (Object.keys || function (obj) {
-        var res = [];
-        for (var key in obj) res.push(key);
-        return res;
-    })(require.modules);
-    
-    for (var i = 0; i < keys.length; i++) {
-        var key = keys[i];
-        if (key.slice(0, basedir.length + 1) === basedir + '/') {
-            var f = key.slice(basedir.length);
-            require.modules[to + f] = require.modules[basedir + f];
-        }
-        else if (key === basedir) {
-            require.modules[to] = require.modules[basedir];
-        }
-    }
-};
-
-(function () {
-    var process = {};
-    var global = typeof window !== 'undefined' ? window : {};
-    var definedProcess = false;
-    
-    require.define = function (filename, fn) {
-        if (!definedProcess && require.modules.__browserify_process) {
-            process = require.modules.__browserify_process();
-            definedProcess = true;
-        }
-        
-        var dirname = require._core[filename]
-            ? ''
-            : require.modules.path().dirname(filename)
-        ;
-        
-        var require_ = function (file) {
-            var requiredModule = require(file, dirname);
-            var cached = require.cache[require.resolve(file, dirname)];
-
-            if (cached && cached.parent === null) {
-                cached.parent = module_;
-            }
-
-            return requiredModule;
-        };
-        require_.resolve = function (name) {
-            return require.resolve(name, dirname);
-        };
-        require_.modules = require.modules;
-        require_.define = require.define;
-        require_.cache = require.cache;
-        var module_ = {
-            id : filename,
-            filename: filename,
-            exports : {},
-            loaded : false,
-            parent: null
-        };
-        
-        require.modules[filename] = function () {
-            require.cache[filename] = module_;
-            fn.call(
-                module_.exports,
-                require_,
-                module_,
-                module_.exports,
-                dirname,
-                filename,
-                process,
-                global
-            );
-            module_.loaded = true;
-            return module_.exports;
-        };
-    };
-})();
-
-
-require.define("path",function(require,module,exports,__dirname,__filename,process,global){function filter (xs, fn) {
-    var res = [];
-    for (var i = 0; i < xs.length; i++) {
-        if (fn(xs[i], i, xs)) res.push(xs[i]);
-    }
-    return res;
+var code = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+for (var i = 0, len = code.length; i < len; ++i) {
+  lookup[i] = code[i]
+  revLookup[code.charCodeAt(i)] = i
 }
+
+// Support decoding URL-safe base64 strings, as Node.js does.
+// See: https://en.wikipedia.org/wiki/Base64#URL_applications
+revLookup['-'.charCodeAt(0)] = 62
+revLookup['_'.charCodeAt(0)] = 63
+
+function getLens (b64) {
+  var len = b64.length
+
+  if (len % 4 > 0) {
+    throw new Error('Invalid string. Length must be a multiple of 4')
+  }
+
+  // Trim off extra bytes after placeholder bytes are found
+  // See: https://github.com/beatgammit/base64-js/issues/42
+  var validLen = b64.indexOf('=')
+  if (validLen === -1) validLen = len
+
+  var placeHoldersLen = validLen === len
+    ? 0
+    : 4 - (validLen % 4)
+
+  return [validLen, placeHoldersLen]
+}
+
+// base64 is 4/3 + up to two characters of the original data
+function byteLength (b64) {
+  var lens = getLens(b64)
+  var validLen = lens[0]
+  var placeHoldersLen = lens[1]
+  return ((validLen + placeHoldersLen) * 3 / 4) - placeHoldersLen
+}
+
+function _byteLength (b64, validLen, placeHoldersLen) {
+  return ((validLen + placeHoldersLen) * 3 / 4) - placeHoldersLen
+}
+
+function toByteArray (b64) {
+  var tmp
+  var lens = getLens(b64)
+  var validLen = lens[0]
+  var placeHoldersLen = lens[1]
+
+  var arr = new Arr(_byteLength(b64, validLen, placeHoldersLen))
+
+  var curByte = 0
+
+  // if there are placeholders, only get up to the last complete 4 chars
+  var len = placeHoldersLen > 0
+    ? validLen - 4
+    : validLen
+
+  var i
+  for (i = 0; i < len; i += 4) {
+    tmp =
+      (revLookup[b64.charCodeAt(i)] << 18) |
+      (revLookup[b64.charCodeAt(i + 1)] << 12) |
+      (revLookup[b64.charCodeAt(i + 2)] << 6) |
+      revLookup[b64.charCodeAt(i + 3)]
+    arr[curByte++] = (tmp >> 16) & 0xFF
+    arr[curByte++] = (tmp >> 8) & 0xFF
+    arr[curByte++] = tmp & 0xFF
+  }
+
+  if (placeHoldersLen === 2) {
+    tmp =
+      (revLookup[b64.charCodeAt(i)] << 2) |
+      (revLookup[b64.charCodeAt(i + 1)] >> 4)
+    arr[curByte++] = tmp & 0xFF
+  }
+
+  if (placeHoldersLen === 1) {
+    tmp =
+      (revLookup[b64.charCodeAt(i)] << 10) |
+      (revLookup[b64.charCodeAt(i + 1)] << 4) |
+      (revLookup[b64.charCodeAt(i + 2)] >> 2)
+    arr[curByte++] = (tmp >> 8) & 0xFF
+    arr[curByte++] = tmp & 0xFF
+  }
+
+  return arr
+}
+
+function tripletToBase64 (num) {
+  return lookup[num >> 18 & 0x3F] +
+    lookup[num >> 12 & 0x3F] +
+    lookup[num >> 6 & 0x3F] +
+    lookup[num & 0x3F]
+}
+
+function encodeChunk (uint8, start, end) {
+  var tmp
+  var output = []
+  for (var i = start; i < end; i += 3) {
+    tmp =
+      ((uint8[i] << 16) & 0xFF0000) +
+      ((uint8[i + 1] << 8) & 0xFF00) +
+      (uint8[i + 2] & 0xFF)
+    output.push(tripletToBase64(tmp))
+  }
+  return output.join('')
+}
+
+function fromByteArray (uint8) {
+  var tmp
+  var len = uint8.length
+  var extraBytes = len % 3 // if we have 1 byte left, pad 2 bytes
+  var parts = []
+  var maxChunkLength = 16383 // must be multiple of 3
+
+  // go through the array every three bytes, we'll deal with trailing stuff later
+  for (var i = 0, len2 = len - extraBytes; i < len2; i += maxChunkLength) {
+    parts.push(encodeChunk(
+      uint8, i, (i + maxChunkLength) > len2 ? len2 : (i + maxChunkLength)
+    ))
+  }
+
+  // pad the end with zeros, but make sure to not forget the extra bytes
+  if (extraBytes === 1) {
+    tmp = uint8[len - 1]
+    parts.push(
+      lookup[tmp >> 2] +
+      lookup[(tmp << 4) & 0x3F] +
+      '=='
+    )
+  } else if (extraBytes === 2) {
+    tmp = (uint8[len - 2] << 8) + uint8[len - 1]
+    parts.push(
+      lookup[tmp >> 10] +
+      lookup[(tmp >> 4) & 0x3F] +
+      lookup[(tmp << 2) & 0x3F] +
+      '='
+    )
+  }
+
+  return parts.join('')
+}
+
+},{}],2:[function(require,module,exports){
+
+},{}],3:[function(require,module,exports){
+(function (Buffer){
+/*!
+ * The buffer module from node.js, for the browser.
+ *
+ * @author   Feross Aboukhadijeh <https://feross.org>
+ * @license  MIT
+ */
+/* eslint-disable no-proto */
+
+'use strict'
+
+var base64 = require('base64-js')
+var ieee754 = require('ieee754')
+var customInspectSymbol =
+  (typeof Symbol === 'function' && typeof Symbol.for === 'function')
+    ? Symbol.for('nodejs.util.inspect.custom')
+    : null
+
+exports.Buffer = Buffer
+exports.SlowBuffer = SlowBuffer
+exports.INSPECT_MAX_BYTES = 50
+
+var K_MAX_LENGTH = 0x7fffffff
+exports.kMaxLength = K_MAX_LENGTH
+
+/**
+ * If `Buffer.TYPED_ARRAY_SUPPORT`:
+ *   === true    Use Uint8Array implementation (fastest)
+ *   === false   Print warning and recommend using `buffer` v4.x which has an Object
+ *               implementation (most compatible, even IE6)
+ *
+ * Browsers that support typed arrays are IE 10+, Firefox 4+, Chrome 7+, Safari 5.1+,
+ * Opera 11.6+, iOS 4.2+.
+ *
+ * We report that the browser does not support typed arrays if the are not subclassable
+ * using __proto__. Firefox 4-29 lacks support for adding new properties to `Uint8Array`
+ * (See: https://bugzilla.mozilla.org/show_bug.cgi?id=695438). IE 10 lacks support
+ * for __proto__ and has a buggy typed array implementation.
+ */
+Buffer.TYPED_ARRAY_SUPPORT = typedArraySupport()
+
+if (!Buffer.TYPED_ARRAY_SUPPORT && typeof console !== 'undefined' &&
+    typeof console.error === 'function') {
+  console.error(
+    'This browser lacks typed array (Uint8Array) support which is required by ' +
+    '`buffer` v5.x. Use `buffer` v4.x if you require old browser support.'
+  )
+}
+
+function typedArraySupport () {
+  // Can typed array instances can be augmented?
+  try {
+    var arr = new Uint8Array(1)
+    var proto = { foo: function () { return 42 } }
+    Object.setPrototypeOf(proto, Uint8Array.prototype)
+    Object.setPrototypeOf(arr, proto)
+    return arr.foo() === 42
+  } catch (e) {
+    return false
+  }
+}
+
+Object.defineProperty(Buffer.prototype, 'parent', {
+  enumerable: true,
+  get: function () {
+    if (!Buffer.isBuffer(this)) return undefined
+    return this.buffer
+  }
+})
+
+Object.defineProperty(Buffer.prototype, 'offset', {
+  enumerable: true,
+  get: function () {
+    if (!Buffer.isBuffer(this)) return undefined
+    return this.byteOffset
+  }
+})
+
+function createBuffer (length) {
+  if (length > K_MAX_LENGTH) {
+    throw new RangeError('The value "' + length + '" is invalid for option "size"')
+  }
+  // Return an augmented `Uint8Array` instance
+  var buf = new Uint8Array(length)
+  Object.setPrototypeOf(buf, Buffer.prototype)
+  return buf
+}
+
+/**
+ * The Buffer constructor returns instances of `Uint8Array` that have their
+ * prototype changed to `Buffer.prototype`. Furthermore, `Buffer` is a subclass of
+ * `Uint8Array`, so the returned instances will have all the node `Buffer` methods
+ * and the `Uint8Array` methods. Square bracket notation works as expected -- it
+ * returns a single octet.
+ *
+ * The `Uint8Array` prototype remains unmodified.
+ */
+
+function Buffer (arg, encodingOrOffset, length) {
+  // Common case.
+  if (typeof arg === 'number') {
+    if (typeof encodingOrOffset === 'string') {
+      throw new TypeError(
+        'The "string" argument must be of type string. Received type number'
+      )
+    }
+    return allocUnsafe(arg)
+  }
+  return from(arg, encodingOrOffset, length)
+}
+
+// Fix subarray() in ES2016. See: https://github.com/feross/buffer/pull/97
+if (typeof Symbol !== 'undefined' && Symbol.species != null &&
+    Buffer[Symbol.species] === Buffer) {
+  Object.defineProperty(Buffer, Symbol.species, {
+    value: null,
+    configurable: true,
+    enumerable: false,
+    writable: false
+  })
+}
+
+Buffer.poolSize = 8192 // not used by this implementation
+
+function from (value, encodingOrOffset, length) {
+  if (typeof value === 'string') {
+    return fromString(value, encodingOrOffset)
+  }
+
+  if (ArrayBuffer.isView(value)) {
+    return fromArrayLike(value)
+  }
+
+  if (value == null) {
+    throw new TypeError(
+      'The first argument must be one of type string, Buffer, ArrayBuffer, Array, ' +
+      'or Array-like Object. Received type ' + (typeof value)
+    )
+  }
+
+  if (isInstance(value, ArrayBuffer) ||
+      (value && isInstance(value.buffer, ArrayBuffer))) {
+    return fromArrayBuffer(value, encodingOrOffset, length)
+  }
+
+  if (typeof value === 'number') {
+    throw new TypeError(
+      'The "value" argument must not be of type number. Received type number'
+    )
+  }
+
+  var valueOf = value.valueOf && value.valueOf()
+  if (valueOf != null && valueOf !== value) {
+    return Buffer.from(valueOf, encodingOrOffset, length)
+  }
+
+  var b = fromObject(value)
+  if (b) return b
+
+  if (typeof Symbol !== 'undefined' && Symbol.toPrimitive != null &&
+      typeof value[Symbol.toPrimitive] === 'function') {
+    return Buffer.from(
+      value[Symbol.toPrimitive]('string'), encodingOrOffset, length
+    )
+  }
+
+  throw new TypeError(
+    'The first argument must be one of type string, Buffer, ArrayBuffer, Array, ' +
+    'or Array-like Object. Received type ' + (typeof value)
+  )
+}
+
+/**
+ * Functionally equivalent to Buffer(arg, encoding) but throws a TypeError
+ * if value is a number.
+ * Buffer.from(str[, encoding])
+ * Buffer.from(array)
+ * Buffer.from(buffer)
+ * Buffer.from(arrayBuffer[, byteOffset[, length]])
+ **/
+Buffer.from = function (value, encodingOrOffset, length) {
+  return from(value, encodingOrOffset, length)
+}
+
+// Note: Change prototype *after* Buffer.from is defined to workaround Chrome bug:
+// https://github.com/feross/buffer/pull/148
+Object.setPrototypeOf(Buffer.prototype, Uint8Array.prototype)
+Object.setPrototypeOf(Buffer, Uint8Array)
+
+function assertSize (size) {
+  if (typeof size !== 'number') {
+    throw new TypeError('"size" argument must be of type number')
+  } else if (size < 0) {
+    throw new RangeError('The value "' + size + '" is invalid for option "size"')
+  }
+}
+
+function alloc (size, fill, encoding) {
+  assertSize(size)
+  if (size <= 0) {
+    return createBuffer(size)
+  }
+  if (fill !== undefined) {
+    // Only pay attention to encoding if it's a string. This
+    // prevents accidentally sending in a number that would
+    // be interpretted as a start offset.
+    return typeof encoding === 'string'
+      ? createBuffer(size).fill(fill, encoding)
+      : createBuffer(size).fill(fill)
+  }
+  return createBuffer(size)
+}
+
+/**
+ * Creates a new filled Buffer instance.
+ * alloc(size[, fill[, encoding]])
+ **/
+Buffer.alloc = function (size, fill, encoding) {
+  return alloc(size, fill, encoding)
+}
+
+function allocUnsafe (size) {
+  assertSize(size)
+  return createBuffer(size < 0 ? 0 : checked(size) | 0)
+}
+
+/**
+ * Equivalent to Buffer(num), by default creates a non-zero-filled Buffer instance.
+ * */
+Buffer.allocUnsafe = function (size) {
+  return allocUnsafe(size)
+}
+/**
+ * Equivalent to SlowBuffer(num), by default creates a non-zero-filled Buffer instance.
+ */
+Buffer.allocUnsafeSlow = function (size) {
+  return allocUnsafe(size)
+}
+
+function fromString (string, encoding) {
+  if (typeof encoding !== 'string' || encoding === '') {
+    encoding = 'utf8'
+  }
+
+  if (!Buffer.isEncoding(encoding)) {
+    throw new TypeError('Unknown encoding: ' + encoding)
+  }
+
+  var length = byteLength(string, encoding) | 0
+  var buf = createBuffer(length)
+
+  var actual = buf.write(string, encoding)
+
+  if (actual !== length) {
+    // Writing a hex string, for example, that contains invalid characters will
+    // cause everything after the first invalid character to be ignored. (e.g.
+    // 'abxxcd' will be treated as 'ab')
+    buf = buf.slice(0, actual)
+  }
+
+  return buf
+}
+
+function fromArrayLike (array) {
+  var length = array.length < 0 ? 0 : checked(array.length) | 0
+  var buf = createBuffer(length)
+  for (var i = 0; i < length; i += 1) {
+    buf[i] = array[i] & 255
+  }
+  return buf
+}
+
+function fromArrayBuffer (array, byteOffset, length) {
+  if (byteOffset < 0 || array.byteLength < byteOffset) {
+    throw new RangeError('"offset" is outside of buffer bounds')
+  }
+
+  if (array.byteLength < byteOffset + (length || 0)) {
+    throw new RangeError('"length" is outside of buffer bounds')
+  }
+
+  var buf
+  if (byteOffset === undefined && length === undefined) {
+    buf = new Uint8Array(array)
+  } else if (length === undefined) {
+    buf = new Uint8Array(array, byteOffset)
+  } else {
+    buf = new Uint8Array(array, byteOffset, length)
+  }
+
+  // Return an augmented `Uint8Array` instance
+  Object.setPrototypeOf(buf, Buffer.prototype)
+
+  return buf
+}
+
+function fromObject (obj) {
+  if (Buffer.isBuffer(obj)) {
+    var len = checked(obj.length) | 0
+    var buf = createBuffer(len)
+
+    if (buf.length === 0) {
+      return buf
+    }
+
+    obj.copy(buf, 0, 0, len)
+    return buf
+  }
+
+  if (obj.length !== undefined) {
+    if (typeof obj.length !== 'number' || numberIsNaN(obj.length)) {
+      return createBuffer(0)
+    }
+    return fromArrayLike(obj)
+  }
+
+  if (obj.type === 'Buffer' && Array.isArray(obj.data)) {
+    return fromArrayLike(obj.data)
+  }
+}
+
+function checked (length) {
+  // Note: cannot use `length < K_MAX_LENGTH` here because that fails when
+  // length is NaN (which is otherwise coerced to zero.)
+  if (length >= K_MAX_LENGTH) {
+    throw new RangeError('Attempt to allocate Buffer larger than maximum ' +
+                         'size: 0x' + K_MAX_LENGTH.toString(16) + ' bytes')
+  }
+  return length | 0
+}
+
+function SlowBuffer (length) {
+  if (+length != length) { // eslint-disable-line eqeqeq
+    length = 0
+  }
+  return Buffer.alloc(+length)
+}
+
+Buffer.isBuffer = function isBuffer (b) {
+  return b != null && b._isBuffer === true &&
+    b !== Buffer.prototype // so Buffer.isBuffer(Buffer.prototype) will be false
+}
+
+Buffer.compare = function compare (a, b) {
+  if (isInstance(a, Uint8Array)) a = Buffer.from(a, a.offset, a.byteLength)
+  if (isInstance(b, Uint8Array)) b = Buffer.from(b, b.offset, b.byteLength)
+  if (!Buffer.isBuffer(a) || !Buffer.isBuffer(b)) {
+    throw new TypeError(
+      'The "buf1", "buf2" arguments must be one of type Buffer or Uint8Array'
+    )
+  }
+
+  if (a === b) return 0
+
+  var x = a.length
+  var y = b.length
+
+  for (var i = 0, len = Math.min(x, y); i < len; ++i) {
+    if (a[i] !== b[i]) {
+      x = a[i]
+      y = b[i]
+      break
+    }
+  }
+
+  if (x < y) return -1
+  if (y < x) return 1
+  return 0
+}
+
+Buffer.isEncoding = function isEncoding (encoding) {
+  switch (String(encoding).toLowerCase()) {
+    case 'hex':
+    case 'utf8':
+    case 'utf-8':
+    case 'ascii':
+    case 'latin1':
+    case 'binary':
+    case 'base64':
+    case 'ucs2':
+    case 'ucs-2':
+    case 'utf16le':
+    case 'utf-16le':
+      return true
+    default:
+      return false
+  }
+}
+
+Buffer.concat = function concat (list, length) {
+  if (!Array.isArray(list)) {
+    throw new TypeError('"list" argument must be an Array of Buffers')
+  }
+
+  if (list.length === 0) {
+    return Buffer.alloc(0)
+  }
+
+  var i
+  if (length === undefined) {
+    length = 0
+    for (i = 0; i < list.length; ++i) {
+      length += list[i].length
+    }
+  }
+
+  var buffer = Buffer.allocUnsafe(length)
+  var pos = 0
+  for (i = 0; i < list.length; ++i) {
+    var buf = list[i]
+    if (isInstance(buf, Uint8Array)) {
+      buf = Buffer.from(buf)
+    }
+    if (!Buffer.isBuffer(buf)) {
+      throw new TypeError('"list" argument must be an Array of Buffers')
+    }
+    buf.copy(buffer, pos)
+    pos += buf.length
+  }
+  return buffer
+}
+
+function byteLength (string, encoding) {
+  if (Buffer.isBuffer(string)) {
+    return string.length
+  }
+  if (ArrayBuffer.isView(string) || isInstance(string, ArrayBuffer)) {
+    return string.byteLength
+  }
+  if (typeof string !== 'string') {
+    throw new TypeError(
+      'The "string" argument must be one of type string, Buffer, or ArrayBuffer. ' +
+      'Received type ' + typeof string
+    )
+  }
+
+  var len = string.length
+  var mustMatch = (arguments.length > 2 && arguments[2] === true)
+  if (!mustMatch && len === 0) return 0
+
+  // Use a for loop to avoid recursion
+  var loweredCase = false
+  for (;;) {
+    switch (encoding) {
+      case 'ascii':
+      case 'latin1':
+      case 'binary':
+        return len
+      case 'utf8':
+      case 'utf-8':
+        return utf8ToBytes(string).length
+      case 'ucs2':
+      case 'ucs-2':
+      case 'utf16le':
+      case 'utf-16le':
+        return len * 2
+      case 'hex':
+        return len >>> 1
+      case 'base64':
+        return base64ToBytes(string).length
+      default:
+        if (loweredCase) {
+          return mustMatch ? -1 : utf8ToBytes(string).length // assume utf8
+        }
+        encoding = ('' + encoding).toLowerCase()
+        loweredCase = true
+    }
+  }
+}
+Buffer.byteLength = byteLength
+
+function slowToString (encoding, start, end) {
+  var loweredCase = false
+
+  // No need to verify that "this.length <= MAX_UINT32" since it's a read-only
+  // property of a typed array.
+
+  // This behaves neither like String nor Uint8Array in that we set start/end
+  // to their upper/lower bounds if the value passed is out of range.
+  // undefined is handled specially as per ECMA-262 6th Edition,
+  // Section 13.3.3.7 Runtime Semantics: KeyedBindingInitialization.
+  if (start === undefined || start < 0) {
+    start = 0
+  }
+  // Return early if start > this.length. Done here to prevent potential uint32
+  // coercion fail below.
+  if (start > this.length) {
+    return ''
+  }
+
+  if (end === undefined || end > this.length) {
+    end = this.length
+  }
+
+  if (end <= 0) {
+    return ''
+  }
+
+  // Force coersion to uint32. This will also coerce falsey/NaN values to 0.
+  end >>>= 0
+  start >>>= 0
+
+  if (end <= start) {
+    return ''
+  }
+
+  if (!encoding) encoding = 'utf8'
+
+  while (true) {
+    switch (encoding) {
+      case 'hex':
+        return hexSlice(this, start, end)
+
+      case 'utf8':
+      case 'utf-8':
+        return utf8Slice(this, start, end)
+
+      case 'ascii':
+        return asciiSlice(this, start, end)
+
+      case 'latin1':
+      case 'binary':
+        return latin1Slice(this, start, end)
+
+      case 'base64':
+        return base64Slice(this, start, end)
+
+      case 'ucs2':
+      case 'ucs-2':
+      case 'utf16le':
+      case 'utf-16le':
+        return utf16leSlice(this, start, end)
+
+      default:
+        if (loweredCase) throw new TypeError('Unknown encoding: ' + encoding)
+        encoding = (encoding + '').toLowerCase()
+        loweredCase = true
+    }
+  }
+}
+
+// This property is used by `Buffer.isBuffer` (and the `is-buffer` npm package)
+// to detect a Buffer instance. It's not possible to use `instanceof Buffer`
+// reliably in a browserify context because there could be multiple different
+// copies of the 'buffer' package in use. This method works even for Buffer
+// instances that were created from another copy of the `buffer` package.
+// See: https://github.com/feross/buffer/issues/154
+Buffer.prototype._isBuffer = true
+
+function swap (b, n, m) {
+  var i = b[n]
+  b[n] = b[m]
+  b[m] = i
+}
+
+Buffer.prototype.swap16 = function swap16 () {
+  var len = this.length
+  if (len % 2 !== 0) {
+    throw new RangeError('Buffer size must be a multiple of 16-bits')
+  }
+  for (var i = 0; i < len; i += 2) {
+    swap(this, i, i + 1)
+  }
+  return this
+}
+
+Buffer.prototype.swap32 = function swap32 () {
+  var len = this.length
+  if (len % 4 !== 0) {
+    throw new RangeError('Buffer size must be a multiple of 32-bits')
+  }
+  for (var i = 0; i < len; i += 4) {
+    swap(this, i, i + 3)
+    swap(this, i + 1, i + 2)
+  }
+  return this
+}
+
+Buffer.prototype.swap64 = function swap64 () {
+  var len = this.length
+  if (len % 8 !== 0) {
+    throw new RangeError('Buffer size must be a multiple of 64-bits')
+  }
+  for (var i = 0; i < len; i += 8) {
+    swap(this, i, i + 7)
+    swap(this, i + 1, i + 6)
+    swap(this, i + 2, i + 5)
+    swap(this, i + 3, i + 4)
+  }
+  return this
+}
+
+Buffer.prototype.toString = function toString () {
+  var length = this.length
+  if (length === 0) return ''
+  if (arguments.length === 0) return utf8Slice(this, 0, length)
+  return slowToString.apply(this, arguments)
+}
+
+Buffer.prototype.toLocaleString = Buffer.prototype.toString
+
+Buffer.prototype.equals = function equals (b) {
+  if (!Buffer.isBuffer(b)) throw new TypeError('Argument must be a Buffer')
+  if (this === b) return true
+  return Buffer.compare(this, b) === 0
+}
+
+Buffer.prototype.inspect = function inspect () {
+  var str = ''
+  var max = exports.INSPECT_MAX_BYTES
+  str = this.toString('hex', 0, max).replace(/(.{2})/g, '$1 ').trim()
+  if (this.length > max) str += ' ... '
+  return '<Buffer ' + str + '>'
+}
+if (customInspectSymbol) {
+  Buffer.prototype[customInspectSymbol] = Buffer.prototype.inspect
+}
+
+Buffer.prototype.compare = function compare (target, start, end, thisStart, thisEnd) {
+  if (isInstance(target, Uint8Array)) {
+    target = Buffer.from(target, target.offset, target.byteLength)
+  }
+  if (!Buffer.isBuffer(target)) {
+    throw new TypeError(
+      'The "target" argument must be one of type Buffer or Uint8Array. ' +
+      'Received type ' + (typeof target)
+    )
+  }
+
+  if (start === undefined) {
+    start = 0
+  }
+  if (end === undefined) {
+    end = target ? target.length : 0
+  }
+  if (thisStart === undefined) {
+    thisStart = 0
+  }
+  if (thisEnd === undefined) {
+    thisEnd = this.length
+  }
+
+  if (start < 0 || end > target.length || thisStart < 0 || thisEnd > this.length) {
+    throw new RangeError('out of range index')
+  }
+
+  if (thisStart >= thisEnd && start >= end) {
+    return 0
+  }
+  if (thisStart >= thisEnd) {
+    return -1
+  }
+  if (start >= end) {
+    return 1
+  }
+
+  start >>>= 0
+  end >>>= 0
+  thisStart >>>= 0
+  thisEnd >>>= 0
+
+  if (this === target) return 0
+
+  var x = thisEnd - thisStart
+  var y = end - start
+  var len = Math.min(x, y)
+
+  var thisCopy = this.slice(thisStart, thisEnd)
+  var targetCopy = target.slice(start, end)
+
+  for (var i = 0; i < len; ++i) {
+    if (thisCopy[i] !== targetCopy[i]) {
+      x = thisCopy[i]
+      y = targetCopy[i]
+      break
+    }
+  }
+
+  if (x < y) return -1
+  if (y < x) return 1
+  return 0
+}
+
+// Finds either the first index of `val` in `buffer` at offset >= `byteOffset`,
+// OR the last index of `val` in `buffer` at offset <= `byteOffset`.
+//
+// Arguments:
+// - buffer - a Buffer to search
+// - val - a string, Buffer, or number
+// - byteOffset - an index into `buffer`; will be clamped to an int32
+// - encoding - an optional encoding, relevant is val is a string
+// - dir - true for indexOf, false for lastIndexOf
+function bidirectionalIndexOf (buffer, val, byteOffset, encoding, dir) {
+  // Empty buffer means no match
+  if (buffer.length === 0) return -1
+
+  // Normalize byteOffset
+  if (typeof byteOffset === 'string') {
+    encoding = byteOffset
+    byteOffset = 0
+  } else if (byteOffset > 0x7fffffff) {
+    byteOffset = 0x7fffffff
+  } else if (byteOffset < -0x80000000) {
+    byteOffset = -0x80000000
+  }
+  byteOffset = +byteOffset // Coerce to Number.
+  if (numberIsNaN(byteOffset)) {
+    // byteOffset: it it's undefined, null, NaN, "foo", etc, search whole buffer
+    byteOffset = dir ? 0 : (buffer.length - 1)
+  }
+
+  // Normalize byteOffset: negative offsets start from the end of the buffer
+  if (byteOffset < 0) byteOffset = buffer.length + byteOffset
+  if (byteOffset >= buffer.length) {
+    if (dir) return -1
+    else byteOffset = buffer.length - 1
+  } else if (byteOffset < 0) {
+    if (dir) byteOffset = 0
+    else return -1
+  }
+
+  // Normalize val
+  if (typeof val === 'string') {
+    val = Buffer.from(val, encoding)
+  }
+
+  // Finally, search either indexOf (if dir is true) or lastIndexOf
+  if (Buffer.isBuffer(val)) {
+    // Special case: looking for empty string/buffer always fails
+    if (val.length === 0) {
+      return -1
+    }
+    return arrayIndexOf(buffer, val, byteOffset, encoding, dir)
+  } else if (typeof val === 'number') {
+    val = val & 0xFF // Search for a byte value [0-255]
+    if (typeof Uint8Array.prototype.indexOf === 'function') {
+      if (dir) {
+        return Uint8Array.prototype.indexOf.call(buffer, val, byteOffset)
+      } else {
+        return Uint8Array.prototype.lastIndexOf.call(buffer, val, byteOffset)
+      }
+    }
+    return arrayIndexOf(buffer, [val], byteOffset, encoding, dir)
+  }
+
+  throw new TypeError('val must be string, number or Buffer')
+}
+
+function arrayIndexOf (arr, val, byteOffset, encoding, dir) {
+  var indexSize = 1
+  var arrLength = arr.length
+  var valLength = val.length
+
+  if (encoding !== undefined) {
+    encoding = String(encoding).toLowerCase()
+    if (encoding === 'ucs2' || encoding === 'ucs-2' ||
+        encoding === 'utf16le' || encoding === 'utf-16le') {
+      if (arr.length < 2 || val.length < 2) {
+        return -1
+      }
+      indexSize = 2
+      arrLength /= 2
+      valLength /= 2
+      byteOffset /= 2
+    }
+  }
+
+  function read (buf, i) {
+    if (indexSize === 1) {
+      return buf[i]
+    } else {
+      return buf.readUInt16BE(i * indexSize)
+    }
+  }
+
+  var i
+  if (dir) {
+    var foundIndex = -1
+    for (i = byteOffset; i < arrLength; i++) {
+      if (read(arr, i) === read(val, foundIndex === -1 ? 0 : i - foundIndex)) {
+        if (foundIndex === -1) foundIndex = i
+        if (i - foundIndex + 1 === valLength) return foundIndex * indexSize
+      } else {
+        if (foundIndex !== -1) i -= i - foundIndex
+        foundIndex = -1
+      }
+    }
+  } else {
+    if (byteOffset + valLength > arrLength) byteOffset = arrLength - valLength
+    for (i = byteOffset; i >= 0; i--) {
+      var found = true
+      for (var j = 0; j < valLength; j++) {
+        if (read(arr, i + j) !== read(val, j)) {
+          found = false
+          break
+        }
+      }
+      if (found) return i
+    }
+  }
+
+  return -1
+}
+
+Buffer.prototype.includes = function includes (val, byteOffset, encoding) {
+  return this.indexOf(val, byteOffset, encoding) !== -1
+}
+
+Buffer.prototype.indexOf = function indexOf (val, byteOffset, encoding) {
+  return bidirectionalIndexOf(this, val, byteOffset, encoding, true)
+}
+
+Buffer.prototype.lastIndexOf = function lastIndexOf (val, byteOffset, encoding) {
+  return bidirectionalIndexOf(this, val, byteOffset, encoding, false)
+}
+
+function hexWrite (buf, string, offset, length) {
+  offset = Number(offset) || 0
+  var remaining = buf.length - offset
+  if (!length) {
+    length = remaining
+  } else {
+    length = Number(length)
+    if (length > remaining) {
+      length = remaining
+    }
+  }
+
+  var strLen = string.length
+
+  if (length > strLen / 2) {
+    length = strLen / 2
+  }
+  for (var i = 0; i < length; ++i) {
+    var parsed = parseInt(string.substr(i * 2, 2), 16)
+    if (numberIsNaN(parsed)) return i
+    buf[offset + i] = parsed
+  }
+  return i
+}
+
+function utf8Write (buf, string, offset, length) {
+  return blitBuffer(utf8ToBytes(string, buf.length - offset), buf, offset, length)
+}
+
+function asciiWrite (buf, string, offset, length) {
+  return blitBuffer(asciiToBytes(string), buf, offset, length)
+}
+
+function latin1Write (buf, string, offset, length) {
+  return asciiWrite(buf, string, offset, length)
+}
+
+function base64Write (buf, string, offset, length) {
+  return blitBuffer(base64ToBytes(string), buf, offset, length)
+}
+
+function ucs2Write (buf, string, offset, length) {
+  return blitBuffer(utf16leToBytes(string, buf.length - offset), buf, offset, length)
+}
+
+Buffer.prototype.write = function write (string, offset, length, encoding) {
+  // Buffer#write(string)
+  if (offset === undefined) {
+    encoding = 'utf8'
+    length = this.length
+    offset = 0
+  // Buffer#write(string, encoding)
+  } else if (length === undefined && typeof offset === 'string') {
+    encoding = offset
+    length = this.length
+    offset = 0
+  // Buffer#write(string, offset[, length][, encoding])
+  } else if (isFinite(offset)) {
+    offset = offset >>> 0
+    if (isFinite(length)) {
+      length = length >>> 0
+      if (encoding === undefined) encoding = 'utf8'
+    } else {
+      encoding = length
+      length = undefined
+    }
+  } else {
+    throw new Error(
+      'Buffer.write(string, encoding, offset[, length]) is no longer supported'
+    )
+  }
+
+  var remaining = this.length - offset
+  if (length === undefined || length > remaining) length = remaining
+
+  if ((string.length > 0 && (length < 0 || offset < 0)) || offset > this.length) {
+    throw new RangeError('Attempt to write outside buffer bounds')
+  }
+
+  if (!encoding) encoding = 'utf8'
+
+  var loweredCase = false
+  for (;;) {
+    switch (encoding) {
+      case 'hex':
+        return hexWrite(this, string, offset, length)
+
+      case 'utf8':
+      case 'utf-8':
+        return utf8Write(this, string, offset, length)
+
+      case 'ascii':
+        return asciiWrite(this, string, offset, length)
+
+      case 'latin1':
+      case 'binary':
+        return latin1Write(this, string, offset, length)
+
+      case 'base64':
+        // Warning: maxLength not taken into account in base64Write
+        return base64Write(this, string, offset, length)
+
+      case 'ucs2':
+      case 'ucs-2':
+      case 'utf16le':
+      case 'utf-16le':
+        return ucs2Write(this, string, offset, length)
+
+      default:
+        if (loweredCase) throw new TypeError('Unknown encoding: ' + encoding)
+        encoding = ('' + encoding).toLowerCase()
+        loweredCase = true
+    }
+  }
+}
+
+Buffer.prototype.toJSON = function toJSON () {
+  return {
+    type: 'Buffer',
+    data: Array.prototype.slice.call(this._arr || this, 0)
+  }
+}
+
+function base64Slice (buf, start, end) {
+  if (start === 0 && end === buf.length) {
+    return base64.fromByteArray(buf)
+  } else {
+    return base64.fromByteArray(buf.slice(start, end))
+  }
+}
+
+function utf8Slice (buf, start, end) {
+  end = Math.min(buf.length, end)
+  var res = []
+
+  var i = start
+  while (i < end) {
+    var firstByte = buf[i]
+    var codePoint = null
+    var bytesPerSequence = (firstByte > 0xEF) ? 4
+      : (firstByte > 0xDF) ? 3
+        : (firstByte > 0xBF) ? 2
+          : 1
+
+    if (i + bytesPerSequence <= end) {
+      var secondByte, thirdByte, fourthByte, tempCodePoint
+
+      switch (bytesPerSequence) {
+        case 1:
+          if (firstByte < 0x80) {
+            codePoint = firstByte
+          }
+          break
+        case 2:
+          secondByte = buf[i + 1]
+          if ((secondByte & 0xC0) === 0x80) {
+            tempCodePoint = (firstByte & 0x1F) << 0x6 | (secondByte & 0x3F)
+            if (tempCodePoint > 0x7F) {
+              codePoint = tempCodePoint
+            }
+          }
+          break
+        case 3:
+          secondByte = buf[i + 1]
+          thirdByte = buf[i + 2]
+          if ((secondByte & 0xC0) === 0x80 && (thirdByte & 0xC0) === 0x80) {
+            tempCodePoint = (firstByte & 0xF) << 0xC | (secondByte & 0x3F) << 0x6 | (thirdByte & 0x3F)
+            if (tempCodePoint > 0x7FF && (tempCodePoint < 0xD800 || tempCodePoint > 0xDFFF)) {
+              codePoint = tempCodePoint
+            }
+          }
+          break
+        case 4:
+          secondByte = buf[i + 1]
+          thirdByte = buf[i + 2]
+          fourthByte = buf[i + 3]
+          if ((secondByte & 0xC0) === 0x80 && (thirdByte & 0xC0) === 0x80 && (fourthByte & 0xC0) === 0x80) {
+            tempCodePoint = (firstByte & 0xF) << 0x12 | (secondByte & 0x3F) << 0xC | (thirdByte & 0x3F) << 0x6 | (fourthByte & 0x3F)
+            if (tempCodePoint > 0xFFFF && tempCodePoint < 0x110000) {
+              codePoint = tempCodePoint
+            }
+          }
+      }
+    }
+
+    if (codePoint === null) {
+      // we did not generate a valid codePoint so insert a
+      // replacement char (U+FFFD) and advance only 1 byte
+      codePoint = 0xFFFD
+      bytesPerSequence = 1
+    } else if (codePoint > 0xFFFF) {
+      // encode to utf16 (surrogate pair dance)
+      codePoint -= 0x10000
+      res.push(codePoint >>> 10 & 0x3FF | 0xD800)
+      codePoint = 0xDC00 | codePoint & 0x3FF
+    }
+
+    res.push(codePoint)
+    i += bytesPerSequence
+  }
+
+  return decodeCodePointsArray(res)
+}
+
+// Based on http://stackoverflow.com/a/22747272/680742, the browser with
+// the lowest limit is Chrome, with 0x10000 args.
+// We go 1 magnitude less, for safety
+var MAX_ARGUMENTS_LENGTH = 0x1000
+
+function decodeCodePointsArray (codePoints) {
+  var len = codePoints.length
+  if (len <= MAX_ARGUMENTS_LENGTH) {
+    return String.fromCharCode.apply(String, codePoints) // avoid extra slice()
+  }
+
+  // Decode in chunks to avoid "call stack size exceeded".
+  var res = ''
+  var i = 0
+  while (i < len) {
+    res += String.fromCharCode.apply(
+      String,
+      codePoints.slice(i, i += MAX_ARGUMENTS_LENGTH)
+    )
+  }
+  return res
+}
+
+function asciiSlice (buf, start, end) {
+  var ret = ''
+  end = Math.min(buf.length, end)
+
+  for (var i = start; i < end; ++i) {
+    ret += String.fromCharCode(buf[i] & 0x7F)
+  }
+  return ret
+}
+
+function latin1Slice (buf, start, end) {
+  var ret = ''
+  end = Math.min(buf.length, end)
+
+  for (var i = start; i < end; ++i) {
+    ret += String.fromCharCode(buf[i])
+  }
+  return ret
+}
+
+function hexSlice (buf, start, end) {
+  var len = buf.length
+
+  if (!start || start < 0) start = 0
+  if (!end || end < 0 || end > len) end = len
+
+  var out = ''
+  for (var i = start; i < end; ++i) {
+    out += hexSliceLookupTable[buf[i]]
+  }
+  return out
+}
+
+function utf16leSlice (buf, start, end) {
+  var bytes = buf.slice(start, end)
+  var res = ''
+  for (var i = 0; i < bytes.length; i += 2) {
+    res += String.fromCharCode(bytes[i] + (bytes[i + 1] * 256))
+  }
+  return res
+}
+
+Buffer.prototype.slice = function slice (start, end) {
+  var len = this.length
+  start = ~~start
+  end = end === undefined ? len : ~~end
+
+  if (start < 0) {
+    start += len
+    if (start < 0) start = 0
+  } else if (start > len) {
+    start = len
+  }
+
+  if (end < 0) {
+    end += len
+    if (end < 0) end = 0
+  } else if (end > len) {
+    end = len
+  }
+
+  if (end < start) end = start
+
+  var newBuf = this.subarray(start, end)
+  // Return an augmented `Uint8Array` instance
+  Object.setPrototypeOf(newBuf, Buffer.prototype)
+
+  return newBuf
+}
+
+/*
+ * Need to make sure that buffer isn't trying to write out of bounds.
+ */
+function checkOffset (offset, ext, length) {
+  if ((offset % 1) !== 0 || offset < 0) throw new RangeError('offset is not uint')
+  if (offset + ext > length) throw new RangeError('Trying to access beyond buffer length')
+}
+
+Buffer.prototype.readUIntLE = function readUIntLE (offset, byteLength, noAssert) {
+  offset = offset >>> 0
+  byteLength = byteLength >>> 0
+  if (!noAssert) checkOffset(offset, byteLength, this.length)
+
+  var val = this[offset]
+  var mul = 1
+  var i = 0
+  while (++i < byteLength && (mul *= 0x100)) {
+    val += this[offset + i] * mul
+  }
+
+  return val
+}
+
+Buffer.prototype.readUIntBE = function readUIntBE (offset, byteLength, noAssert) {
+  offset = offset >>> 0
+  byteLength = byteLength >>> 0
+  if (!noAssert) {
+    checkOffset(offset, byteLength, this.length)
+  }
+
+  var val = this[offset + --byteLength]
+  var mul = 1
+  while (byteLength > 0 && (mul *= 0x100)) {
+    val += this[offset + --byteLength] * mul
+  }
+
+  return val
+}
+
+Buffer.prototype.readUInt8 = function readUInt8 (offset, noAssert) {
+  offset = offset >>> 0
+  if (!noAssert) checkOffset(offset, 1, this.length)
+  return this[offset]
+}
+
+Buffer.prototype.readUInt16LE = function readUInt16LE (offset, noAssert) {
+  offset = offset >>> 0
+  if (!noAssert) checkOffset(offset, 2, this.length)
+  return this[offset] | (this[offset + 1] << 8)
+}
+
+Buffer.prototype.readUInt16BE = function readUInt16BE (offset, noAssert) {
+  offset = offset >>> 0
+  if (!noAssert) checkOffset(offset, 2, this.length)
+  return (this[offset] << 8) | this[offset + 1]
+}
+
+Buffer.prototype.readUInt32LE = function readUInt32LE (offset, noAssert) {
+  offset = offset >>> 0
+  if (!noAssert) checkOffset(offset, 4, this.length)
+
+  return ((this[offset]) |
+      (this[offset + 1] << 8) |
+      (this[offset + 2] << 16)) +
+      (this[offset + 3] * 0x1000000)
+}
+
+Buffer.prototype.readUInt32BE = function readUInt32BE (offset, noAssert) {
+  offset = offset >>> 0
+  if (!noAssert) checkOffset(offset, 4, this.length)
+
+  return (this[offset] * 0x1000000) +
+    ((this[offset + 1] << 16) |
+    (this[offset + 2] << 8) |
+    this[offset + 3])
+}
+
+Buffer.prototype.readIntLE = function readIntLE (offset, byteLength, noAssert) {
+  offset = offset >>> 0
+  byteLength = byteLength >>> 0
+  if (!noAssert) checkOffset(offset, byteLength, this.length)
+
+  var val = this[offset]
+  var mul = 1
+  var i = 0
+  while (++i < byteLength && (mul *= 0x100)) {
+    val += this[offset + i] * mul
+  }
+  mul *= 0x80
+
+  if (val >= mul) val -= Math.pow(2, 8 * byteLength)
+
+  return val
+}
+
+Buffer.prototype.readIntBE = function readIntBE (offset, byteLength, noAssert) {
+  offset = offset >>> 0
+  byteLength = byteLength >>> 0
+  if (!noAssert) checkOffset(offset, byteLength, this.length)
+
+  var i = byteLength
+  var mul = 1
+  var val = this[offset + --i]
+  while (i > 0 && (mul *= 0x100)) {
+    val += this[offset + --i] * mul
+  }
+  mul *= 0x80
+
+  if (val >= mul) val -= Math.pow(2, 8 * byteLength)
+
+  return val
+}
+
+Buffer.prototype.readInt8 = function readInt8 (offset, noAssert) {
+  offset = offset >>> 0
+  if (!noAssert) checkOffset(offset, 1, this.length)
+  if (!(this[offset] & 0x80)) return (this[offset])
+  return ((0xff - this[offset] + 1) * -1)
+}
+
+Buffer.prototype.readInt16LE = function readInt16LE (offset, noAssert) {
+  offset = offset >>> 0
+  if (!noAssert) checkOffset(offset, 2, this.length)
+  var val = this[offset] | (this[offset + 1] << 8)
+  return (val & 0x8000) ? val | 0xFFFF0000 : val
+}
+
+Buffer.prototype.readInt16BE = function readInt16BE (offset, noAssert) {
+  offset = offset >>> 0
+  if (!noAssert) checkOffset(offset, 2, this.length)
+  var val = this[offset + 1] | (this[offset] << 8)
+  return (val & 0x8000) ? val | 0xFFFF0000 : val
+}
+
+Buffer.prototype.readInt32LE = function readInt32LE (offset, noAssert) {
+  offset = offset >>> 0
+  if (!noAssert) checkOffset(offset, 4, this.length)
+
+  return (this[offset]) |
+    (this[offset + 1] << 8) |
+    (this[offset + 2] << 16) |
+    (this[offset + 3] << 24)
+}
+
+Buffer.prototype.readInt32BE = function readInt32BE (offset, noAssert) {
+  offset = offset >>> 0
+  if (!noAssert) checkOffset(offset, 4, this.length)
+
+  return (this[offset] << 24) |
+    (this[offset + 1] << 16) |
+    (this[offset + 2] << 8) |
+    (this[offset + 3])
+}
+
+Buffer.prototype.readFloatLE = function readFloatLE (offset, noAssert) {
+  offset = offset >>> 0
+  if (!noAssert) checkOffset(offset, 4, this.length)
+  return ieee754.read(this, offset, true, 23, 4)
+}
+
+Buffer.prototype.readFloatBE = function readFloatBE (offset, noAssert) {
+  offset = offset >>> 0
+  if (!noAssert) checkOffset(offset, 4, this.length)
+  return ieee754.read(this, offset, false, 23, 4)
+}
+
+Buffer.prototype.readDoubleLE = function readDoubleLE (offset, noAssert) {
+  offset = offset >>> 0
+  if (!noAssert) checkOffset(offset, 8, this.length)
+  return ieee754.read(this, offset, true, 52, 8)
+}
+
+Buffer.prototype.readDoubleBE = function readDoubleBE (offset, noAssert) {
+  offset = offset >>> 0
+  if (!noAssert) checkOffset(offset, 8, this.length)
+  return ieee754.read(this, offset, false, 52, 8)
+}
+
+function checkInt (buf, value, offset, ext, max, min) {
+  if (!Buffer.isBuffer(buf)) throw new TypeError('"buffer" argument must be a Buffer instance')
+  if (value > max || value < min) throw new RangeError('"value" argument is out of bounds')
+  if (offset + ext > buf.length) throw new RangeError('Index out of range')
+}
+
+Buffer.prototype.writeUIntLE = function writeUIntLE (value, offset, byteLength, noAssert) {
+  value = +value
+  offset = offset >>> 0
+  byteLength = byteLength >>> 0
+  if (!noAssert) {
+    var maxBytes = Math.pow(2, 8 * byteLength) - 1
+    checkInt(this, value, offset, byteLength, maxBytes, 0)
+  }
+
+  var mul = 1
+  var i = 0
+  this[offset] = value & 0xFF
+  while (++i < byteLength && (mul *= 0x100)) {
+    this[offset + i] = (value / mul) & 0xFF
+  }
+
+  return offset + byteLength
+}
+
+Buffer.prototype.writeUIntBE = function writeUIntBE (value, offset, byteLength, noAssert) {
+  value = +value
+  offset = offset >>> 0
+  byteLength = byteLength >>> 0
+  if (!noAssert) {
+    var maxBytes = Math.pow(2, 8 * byteLength) - 1
+    checkInt(this, value, offset, byteLength, maxBytes, 0)
+  }
+
+  var i = byteLength - 1
+  var mul = 1
+  this[offset + i] = value & 0xFF
+  while (--i >= 0 && (mul *= 0x100)) {
+    this[offset + i] = (value / mul) & 0xFF
+  }
+
+  return offset + byteLength
+}
+
+Buffer.prototype.writeUInt8 = function writeUInt8 (value, offset, noAssert) {
+  value = +value
+  offset = offset >>> 0
+  if (!noAssert) checkInt(this, value, offset, 1, 0xff, 0)
+  this[offset] = (value & 0xff)
+  return offset + 1
+}
+
+Buffer.prototype.writeUInt16LE = function writeUInt16LE (value, offset, noAssert) {
+  value = +value
+  offset = offset >>> 0
+  if (!noAssert) checkInt(this, value, offset, 2, 0xffff, 0)
+  this[offset] = (value & 0xff)
+  this[offset + 1] = (value >>> 8)
+  return offset + 2
+}
+
+Buffer.prototype.writeUInt16BE = function writeUInt16BE (value, offset, noAssert) {
+  value = +value
+  offset = offset >>> 0
+  if (!noAssert) checkInt(this, value, offset, 2, 0xffff, 0)
+  this[offset] = (value >>> 8)
+  this[offset + 1] = (value & 0xff)
+  return offset + 2
+}
+
+Buffer.prototype.writeUInt32LE = function writeUInt32LE (value, offset, noAssert) {
+  value = +value
+  offset = offset >>> 0
+  if (!noAssert) checkInt(this, value, offset, 4, 0xffffffff, 0)
+  this[offset + 3] = (value >>> 24)
+  this[offset + 2] = (value >>> 16)
+  this[offset + 1] = (value >>> 8)
+  this[offset] = (value & 0xff)
+  return offset + 4
+}
+
+Buffer.prototype.writeUInt32BE = function writeUInt32BE (value, offset, noAssert) {
+  value = +value
+  offset = offset >>> 0
+  if (!noAssert) checkInt(this, value, offset, 4, 0xffffffff, 0)
+  this[offset] = (value >>> 24)
+  this[offset + 1] = (value >>> 16)
+  this[offset + 2] = (value >>> 8)
+  this[offset + 3] = (value & 0xff)
+  return offset + 4
+}
+
+Buffer.prototype.writeIntLE = function writeIntLE (value, offset, byteLength, noAssert) {
+  value = +value
+  offset = offset >>> 0
+  if (!noAssert) {
+    var limit = Math.pow(2, (8 * byteLength) - 1)
+
+    checkInt(this, value, offset, byteLength, limit - 1, -limit)
+  }
+
+  var i = 0
+  var mul = 1
+  var sub = 0
+  this[offset] = value & 0xFF
+  while (++i < byteLength && (mul *= 0x100)) {
+    if (value < 0 && sub === 0 && this[offset + i - 1] !== 0) {
+      sub = 1
+    }
+    this[offset + i] = ((value / mul) >> 0) - sub & 0xFF
+  }
+
+  return offset + byteLength
+}
+
+Buffer.prototype.writeIntBE = function writeIntBE (value, offset, byteLength, noAssert) {
+  value = +value
+  offset = offset >>> 0
+  if (!noAssert) {
+    var limit = Math.pow(2, (8 * byteLength) - 1)
+
+    checkInt(this, value, offset, byteLength, limit - 1, -limit)
+  }
+
+  var i = byteLength - 1
+  var mul = 1
+  var sub = 0
+  this[offset + i] = value & 0xFF
+  while (--i >= 0 && (mul *= 0x100)) {
+    if (value < 0 && sub === 0 && this[offset + i + 1] !== 0) {
+      sub = 1
+    }
+    this[offset + i] = ((value / mul) >> 0) - sub & 0xFF
+  }
+
+  return offset + byteLength
+}
+
+Buffer.prototype.writeInt8 = function writeInt8 (value, offset, noAssert) {
+  value = +value
+  offset = offset >>> 0
+  if (!noAssert) checkInt(this, value, offset, 1, 0x7f, -0x80)
+  if (value < 0) value = 0xff + value + 1
+  this[offset] = (value & 0xff)
+  return offset + 1
+}
+
+Buffer.prototype.writeInt16LE = function writeInt16LE (value, offset, noAssert) {
+  value = +value
+  offset = offset >>> 0
+  if (!noAssert) checkInt(this, value, offset, 2, 0x7fff, -0x8000)
+  this[offset] = (value & 0xff)
+  this[offset + 1] = (value >>> 8)
+  return offset + 2
+}
+
+Buffer.prototype.writeInt16BE = function writeInt16BE (value, offset, noAssert) {
+  value = +value
+  offset = offset >>> 0
+  if (!noAssert) checkInt(this, value, offset, 2, 0x7fff, -0x8000)
+  this[offset] = (value >>> 8)
+  this[offset + 1] = (value & 0xff)
+  return offset + 2
+}
+
+Buffer.prototype.writeInt32LE = function writeInt32LE (value, offset, noAssert) {
+  value = +value
+  offset = offset >>> 0
+  if (!noAssert) checkInt(this, value, offset, 4, 0x7fffffff, -0x80000000)
+  this[offset] = (value & 0xff)
+  this[offset + 1] = (value >>> 8)
+  this[offset + 2] = (value >>> 16)
+  this[offset + 3] = (value >>> 24)
+  return offset + 4
+}
+
+Buffer.prototype.writeInt32BE = function writeInt32BE (value, offset, noAssert) {
+  value = +value
+  offset = offset >>> 0
+  if (!noAssert) checkInt(this, value, offset, 4, 0x7fffffff, -0x80000000)
+  if (value < 0) value = 0xffffffff + value + 1
+  this[offset] = (value >>> 24)
+  this[offset + 1] = (value >>> 16)
+  this[offset + 2] = (value >>> 8)
+  this[offset + 3] = (value & 0xff)
+  return offset + 4
+}
+
+function checkIEEE754 (buf, value, offset, ext, max, min) {
+  if (offset + ext > buf.length) throw new RangeError('Index out of range')
+  if (offset < 0) throw new RangeError('Index out of range')
+}
+
+function writeFloat (buf, value, offset, littleEndian, noAssert) {
+  value = +value
+  offset = offset >>> 0
+  if (!noAssert) {
+    checkIEEE754(buf, value, offset, 4, 3.4028234663852886e+38, -3.4028234663852886e+38)
+  }
+  ieee754.write(buf, value, offset, littleEndian, 23, 4)
+  return offset + 4
+}
+
+Buffer.prototype.writeFloatLE = function writeFloatLE (value, offset, noAssert) {
+  return writeFloat(this, value, offset, true, noAssert)
+}
+
+Buffer.prototype.writeFloatBE = function writeFloatBE (value, offset, noAssert) {
+  return writeFloat(this, value, offset, false, noAssert)
+}
+
+function writeDouble (buf, value, offset, littleEndian, noAssert) {
+  value = +value
+  offset = offset >>> 0
+  if (!noAssert) {
+    checkIEEE754(buf, value, offset, 8, 1.7976931348623157E+308, -1.7976931348623157E+308)
+  }
+  ieee754.write(buf, value, offset, littleEndian, 52, 8)
+  return offset + 8
+}
+
+Buffer.prototype.writeDoubleLE = function writeDoubleLE (value, offset, noAssert) {
+  return writeDouble(this, value, offset, true, noAssert)
+}
+
+Buffer.prototype.writeDoubleBE = function writeDoubleBE (value, offset, noAssert) {
+  return writeDouble(this, value, offset, false, noAssert)
+}
+
+// copy(targetBuffer, targetStart=0, sourceStart=0, sourceEnd=buffer.length)
+Buffer.prototype.copy = function copy (target, targetStart, start, end) {
+  if (!Buffer.isBuffer(target)) throw new TypeError('argument should be a Buffer')
+  if (!start) start = 0
+  if (!end && end !== 0) end = this.length
+  if (targetStart >= target.length) targetStart = target.length
+  if (!targetStart) targetStart = 0
+  if (end > 0 && end < start) end = start
+
+  // Copy 0 bytes; we're done
+  if (end === start) return 0
+  if (target.length === 0 || this.length === 0) return 0
+
+  // Fatal error conditions
+  if (targetStart < 0) {
+    throw new RangeError('targetStart out of bounds')
+  }
+  if (start < 0 || start >= this.length) throw new RangeError('Index out of range')
+  if (end < 0) throw new RangeError('sourceEnd out of bounds')
+
+  // Are we oob?
+  if (end > this.length) end = this.length
+  if (target.length - targetStart < end - start) {
+    end = target.length - targetStart + start
+  }
+
+  var len = end - start
+
+  if (this === target && typeof Uint8Array.prototype.copyWithin === 'function') {
+    // Use built-in when available, missing from IE11
+    this.copyWithin(targetStart, start, end)
+  } else if (this === target && start < targetStart && targetStart < end) {
+    // descending copy from end
+    for (var i = len - 1; i >= 0; --i) {
+      target[i + targetStart] = this[i + start]
+    }
+  } else {
+    Uint8Array.prototype.set.call(
+      target,
+      this.subarray(start, end),
+      targetStart
+    )
+  }
+
+  return len
+}
+
+// Usage:
+//    buffer.fill(number[, offset[, end]])
+//    buffer.fill(buffer[, offset[, end]])
+//    buffer.fill(string[, offset[, end]][, encoding])
+Buffer.prototype.fill = function fill (val, start, end, encoding) {
+  // Handle string cases:
+  if (typeof val === 'string') {
+    if (typeof start === 'string') {
+      encoding = start
+      start = 0
+      end = this.length
+    } else if (typeof end === 'string') {
+      encoding = end
+      end = this.length
+    }
+    if (encoding !== undefined && typeof encoding !== 'string') {
+      throw new TypeError('encoding must be a string')
+    }
+    if (typeof encoding === 'string' && !Buffer.isEncoding(encoding)) {
+      throw new TypeError('Unknown encoding: ' + encoding)
+    }
+    if (val.length === 1) {
+      var code = val.charCodeAt(0)
+      if ((encoding === 'utf8' && code < 128) ||
+          encoding === 'latin1') {
+        // Fast path: If `val` fits into a single byte, use that numeric value.
+        val = code
+      }
+    }
+  } else if (typeof val === 'number') {
+    val = val & 255
+  } else if (typeof val === 'boolean') {
+    val = Number(val)
+  }
+
+  // Invalid ranges are not set to a default, so can range check early.
+  if (start < 0 || this.length < start || this.length < end) {
+    throw new RangeError('Out of range index')
+  }
+
+  if (end <= start) {
+    return this
+  }
+
+  start = start >>> 0
+  end = end === undefined ? this.length : end >>> 0
+
+  if (!val) val = 0
+
+  var i
+  if (typeof val === 'number') {
+    for (i = start; i < end; ++i) {
+      this[i] = val
+    }
+  } else {
+    var bytes = Buffer.isBuffer(val)
+      ? val
+      : Buffer.from(val, encoding)
+    var len = bytes.length
+    if (len === 0) {
+      throw new TypeError('The value "' + val +
+        '" is invalid for argument "value"')
+    }
+    for (i = 0; i < end - start; ++i) {
+      this[i + start] = bytes[i % len]
+    }
+  }
+
+  return this
+}
+
+// HELPER FUNCTIONS
+// ================
+
+var INVALID_BASE64_RE = /[^+/0-9A-Za-z-_]/g
+
+function base64clean (str) {
+  // Node takes equal signs as end of the Base64 encoding
+  str = str.split('=')[0]
+  // Node strips out invalid characters like \n and \t from the string, base64-js does not
+  str = str.trim().replace(INVALID_BASE64_RE, '')
+  // Node converts strings with length < 2 to ''
+  if (str.length < 2) return ''
+  // Node allows for non-padded base64 strings (missing trailing ===), base64-js does not
+  while (str.length % 4 !== 0) {
+    str = str + '='
+  }
+  return str
+}
+
+function utf8ToBytes (string, units) {
+  units = units || Infinity
+  var codePoint
+  var length = string.length
+  var leadSurrogate = null
+  var bytes = []
+
+  for (var i = 0; i < length; ++i) {
+    codePoint = string.charCodeAt(i)
+
+    // is surrogate component
+    if (codePoint > 0xD7FF && codePoint < 0xE000) {
+      // last char was a lead
+      if (!leadSurrogate) {
+        // no lead yet
+        if (codePoint > 0xDBFF) {
+          // unexpected trail
+          if ((units -= 3) > -1) bytes.push(0xEF, 0xBF, 0xBD)
+          continue
+        } else if (i + 1 === length) {
+          // unpaired lead
+          if ((units -= 3) > -1) bytes.push(0xEF, 0xBF, 0xBD)
+          continue
+        }
+
+        // valid lead
+        leadSurrogate = codePoint
+
+        continue
+      }
+
+      // 2 leads in a row
+      if (codePoint < 0xDC00) {
+        if ((units -= 3) > -1) bytes.push(0xEF, 0xBF, 0xBD)
+        leadSurrogate = codePoint
+        continue
+      }
+
+      // valid surrogate pair
+      codePoint = (leadSurrogate - 0xD800 << 10 | codePoint - 0xDC00) + 0x10000
+    } else if (leadSurrogate) {
+      // valid bmp char, but last char was a lead
+      if ((units -= 3) > -1) bytes.push(0xEF, 0xBF, 0xBD)
+    }
+
+    leadSurrogate = null
+
+    // encode utf8
+    if (codePoint < 0x80) {
+      if ((units -= 1) < 0) break
+      bytes.push(codePoint)
+    } else if (codePoint < 0x800) {
+      if ((units -= 2) < 0) break
+      bytes.push(
+        codePoint >> 0x6 | 0xC0,
+        codePoint & 0x3F | 0x80
+      )
+    } else if (codePoint < 0x10000) {
+      if ((units -= 3) < 0) break
+      bytes.push(
+        codePoint >> 0xC | 0xE0,
+        codePoint >> 0x6 & 0x3F | 0x80,
+        codePoint & 0x3F | 0x80
+      )
+    } else if (codePoint < 0x110000) {
+      if ((units -= 4) < 0) break
+      bytes.push(
+        codePoint >> 0x12 | 0xF0,
+        codePoint >> 0xC & 0x3F | 0x80,
+        codePoint >> 0x6 & 0x3F | 0x80,
+        codePoint & 0x3F | 0x80
+      )
+    } else {
+      throw new Error('Invalid code point')
+    }
+  }
+
+  return bytes
+}
+
+function asciiToBytes (str) {
+  var byteArray = []
+  for (var i = 0; i < str.length; ++i) {
+    // Node's code seems to be doing this and not & 0x7F..
+    byteArray.push(str.charCodeAt(i) & 0xFF)
+  }
+  return byteArray
+}
+
+function utf16leToBytes (str, units) {
+  var c, hi, lo
+  var byteArray = []
+  for (var i = 0; i < str.length; ++i) {
+    if ((units -= 2) < 0) break
+
+    c = str.charCodeAt(i)
+    hi = c >> 8
+    lo = c % 256
+    byteArray.push(lo)
+    byteArray.push(hi)
+  }
+
+  return byteArray
+}
+
+function base64ToBytes (str) {
+  return base64.toByteArray(base64clean(str))
+}
+
+function blitBuffer (src, dst, offset, length) {
+  for (var i = 0; i < length; ++i) {
+    if ((i + offset >= dst.length) || (i >= src.length)) break
+    dst[i + offset] = src[i]
+  }
+  return i
+}
+
+// ArrayBuffer or Uint8Array objects from other contexts (i.e. iframes) do not pass
+// the `instanceof` check but they should be treated as of that type.
+// See: https://github.com/feross/buffer/issues/166
+function isInstance (obj, type) {
+  return obj instanceof type ||
+    (obj != null && obj.constructor != null && obj.constructor.name != null &&
+      obj.constructor.name === type.name)
+}
+function numberIsNaN (obj) {
+  // For IE11 support
+  return obj !== obj // eslint-disable-line no-self-compare
+}
+
+// Create lookup table for `toString('hex')`
+// See: https://github.com/feross/buffer/issues/219
+var hexSliceLookupTable = (function () {
+  var alphabet = '0123456789abcdef'
+  var table = new Array(256)
+  for (var i = 0; i < 16; ++i) {
+    var i16 = i * 16
+    for (var j = 0; j < 16; ++j) {
+      table[i16 + j] = alphabet[i] + alphabet[j]
+    }
+  }
+  return table
+})()
+
+}).call(this,require("buffer").Buffer)
+},{"base64-js":1,"buffer":3,"ieee754":6}],4:[function(require,module,exports){
+(function (Buffer){
+// Copyright Joyent, Inc. and other Node contributors.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to permit
+// persons to whom the Software is furnished to do so, subject to the
+// following conditions:
+//
+// The above copyright notice and this permission notice shall be included
+// in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+// USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+// NOTE: These type checking functions intentionally don't use `instanceof`
+// because it is fragile and can be easily faked with `Object.create()`.
+
+function isArray(arg) {
+  if (Array.isArray) {
+    return Array.isArray(arg);
+  }
+  return objectToString(arg) === '[object Array]';
+}
+exports.isArray = isArray;
+
+function isBoolean(arg) {
+  return typeof arg === 'boolean';
+}
+exports.isBoolean = isBoolean;
+
+function isNull(arg) {
+  return arg === null;
+}
+exports.isNull = isNull;
+
+function isNullOrUndefined(arg) {
+  return arg == null;
+}
+exports.isNullOrUndefined = isNullOrUndefined;
+
+function isNumber(arg) {
+  return typeof arg === 'number';
+}
+exports.isNumber = isNumber;
+
+function isString(arg) {
+  return typeof arg === 'string';
+}
+exports.isString = isString;
+
+function isSymbol(arg) {
+  return typeof arg === 'symbol';
+}
+exports.isSymbol = isSymbol;
+
+function isUndefined(arg) {
+  return arg === void 0;
+}
+exports.isUndefined = isUndefined;
+
+function isRegExp(re) {
+  return objectToString(re) === '[object RegExp]';
+}
+exports.isRegExp = isRegExp;
+
+function isObject(arg) {
+  return typeof arg === 'object' && arg !== null;
+}
+exports.isObject = isObject;
+
+function isDate(d) {
+  return objectToString(d) === '[object Date]';
+}
+exports.isDate = isDate;
+
+function isError(e) {
+  return (objectToString(e) === '[object Error]' || e instanceof Error);
+}
+exports.isError = isError;
+
+function isFunction(arg) {
+  return typeof arg === 'function';
+}
+exports.isFunction = isFunction;
+
+function isPrimitive(arg) {
+  return arg === null ||
+         typeof arg === 'boolean' ||
+         typeof arg === 'number' ||
+         typeof arg === 'string' ||
+         typeof arg === 'symbol' ||  // ES6 symbol
+         typeof arg === 'undefined';
+}
+exports.isPrimitive = isPrimitive;
+
+exports.isBuffer = Buffer.isBuffer;
+
+function objectToString(o) {
+  return Object.prototype.toString.call(o);
+}
+
+}).call(this,{"isBuffer":require("../../is-buffer/index.js")})
+},{"../../is-buffer/index.js":8}],5:[function(require,module,exports){
+// Copyright Joyent, Inc. and other Node contributors.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to permit
+// persons to whom the Software is furnished to do so, subject to the
+// following conditions:
+//
+// The above copyright notice and this permission notice shall be included
+// in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+// USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+var objectCreate = Object.create || objectCreatePolyfill
+var objectKeys = Object.keys || objectKeysPolyfill
+var bind = Function.prototype.bind || functionBindPolyfill
+
+function EventEmitter() {
+  if (!this._events || !Object.prototype.hasOwnProperty.call(this, '_events')) {
+    this._events = objectCreate(null);
+    this._eventsCount = 0;
+  }
+
+  this._maxListeners = this._maxListeners || undefined;
+}
+module.exports = EventEmitter;
+
+// Backwards-compat with node 0.10.x
+EventEmitter.EventEmitter = EventEmitter;
+
+EventEmitter.prototype._events = undefined;
+EventEmitter.prototype._maxListeners = undefined;
+
+// By default EventEmitters will print a warning if more than 10 listeners are
+// added to it. This is a useful default which helps finding memory leaks.
+var defaultMaxListeners = 10;
+
+var hasDefineProperty;
+try {
+  var o = {};
+  if (Object.defineProperty) Object.defineProperty(o, 'x', { value: 0 });
+  hasDefineProperty = o.x === 0;
+} catch (err) { hasDefineProperty = false }
+if (hasDefineProperty) {
+  Object.defineProperty(EventEmitter, 'defaultMaxListeners', {
+    enumerable: true,
+    get: function() {
+      return defaultMaxListeners;
+    },
+    set: function(arg) {
+      // check whether the input is a positive number (whose value is zero or
+      // greater and not a NaN).
+      if (typeof arg !== 'number' || arg < 0 || arg !== arg)
+        throw new TypeError('"defaultMaxListeners" must be a positive number');
+      defaultMaxListeners = arg;
+    }
+  });
+} else {
+  EventEmitter.defaultMaxListeners = defaultMaxListeners;
+}
+
+// Obviously not all Emitters should be limited to 10. This function allows
+// that to be increased. Set to zero for unlimited.
+EventEmitter.prototype.setMaxListeners = function setMaxListeners(n) {
+  if (typeof n !== 'number' || n < 0 || isNaN(n))
+    throw new TypeError('"n" argument must be a positive number');
+  this._maxListeners = n;
+  return this;
+};
+
+function $getMaxListeners(that) {
+  if (that._maxListeners === undefined)
+    return EventEmitter.defaultMaxListeners;
+  return that._maxListeners;
+}
+
+EventEmitter.prototype.getMaxListeners = function getMaxListeners() {
+  return $getMaxListeners(this);
+};
+
+// These standalone emit* functions are used to optimize calling of event
+// handlers for fast cases because emit() itself often has a variable number of
+// arguments and can be deoptimized because of that. These functions always have
+// the same number of arguments and thus do not get deoptimized, so the code
+// inside them can execute faster.
+function emitNone(handler, isFn, self) {
+  if (isFn)
+    handler.call(self);
+  else {
+    var len = handler.length;
+    var listeners = arrayClone(handler, len);
+    for (var i = 0; i < len; ++i)
+      listeners[i].call(self);
+  }
+}
+function emitOne(handler, isFn, self, arg1) {
+  if (isFn)
+    handler.call(self, arg1);
+  else {
+    var len = handler.length;
+    var listeners = arrayClone(handler, len);
+    for (var i = 0; i < len; ++i)
+      listeners[i].call(self, arg1);
+  }
+}
+function emitTwo(handler, isFn, self, arg1, arg2) {
+  if (isFn)
+    handler.call(self, arg1, arg2);
+  else {
+    var len = handler.length;
+    var listeners = arrayClone(handler, len);
+    for (var i = 0; i < len; ++i)
+      listeners[i].call(self, arg1, arg2);
+  }
+}
+function emitThree(handler, isFn, self, arg1, arg2, arg3) {
+  if (isFn)
+    handler.call(self, arg1, arg2, arg3);
+  else {
+    var len = handler.length;
+    var listeners = arrayClone(handler, len);
+    for (var i = 0; i < len; ++i)
+      listeners[i].call(self, arg1, arg2, arg3);
+  }
+}
+
+function emitMany(handler, isFn, self, args) {
+  if (isFn)
+    handler.apply(self, args);
+  else {
+    var len = handler.length;
+    var listeners = arrayClone(handler, len);
+    for (var i = 0; i < len; ++i)
+      listeners[i].apply(self, args);
+  }
+}
+
+EventEmitter.prototype.emit = function emit(type) {
+  var er, handler, len, args, i, events;
+  var doError = (type === 'error');
+
+  events = this._events;
+  if (events)
+    doError = (doError && events.error == null);
+  else if (!doError)
+    return false;
+
+  // If there is no 'error' event listener then throw.
+  if (doError) {
+    if (arguments.length > 1)
+      er = arguments[1];
+    if (er instanceof Error) {
+      throw er; // Unhandled 'error' event
+    } else {
+      // At least give some kind of context to the user
+      var err = new Error('Unhandled "error" event. (' + er + ')');
+      err.context = er;
+      throw err;
+    }
+    return false;
+  }
+
+  handler = events[type];
+
+  if (!handler)
+    return false;
+
+  var isFn = typeof handler === 'function';
+  len = arguments.length;
+  switch (len) {
+      // fast cases
+    case 1:
+      emitNone(handler, isFn, this);
+      break;
+    case 2:
+      emitOne(handler, isFn, this, arguments[1]);
+      break;
+    case 3:
+      emitTwo(handler, isFn, this, arguments[1], arguments[2]);
+      break;
+    case 4:
+      emitThree(handler, isFn, this, arguments[1], arguments[2], arguments[3]);
+      break;
+      // slower
+    default:
+      args = new Array(len - 1);
+      for (i = 1; i < len; i++)
+        args[i - 1] = arguments[i];
+      emitMany(handler, isFn, this, args);
+  }
+
+  return true;
+};
+
+function _addListener(target, type, listener, prepend) {
+  var m;
+  var events;
+  var existing;
+
+  if (typeof listener !== 'function')
+    throw new TypeError('"listener" argument must be a function');
+
+  events = target._events;
+  if (!events) {
+    events = target._events = objectCreate(null);
+    target._eventsCount = 0;
+  } else {
+    // To avoid recursion in the case that type === "newListener"! Before
+    // adding it to the listeners, first emit "newListener".
+    if (events.newListener) {
+      target.emit('newListener', type,
+          listener.listener ? listener.listener : listener);
+
+      // Re-assign `events` because a newListener handler could have caused the
+      // this._events to be assigned to a new object
+      events = target._events;
+    }
+    existing = events[type];
+  }
+
+  if (!existing) {
+    // Optimize the case of one listener. Don't need the extra array object.
+    existing = events[type] = listener;
+    ++target._eventsCount;
+  } else {
+    if (typeof existing === 'function') {
+      // Adding the second element, need to change to array.
+      existing = events[type] =
+          prepend ? [listener, existing] : [existing, listener];
+    } else {
+      // If we've already got an array, just append.
+      if (prepend) {
+        existing.unshift(listener);
+      } else {
+        existing.push(listener);
+      }
+    }
+
+    // Check for listener leak
+    if (!existing.warned) {
+      m = $getMaxListeners(target);
+      if (m && m > 0 && existing.length > m) {
+        existing.warned = true;
+        var w = new Error('Possible EventEmitter memory leak detected. ' +
+            existing.length + ' "' + String(type) + '" listeners ' +
+            'added. Use emitter.setMaxListeners() to ' +
+            'increase limit.');
+        w.name = 'MaxListenersExceededWarning';
+        w.emitter = target;
+        w.type = type;
+        w.count = existing.length;
+        if (typeof console === 'object' && console.warn) {
+          console.warn('%s: %s', w.name, w.message);
+        }
+      }
+    }
+  }
+
+  return target;
+}
+
+EventEmitter.prototype.addListener = function addListener(type, listener) {
+  return _addListener(this, type, listener, false);
+};
+
+EventEmitter.prototype.on = EventEmitter.prototype.addListener;
+
+EventEmitter.prototype.prependListener =
+    function prependListener(type, listener) {
+      return _addListener(this, type, listener, true);
+    };
+
+function onceWrapper() {
+  if (!this.fired) {
+    this.target.removeListener(this.type, this.wrapFn);
+    this.fired = true;
+    switch (arguments.length) {
+      case 0:
+        return this.listener.call(this.target);
+      case 1:
+        return this.listener.call(this.target, arguments[0]);
+      case 2:
+        return this.listener.call(this.target, arguments[0], arguments[1]);
+      case 3:
+        return this.listener.call(this.target, arguments[0], arguments[1],
+            arguments[2]);
+      default:
+        var args = new Array(arguments.length);
+        for (var i = 0; i < args.length; ++i)
+          args[i] = arguments[i];
+        this.listener.apply(this.target, args);
+    }
+  }
+}
+
+function _onceWrap(target, type, listener) {
+  var state = { fired: false, wrapFn: undefined, target: target, type: type, listener: listener };
+  var wrapped = bind.call(onceWrapper, state);
+  wrapped.listener = listener;
+  state.wrapFn = wrapped;
+  return wrapped;
+}
+
+EventEmitter.prototype.once = function once(type, listener) {
+  if (typeof listener !== 'function')
+    throw new TypeError('"listener" argument must be a function');
+  this.on(type, _onceWrap(this, type, listener));
+  return this;
+};
+
+EventEmitter.prototype.prependOnceListener =
+    function prependOnceListener(type, listener) {
+      if (typeof listener !== 'function')
+        throw new TypeError('"listener" argument must be a function');
+      this.prependListener(type, _onceWrap(this, type, listener));
+      return this;
+    };
+
+// Emits a 'removeListener' event if and only if the listener was removed.
+EventEmitter.prototype.removeListener =
+    function removeListener(type, listener) {
+      var list, events, position, i, originalListener;
+
+      if (typeof listener !== 'function')
+        throw new TypeError('"listener" argument must be a function');
+
+      events = this._events;
+      if (!events)
+        return this;
+
+      list = events[type];
+      if (!list)
+        return this;
+
+      if (list === listener || list.listener === listener) {
+        if (--this._eventsCount === 0)
+          this._events = objectCreate(null);
+        else {
+          delete events[type];
+          if (events.removeListener)
+            this.emit('removeListener', type, list.listener || listener);
+        }
+      } else if (typeof list !== 'function') {
+        position = -1;
+
+        for (i = list.length - 1; i >= 0; i--) {
+          if (list[i] === listener || list[i].listener === listener) {
+            originalListener = list[i].listener;
+            position = i;
+            break;
+          }
+        }
+
+        if (position < 0)
+          return this;
+
+        if (position === 0)
+          list.shift();
+        else
+          spliceOne(list, position);
+
+        if (list.length === 1)
+          events[type] = list[0];
+
+        if (events.removeListener)
+          this.emit('removeListener', type, originalListener || listener);
+      }
+
+      return this;
+    };
+
+EventEmitter.prototype.removeAllListeners =
+    function removeAllListeners(type) {
+      var listeners, events, i;
+
+      events = this._events;
+      if (!events)
+        return this;
+
+      // not listening for removeListener, no need to emit
+      if (!events.removeListener) {
+        if (arguments.length === 0) {
+          this._events = objectCreate(null);
+          this._eventsCount = 0;
+        } else if (events[type]) {
+          if (--this._eventsCount === 0)
+            this._events = objectCreate(null);
+          else
+            delete events[type];
+        }
+        return this;
+      }
+
+      // emit removeListener for all listeners on all events
+      if (arguments.length === 0) {
+        var keys = objectKeys(events);
+        var key;
+        for (i = 0; i < keys.length; ++i) {
+          key = keys[i];
+          if (key === 'removeListener') continue;
+          this.removeAllListeners(key);
+        }
+        this.removeAllListeners('removeListener');
+        this._events = objectCreate(null);
+        this._eventsCount = 0;
+        return this;
+      }
+
+      listeners = events[type];
+
+      if (typeof listeners === 'function') {
+        this.removeListener(type, listeners);
+      } else if (listeners) {
+        // LIFO order
+        for (i = listeners.length - 1; i >= 0; i--) {
+          this.removeListener(type, listeners[i]);
+        }
+      }
+
+      return this;
+    };
+
+function _listeners(target, type, unwrap) {
+  var events = target._events;
+
+  if (!events)
+    return [];
+
+  var evlistener = events[type];
+  if (!evlistener)
+    return [];
+
+  if (typeof evlistener === 'function')
+    return unwrap ? [evlistener.listener || evlistener] : [evlistener];
+
+  return unwrap ? unwrapListeners(evlistener) : arrayClone(evlistener, evlistener.length);
+}
+
+EventEmitter.prototype.listeners = function listeners(type) {
+  return _listeners(this, type, true);
+};
+
+EventEmitter.prototype.rawListeners = function rawListeners(type) {
+  return _listeners(this, type, false);
+};
+
+EventEmitter.listenerCount = function(emitter, type) {
+  if (typeof emitter.listenerCount === 'function') {
+    return emitter.listenerCount(type);
+  } else {
+    return listenerCount.call(emitter, type);
+  }
+};
+
+EventEmitter.prototype.listenerCount = listenerCount;
+function listenerCount(type) {
+  var events = this._events;
+
+  if (events) {
+    var evlistener = events[type];
+
+    if (typeof evlistener === 'function') {
+      return 1;
+    } else if (evlistener) {
+      return evlistener.length;
+    }
+  }
+
+  return 0;
+}
+
+EventEmitter.prototype.eventNames = function eventNames() {
+  return this._eventsCount > 0 ? Reflect.ownKeys(this._events) : [];
+};
+
+// About 1.5x faster than the two-arg version of Array#splice().
+function spliceOne(list, index) {
+  for (var i = index, k = i + 1, n = list.length; k < n; i += 1, k += 1)
+    list[i] = list[k];
+  list.pop();
+}
+
+function arrayClone(arr, n) {
+  var copy = new Array(n);
+  for (var i = 0; i < n; ++i)
+    copy[i] = arr[i];
+  return copy;
+}
+
+function unwrapListeners(arr) {
+  var ret = new Array(arr.length);
+  for (var i = 0; i < ret.length; ++i) {
+    ret[i] = arr[i].listener || arr[i];
+  }
+  return ret;
+}
+
+function objectCreatePolyfill(proto) {
+  var F = function() {};
+  F.prototype = proto;
+  return new F;
+}
+function objectKeysPolyfill(obj) {
+  var keys = [];
+  for (var k in obj) if (Object.prototype.hasOwnProperty.call(obj, k)) {
+    keys.push(k);
+  }
+  return k;
+}
+function functionBindPolyfill(context) {
+  var fn = this;
+  return function () {
+    return fn.apply(context, arguments);
+  };
+}
+
+},{}],6:[function(require,module,exports){
+exports.read = function (buffer, offset, isLE, mLen, nBytes) {
+  var e, m
+  var eLen = (nBytes * 8) - mLen - 1
+  var eMax = (1 << eLen) - 1
+  var eBias = eMax >> 1
+  var nBits = -7
+  var i = isLE ? (nBytes - 1) : 0
+  var d = isLE ? -1 : 1
+  var s = buffer[offset + i]
+
+  i += d
+
+  e = s & ((1 << (-nBits)) - 1)
+  s >>= (-nBits)
+  nBits += eLen
+  for (; nBits > 0; e = (e * 256) + buffer[offset + i], i += d, nBits -= 8) {}
+
+  m = e & ((1 << (-nBits)) - 1)
+  e >>= (-nBits)
+  nBits += mLen
+  for (; nBits > 0; m = (m * 256) + buffer[offset + i], i += d, nBits -= 8) {}
+
+  if (e === 0) {
+    e = 1 - eBias
+  } else if (e === eMax) {
+    return m ? NaN : ((s ? -1 : 1) * Infinity)
+  } else {
+    m = m + Math.pow(2, mLen)
+    e = e - eBias
+  }
+  return (s ? -1 : 1) * m * Math.pow(2, e - mLen)
+}
+
+exports.write = function (buffer, value, offset, isLE, mLen, nBytes) {
+  var e, m, c
+  var eLen = (nBytes * 8) - mLen - 1
+  var eMax = (1 << eLen) - 1
+  var eBias = eMax >> 1
+  var rt = (mLen === 23 ? Math.pow(2, -24) - Math.pow(2, -77) : 0)
+  var i = isLE ? 0 : (nBytes - 1)
+  var d = isLE ? 1 : -1
+  var s = value < 0 || (value === 0 && 1 / value < 0) ? 1 : 0
+
+  value = Math.abs(value)
+
+  if (isNaN(value) || value === Infinity) {
+    m = isNaN(value) ? 1 : 0
+    e = eMax
+  } else {
+    e = Math.floor(Math.log(value) / Math.LN2)
+    if (value * (c = Math.pow(2, -e)) < 1) {
+      e--
+      c *= 2
+    }
+    if (e + eBias >= 1) {
+      value += rt / c
+    } else {
+      value += rt * Math.pow(2, 1 - eBias)
+    }
+    if (value * c >= 2) {
+      e++
+      c /= 2
+    }
+
+    if (e + eBias >= eMax) {
+      m = 0
+      e = eMax
+    } else if (e + eBias >= 1) {
+      m = ((value * c) - 1) * Math.pow(2, mLen)
+      e = e + eBias
+    } else {
+      m = value * Math.pow(2, eBias - 1) * Math.pow(2, mLen)
+      e = 0
+    }
+  }
+
+  for (; mLen >= 8; buffer[offset + i] = m & 0xff, i += d, m /= 256, mLen -= 8) {}
+
+  e = (e << mLen) | m
+  eLen += mLen
+  for (; eLen > 0; buffer[offset + i] = e & 0xff, i += d, e /= 256, eLen -= 8) {}
+
+  buffer[offset + i - d] |= s * 128
+}
+
+},{}],7:[function(require,module,exports){
+if (typeof Object.create === 'function') {
+  // implementation from standard node.js 'util' module
+  module.exports = function inherits(ctor, superCtor) {
+    if (superCtor) {
+      ctor.super_ = superCtor
+      ctor.prototype = Object.create(superCtor.prototype, {
+        constructor: {
+          value: ctor,
+          enumerable: false,
+          writable: true,
+          configurable: true
+        }
+      })
+    }
+  };
+} else {
+  // old school shim for old browsers
+  module.exports = function inherits(ctor, superCtor) {
+    if (superCtor) {
+      ctor.super_ = superCtor
+      var TempCtor = function () {}
+      TempCtor.prototype = superCtor.prototype
+      ctor.prototype = new TempCtor()
+      ctor.prototype.constructor = ctor
+    }
+  }
+}
+
+},{}],8:[function(require,module,exports){
+/*!
+ * Determine if an object is a Buffer
+ *
+ * @author   Feross Aboukhadijeh <https://feross.org>
+ * @license  MIT
+ */
+
+// The _isBuffer check is for Safari 5-7 support, because it's missing
+// Object.prototype.constructor. Remove this eventually
+module.exports = function (obj) {
+  return obj != null && (isBuffer(obj) || isSlowBuffer(obj) || !!obj._isBuffer)
+}
+
+function isBuffer (obj) {
+  return !!obj.constructor && typeof obj.constructor.isBuffer === 'function' && obj.constructor.isBuffer(obj)
+}
+
+// For Node v0.10 support. Remove this eventually.
+function isSlowBuffer (obj) {
+  return typeof obj.readFloatLE === 'function' && typeof obj.slice === 'function' && isBuffer(obj.slice(0, 0))
+}
+
+},{}],9:[function(require,module,exports){
+var toString = {}.toString;
+
+module.exports = Array.isArray || function (arr) {
+  return toString.call(arr) == '[object Array]';
+};
+
+},{}],10:[function(require,module,exports){
+(function (process){
+// .dirname, .basename, and .extname methods are extracted from Node.js v8.11.1,
+// backported and transplited with Babel, with backwards-compat fixes
+
+// Copyright Joyent, Inc. and other Node contributors.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to permit
+// persons to whom the Software is furnished to do so, subject to the
+// following conditions:
+//
+// The above copyright notice and this permission notice shall be included
+// in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+// USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 // resolves . and .. elements in a path array with directory names there
 // must be no slashes, empty elements, or device names (c:\) in the array
@@ -211,9 +2771,9 @@ require.define("path",function(require,module,exports,__dirname,__filename,proce
 function normalizeArray(parts, allowAboveRoot) {
   // if the path tries to go above the root, `up` ends up > 0
   var up = 0;
-  for (var i = parts.length; i >= 0; i--) {
+  for (var i = parts.length - 1; i >= 0; i--) {
     var last = parts[i];
-    if (last == '.') {
+    if (last === '.') {
       parts.splice(i, 1);
     } else if (last === '..') {
       parts.splice(i, 1);
@@ -234,35 +2794,31 @@ function normalizeArray(parts, allowAboveRoot) {
   return parts;
 }
 
-// Regex to split a filename into [*, dir, basename, ext]
-// posix version
-var splitPathRe = /^(.+\/(?!$)|\/)?((?:.+?)?(\.[^.]*)?)$/;
-
 // path.resolve([from ...], to)
 // posix version
 exports.resolve = function() {
-var resolvedPath = '',
-    resolvedAbsolute = false;
+  var resolvedPath = '',
+      resolvedAbsolute = false;
 
-for (var i = arguments.length; i >= -1 && !resolvedAbsolute; i--) {
-  var path = (i >= 0)
-      ? arguments[i]
-      : process.cwd();
+  for (var i = arguments.length - 1; i >= -1 && !resolvedAbsolute; i--) {
+    var path = (i >= 0) ? arguments[i] : process.cwd();
 
-  // Skip empty and invalid entries
-  if (typeof path !== 'string' || !path) {
-    continue;
+    // Skip empty and invalid entries
+    if (typeof path !== 'string') {
+      throw new TypeError('Arguments to path.resolve must be strings');
+    } else if (!path) {
+      continue;
+    }
+
+    resolvedPath = path + '/' + resolvedPath;
+    resolvedAbsolute = path.charAt(0) === '/';
   }
 
-  resolvedPath = path + '/' + resolvedPath;
-  resolvedAbsolute = path.charAt(0) === '/';
-}
+  // At this point the path should be resolved to a full absolute path, but
+  // handle relative paths to be safe (might happen when process.cwd() fails)
 
-// At this point the path should be resolved to a full absolute path, but
-// handle relative paths to be safe (might happen when process.cwd() fails)
-
-// Normalize the path
-resolvedPath = normalizeArray(filter(resolvedPath.split('/'), function(p) {
+  // Normalize the path
+  resolvedPath = normalizeArray(filter(resolvedPath.split('/'), function(p) {
     return !!p;
   }), !resolvedAbsolute).join('/');
 
@@ -272,11 +2828,11 @@ resolvedPath = normalizeArray(filter(resolvedPath.split('/'), function(p) {
 // path.normalize(path)
 // posix version
 exports.normalize = function(path) {
-var isAbsolute = path.charAt(0) === '/',
-    trailingSlash = path.slice(-1) === '/';
+  var isAbsolute = exports.isAbsolute(path),
+      trailingSlash = substr(path, -1) === '/';
 
-// Normalize the path
-path = normalizeArray(filter(path.split('/'), function(p) {
+  // Normalize the path
+  path = normalizeArray(filter(path.split('/'), function(p) {
     return !!p;
   }), !isAbsolute).join('/');
 
@@ -286,1279 +2842,7535 @@ path = normalizeArray(filter(path.split('/'), function(p) {
   if (path && trailingSlash) {
     path += '/';
   }
-  
+
   return (isAbsolute ? '/' : '') + path;
 };
 
+// posix version
+exports.isAbsolute = function(path) {
+  return path.charAt(0) === '/';
+};
 
 // posix version
 exports.join = function() {
   var paths = Array.prototype.slice.call(arguments, 0);
   return exports.normalize(filter(paths, function(p, index) {
-    return p && typeof p === 'string';
+    if (typeof p !== 'string') {
+      throw new TypeError('Arguments to path.join must be strings');
+    }
+    return p;
   }).join('/'));
 };
 
 
-exports.dirname = function(path) {
-  var dir = splitPathRe.exec(path)[1] || '';
-  var isWindows = false;
-  if (!dir) {
-    // No dirname
-    return '.';
-  } else if (dir.length === 1 ||
-      (isWindows && dir.length <= 3 && dir.charAt(1) === ':')) {
-    // It is just a slash or a drive letter with a slash
-    return dir;
-  } else {
-    // It is a full dirname, strip trailing slash
-    return dir.substring(0, dir.length - 1);
+// path.relative(from, to)
+// posix version
+exports.relative = function(from, to) {
+  from = exports.resolve(from).substr(1);
+  to = exports.resolve(to).substr(1);
+
+  function trim(arr) {
+    var start = 0;
+    for (; start < arr.length; start++) {
+      if (arr[start] !== '') break;
+    }
+
+    var end = arr.length - 1;
+    for (; end >= 0; end--) {
+      if (arr[end] !== '') break;
+    }
+
+    if (start > end) return [];
+    return arr.slice(start, end - start + 1);
   }
+
+  var fromParts = trim(from.split('/'));
+  var toParts = trim(to.split('/'));
+
+  var length = Math.min(fromParts.length, toParts.length);
+  var samePartsLength = length;
+  for (var i = 0; i < length; i++) {
+    if (fromParts[i] !== toParts[i]) {
+      samePartsLength = i;
+      break;
+    }
+  }
+
+  var outputParts = [];
+  for (var i = samePartsLength; i < fromParts.length; i++) {
+    outputParts.push('..');
+  }
+
+  outputParts = outputParts.concat(toParts.slice(samePartsLength));
+
+  return outputParts.join('/');
 };
 
+exports.sep = '/';
+exports.delimiter = ':';
 
-exports.basename = function(path, ext) {
-  var f = splitPathRe.exec(path)[2] || '';
-  // TODO: make this comparison case-insensitive on windows?
+exports.dirname = function (path) {
+  if (typeof path !== 'string') path = path + '';
+  if (path.length === 0) return '.';
+  var code = path.charCodeAt(0);
+  var hasRoot = code === 47 /*/*/;
+  var end = -1;
+  var matchedSlash = true;
+  for (var i = path.length - 1; i >= 1; --i) {
+    code = path.charCodeAt(i);
+    if (code === 47 /*/*/) {
+        if (!matchedSlash) {
+          end = i;
+          break;
+        }
+      } else {
+      // We saw the first non-path separator
+      matchedSlash = false;
+    }
+  }
+
+  if (end === -1) return hasRoot ? '/' : '.';
+  if (hasRoot && end === 1) {
+    // return '//';
+    // Backwards-compat fix:
+    return '/';
+  }
+  return path.slice(0, end);
+};
+
+function basename(path) {
+  if (typeof path !== 'string') path = path + '';
+
+  var start = 0;
+  var end = -1;
+  var matchedSlash = true;
+  var i;
+
+  for (i = path.length - 1; i >= 0; --i) {
+    if (path.charCodeAt(i) === 47 /*/*/) {
+        // If we reached a path separator that was not part of a set of path
+        // separators at the end of the string, stop now
+        if (!matchedSlash) {
+          start = i + 1;
+          break;
+        }
+      } else if (end === -1) {
+      // We saw the first non-path separator, mark this as the end of our
+      // path component
+      matchedSlash = false;
+      end = i + 1;
+    }
+  }
+
+  if (end === -1) return '';
+  return path.slice(start, end);
+}
+
+// Uses a mixed approach for backwards-compatibility, as ext behavior changed
+// in new Node.js versions, so only basename() above is backported here
+exports.basename = function (path, ext) {
+  var f = basename(path);
   if (ext && f.substr(-1 * ext.length) === ext) {
     f = f.substr(0, f.length - ext.length);
   }
   return f;
 };
 
+exports.extname = function (path) {
+  if (typeof path !== 'string') path = path + '';
+  var startDot = -1;
+  var startPart = 0;
+  var end = -1;
+  var matchedSlash = true;
+  // Track the state of characters (if any) we see before our first dot and
+  // after any path separator we find
+  var preDotState = 0;
+  for (var i = path.length - 1; i >= 0; --i) {
+    var code = path.charCodeAt(i);
+    if (code === 47 /*/*/) {
+        // If we reached a path separator that was not part of a set of path
+        // separators at the end of the string, stop now
+        if (!matchedSlash) {
+          startPart = i + 1;
+          break;
+        }
+        continue;
+      }
+    if (end === -1) {
+      // We saw the first non-path separator, mark this as the end of our
+      // extension
+      matchedSlash = false;
+      end = i + 1;
+    }
+    if (code === 46 /*.*/) {
+        // If this is our first dot, mark it as the start of our extension
+        if (startDot === -1)
+          startDot = i;
+        else if (preDotState !== 1)
+          preDotState = 1;
+    } else if (startDot !== -1) {
+      // We saw a non-dot and non-path separator before our dot, so we should
+      // have a good chance at having a non-empty extension
+      preDotState = -1;
+    }
+  }
 
-exports.extname = function(path) {
-  return splitPathRe.exec(path)[3] || '';
+  if (startDot === -1 || end === -1 ||
+      // We saw a non-dot character immediately before the dot
+      preDotState === 0 ||
+      // The (right-most) trimmed path component is exactly '..'
+      preDotState === 1 && startDot === end - 1 && startDot === startPart + 1) {
+    return '';
+  }
+  return path.slice(startDot, end);
 };
 
-});
+function filter (xs, f) {
+    if (xs.filter) return xs.filter(f);
+    var res = [];
+    for (var i = 0; i < xs.length; i++) {
+        if (f(xs[i], i, xs)) res.push(xs[i]);
+    }
+    return res;
+}
 
-require.define("__browserify_process",function(require,module,exports,__dirname,__filename,process,global){var process = module.exports = {};
+// String.prototype.substr - negative index don't work in IE8
+var substr = 'ab'.substr(-1) === 'b'
+    ? function (str, start, len) { return str.substr(start, len) }
+    : function (str, start, len) {
+        if (start < 0) start = str.length + start;
+        return str.substr(start, len);
+    }
+;
 
-process.nextTick = (function () {
-    var canSetImmediate = typeof window !== 'undefined'
-        && window.setImmediate;
-    var canPost = typeof window !== 'undefined'
-        && window.postMessage && window.addEventListener
-    ;
+}).call(this,require('_process'))
+},{"_process":12}],11:[function(require,module,exports){
+(function (process){
+'use strict';
 
-    if (canSetImmediate) {
-        return function (f) { return window.setImmediate(f) };
+if (typeof process === 'undefined' ||
+    !process.version ||
+    process.version.indexOf('v0.') === 0 ||
+    process.version.indexOf('v1.') === 0 && process.version.indexOf('v1.8.') !== 0) {
+  module.exports = { nextTick: nextTick };
+} else {
+  module.exports = process
+}
+
+function nextTick(fn, arg1, arg2, arg3) {
+  if (typeof fn !== 'function') {
+    throw new TypeError('"callback" argument must be a function');
+  }
+  var len = arguments.length;
+  var args, i;
+  switch (len) {
+  case 0:
+  case 1:
+    return process.nextTick(fn);
+  case 2:
+    return process.nextTick(function afterTickOne() {
+      fn.call(null, arg1);
+    });
+  case 3:
+    return process.nextTick(function afterTickTwo() {
+      fn.call(null, arg1, arg2);
+    });
+  case 4:
+    return process.nextTick(function afterTickThree() {
+      fn.call(null, arg1, arg2, arg3);
+    });
+  default:
+    args = new Array(len - 1);
+    i = 0;
+    while (i < args.length) {
+      args[i++] = arguments[i];
+    }
+    return process.nextTick(function afterTick() {
+      fn.apply(null, args);
+    });
+  }
+}
+
+
+}).call(this,require('_process'))
+},{"_process":12}],12:[function(require,module,exports){
+// shim for using process in browser
+var process = module.exports = {};
+
+// cached from whatever global is present so that test runners that stub it
+// don't break things.  But we need to wrap it in a try catch in case it is
+// wrapped in strict mode code which doesn't define any globals.  It's inside a
+// function because try/catches deoptimize in certain engines.
+
+var cachedSetTimeout;
+var cachedClearTimeout;
+
+function defaultSetTimout() {
+    throw new Error('setTimeout has not been defined');
+}
+function defaultClearTimeout () {
+    throw new Error('clearTimeout has not been defined');
+}
+(function () {
+    try {
+        if (typeof setTimeout === 'function') {
+            cachedSetTimeout = setTimeout;
+        } else {
+            cachedSetTimeout = defaultSetTimout;
+        }
+    } catch (e) {
+        cachedSetTimeout = defaultSetTimout;
+    }
+    try {
+        if (typeof clearTimeout === 'function') {
+            cachedClearTimeout = clearTimeout;
+        } else {
+            cachedClearTimeout = defaultClearTimeout;
+        }
+    } catch (e) {
+        cachedClearTimeout = defaultClearTimeout;
+    }
+} ())
+function runTimeout(fun) {
+    if (cachedSetTimeout === setTimeout) {
+        //normal enviroments in sane situations
+        return setTimeout(fun, 0);
+    }
+    // if setTimeout wasn't available but was latter defined
+    if ((cachedSetTimeout === defaultSetTimout || !cachedSetTimeout) && setTimeout) {
+        cachedSetTimeout = setTimeout;
+        return setTimeout(fun, 0);
+    }
+    try {
+        // when when somebody has screwed with setTimeout but no I.E. maddness
+        return cachedSetTimeout(fun, 0);
+    } catch(e){
+        try {
+            // When we are in I.E. but the script has been evaled so I.E. doesn't trust the global object when called normally
+            return cachedSetTimeout.call(null, fun, 0);
+        } catch(e){
+            // same as above but when it's a version of I.E. that must have the global object for 'this', hopfully our context correct otherwise it will throw a global error
+            return cachedSetTimeout.call(this, fun, 0);
+        }
     }
 
-    if (canPost) {
-        var queue = [];
-        window.addEventListener('message', function (ev) {
-            if (ev.source === window && ev.data === 'browserify-tick') {
-                ev.stopPropagation();
-                if (queue.length > 0) {
-                    var fn = queue.shift();
-                    fn();
-                }
+
+}
+function runClearTimeout(marker) {
+    if (cachedClearTimeout === clearTimeout) {
+        //normal enviroments in sane situations
+        return clearTimeout(marker);
+    }
+    // if clearTimeout wasn't available but was latter defined
+    if ((cachedClearTimeout === defaultClearTimeout || !cachedClearTimeout) && clearTimeout) {
+        cachedClearTimeout = clearTimeout;
+        return clearTimeout(marker);
+    }
+    try {
+        // when when somebody has screwed with setTimeout but no I.E. maddness
+        return cachedClearTimeout(marker);
+    } catch (e){
+        try {
+            // When we are in I.E. but the script has been evaled so I.E. doesn't  trust the global object when called normally
+            return cachedClearTimeout.call(null, marker);
+        } catch (e){
+            // same as above but when it's a version of I.E. that must have the global object for 'this', hopfully our context correct otherwise it will throw a global error.
+            // Some versions of I.E. have different rules for clearTimeout vs setTimeout
+            return cachedClearTimeout.call(this, marker);
+        }
+    }
+
+
+
+}
+var queue = [];
+var draining = false;
+var currentQueue;
+var queueIndex = -1;
+
+function cleanUpNextTick() {
+    if (!draining || !currentQueue) {
+        return;
+    }
+    draining = false;
+    if (currentQueue.length) {
+        queue = currentQueue.concat(queue);
+    } else {
+        queueIndex = -1;
+    }
+    if (queue.length) {
+        drainQueue();
+    }
+}
+
+function drainQueue() {
+    if (draining) {
+        return;
+    }
+    var timeout = runTimeout(cleanUpNextTick);
+    draining = true;
+
+    var len = queue.length;
+    while(len) {
+        currentQueue = queue;
+        queue = [];
+        while (++queueIndex < len) {
+            if (currentQueue) {
+                currentQueue[queueIndex].run();
             }
-        }, true);
-
-        return function nextTick(fn) {
-            queue.push(fn);
-            window.postMessage('browserify-tick', '*');
-        };
+        }
+        queueIndex = -1;
+        len = queue.length;
     }
+    currentQueue = null;
+    draining = false;
+    runClearTimeout(timeout);
+}
 
-    return function nextTick(fn) {
-        setTimeout(fn, 0);
-    };
-})();
+process.nextTick = function (fun) {
+    var args = new Array(arguments.length - 1);
+    if (arguments.length > 1) {
+        for (var i = 1; i < arguments.length; i++) {
+            args[i - 1] = arguments[i];
+        }
+    }
+    queue.push(new Item(fun, args));
+    if (queue.length === 1 && !draining) {
+        runTimeout(drainQueue);
+    }
+};
 
+// v8 likes predictible objects
+function Item(fun, array) {
+    this.fun = fun;
+    this.array = array;
+}
+Item.prototype.run = function () {
+    this.fun.apply(null, this.array);
+};
 process.title = 'browser';
 process.browser = true;
 process.env = {};
 process.argv = [];
+process.version = ''; // empty string to avoid regexp issues
+process.versions = {};
+
+function noop() {}
+
+process.on = noop;
+process.addListener = noop;
+process.once = noop;
+process.off = noop;
+process.removeListener = noop;
+process.removeAllListeners = noop;
+process.emit = noop;
+process.prependListener = noop;
+process.prependOnceListener = noop;
+
+process.listeners = function (name) { return [] }
 
 process.binding = function (name) {
-    if (name === 'evals') return (require)('vm')
-    else throw new Error('No such module. (Possibly not yet loaded)')
+    throw new Error('process.binding is not supported');
+};
+
+process.cwd = function () { return '/' };
+process.chdir = function (dir) {
+    throw new Error('process.chdir is not supported');
+};
+process.umask = function() { return 0; };
+
+},{}],13:[function(require,module,exports){
+module.exports = require('./lib/_stream_duplex.js');
+
+},{"./lib/_stream_duplex.js":14}],14:[function(require,module,exports){
+// Copyright Joyent, Inc. and other Node contributors.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to permit
+// persons to whom the Software is furnished to do so, subject to the
+// following conditions:
+//
+// The above copyright notice and this permission notice shall be included
+// in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+// USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+// a duplex stream is just a stream that is both readable and writable.
+// Since JS doesn't have multiple prototypal inheritance, this class
+// prototypally inherits from Readable, and then parasitically from
+// Writable.
+
+'use strict';
+
+/*<replacement>*/
+
+var pna = require('process-nextick-args');
+/*</replacement>*/
+
+/*<replacement>*/
+var objectKeys = Object.keys || function (obj) {
+  var keys = [];
+  for (var key in obj) {
+    keys.push(key);
+  }return keys;
+};
+/*</replacement>*/
+
+module.exports = Duplex;
+
+/*<replacement>*/
+var util = require('core-util-is');
+util.inherits = require('inherits');
+/*</replacement>*/
+
+var Readable = require('./_stream_readable');
+var Writable = require('./_stream_writable');
+
+util.inherits(Duplex, Readable);
+
+{
+  // avoid scope creep, the keys array can then be collected
+  var keys = objectKeys(Writable.prototype);
+  for (var v = 0; v < keys.length; v++) {
+    var method = keys[v];
+    if (!Duplex.prototype[method]) Duplex.prototype[method] = Writable.prototype[method];
+  }
+}
+
+function Duplex(options) {
+  if (!(this instanceof Duplex)) return new Duplex(options);
+
+  Readable.call(this, options);
+  Writable.call(this, options);
+
+  if (options && options.readable === false) this.readable = false;
+
+  if (options && options.writable === false) this.writable = false;
+
+  this.allowHalfOpen = true;
+  if (options && options.allowHalfOpen === false) this.allowHalfOpen = false;
+
+  this.once('end', onend);
+}
+
+Object.defineProperty(Duplex.prototype, 'writableHighWaterMark', {
+  // making it explicit this property is not enumerable
+  // because otherwise some prototype manipulation in
+  // userland will fail
+  enumerable: false,
+  get: function () {
+    return this._writableState.highWaterMark;
+  }
+});
+
+// the no-half-open enforcer
+function onend() {
+  // if we allow half-open state, or if the writable side ended,
+  // then we're ok.
+  if (this.allowHalfOpen || this._writableState.ended) return;
+
+  // no more data can be written.
+  // But allow more writes to happen in this tick.
+  pna.nextTick(onEndNT, this);
+}
+
+function onEndNT(self) {
+  self.end();
+}
+
+Object.defineProperty(Duplex.prototype, 'destroyed', {
+  get: function () {
+    if (this._readableState === undefined || this._writableState === undefined) {
+      return false;
+    }
+    return this._readableState.destroyed && this._writableState.destroyed;
+  },
+  set: function (value) {
+    // we ignore the value if the stream
+    // has not been initialized yet
+    if (this._readableState === undefined || this._writableState === undefined) {
+      return;
+    }
+
+    // backward compatibility, the user is explicitly
+    // managing destroyed
+    this._readableState.destroyed = value;
+    this._writableState.destroyed = value;
+  }
+});
+
+Duplex.prototype._destroy = function (err, cb) {
+  this.push(null);
+  this.end();
+
+  pna.nextTick(cb, err);
+};
+},{"./_stream_readable":16,"./_stream_writable":18,"core-util-is":4,"inherits":7,"process-nextick-args":11}],15:[function(require,module,exports){
+// Copyright Joyent, Inc. and other Node contributors.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to permit
+// persons to whom the Software is furnished to do so, subject to the
+// following conditions:
+//
+// The above copyright notice and this permission notice shall be included
+// in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+// USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+// a passthrough stream.
+// basically just the most minimal sort of Transform stream.
+// Every written chunk gets output as-is.
+
+'use strict';
+
+module.exports = PassThrough;
+
+var Transform = require('./_stream_transform');
+
+/*<replacement>*/
+var util = require('core-util-is');
+util.inherits = require('inherits');
+/*</replacement>*/
+
+util.inherits(PassThrough, Transform);
+
+function PassThrough(options) {
+  if (!(this instanceof PassThrough)) return new PassThrough(options);
+
+  Transform.call(this, options);
+}
+
+PassThrough.prototype._transform = function (chunk, encoding, cb) {
+  cb(null, chunk);
+};
+},{"./_stream_transform":17,"core-util-is":4,"inherits":7}],16:[function(require,module,exports){
+(function (process,global){
+// Copyright Joyent, Inc. and other Node contributors.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to permit
+// persons to whom the Software is furnished to do so, subject to the
+// following conditions:
+//
+// The above copyright notice and this permission notice shall be included
+// in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+// USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+'use strict';
+
+/*<replacement>*/
+
+var pna = require('process-nextick-args');
+/*</replacement>*/
+
+module.exports = Readable;
+
+/*<replacement>*/
+var isArray = require('isarray');
+/*</replacement>*/
+
+/*<replacement>*/
+var Duplex;
+/*</replacement>*/
+
+Readable.ReadableState = ReadableState;
+
+/*<replacement>*/
+var EE = require('events').EventEmitter;
+
+var EElistenerCount = function (emitter, type) {
+  return emitter.listeners(type).length;
+};
+/*</replacement>*/
+
+/*<replacement>*/
+var Stream = require('./internal/streams/stream');
+/*</replacement>*/
+
+/*<replacement>*/
+
+var Buffer = require('safe-buffer').Buffer;
+var OurUint8Array = global.Uint8Array || function () {};
+function _uint8ArrayToBuffer(chunk) {
+  return Buffer.from(chunk);
+}
+function _isUint8Array(obj) {
+  return Buffer.isBuffer(obj) || obj instanceof OurUint8Array;
+}
+
+/*</replacement>*/
+
+/*<replacement>*/
+var util = require('core-util-is');
+util.inherits = require('inherits');
+/*</replacement>*/
+
+/*<replacement>*/
+var debugUtil = require('util');
+var debug = void 0;
+if (debugUtil && debugUtil.debuglog) {
+  debug = debugUtil.debuglog('stream');
+} else {
+  debug = function () {};
+}
+/*</replacement>*/
+
+var BufferList = require('./internal/streams/BufferList');
+var destroyImpl = require('./internal/streams/destroy');
+var StringDecoder;
+
+util.inherits(Readable, Stream);
+
+var kProxyEvents = ['error', 'close', 'destroy', 'pause', 'resume'];
+
+function prependListener(emitter, event, fn) {
+  // Sadly this is not cacheable as some libraries bundle their own
+  // event emitter implementation with them.
+  if (typeof emitter.prependListener === 'function') return emitter.prependListener(event, fn);
+
+  // This is a hack to make sure that our error handler is attached before any
+  // userland ones.  NEVER DO THIS. This is here only because this code needs
+  // to continue to work with older versions of Node.js that do not include
+  // the prependListener() method. The goal is to eventually remove this hack.
+  if (!emitter._events || !emitter._events[event]) emitter.on(event, fn);else if (isArray(emitter._events[event])) emitter._events[event].unshift(fn);else emitter._events[event] = [fn, emitter._events[event]];
+}
+
+function ReadableState(options, stream) {
+  Duplex = Duplex || require('./_stream_duplex');
+
+  options = options || {};
+
+  // Duplex streams are both readable and writable, but share
+  // the same options object.
+  // However, some cases require setting options to different
+  // values for the readable and the writable sides of the duplex stream.
+  // These options can be provided separately as readableXXX and writableXXX.
+  var isDuplex = stream instanceof Duplex;
+
+  // object stream flag. Used to make read(n) ignore n and to
+  // make all the buffer merging and length checks go away
+  this.objectMode = !!options.objectMode;
+
+  if (isDuplex) this.objectMode = this.objectMode || !!options.readableObjectMode;
+
+  // the point at which it stops calling _read() to fill the buffer
+  // Note: 0 is a valid value, means "don't call _read preemptively ever"
+  var hwm = options.highWaterMark;
+  var readableHwm = options.readableHighWaterMark;
+  var defaultHwm = this.objectMode ? 16 : 16 * 1024;
+
+  if (hwm || hwm === 0) this.highWaterMark = hwm;else if (isDuplex && (readableHwm || readableHwm === 0)) this.highWaterMark = readableHwm;else this.highWaterMark = defaultHwm;
+
+  // cast to ints.
+  this.highWaterMark = Math.floor(this.highWaterMark);
+
+  // A linked list is used to store data chunks instead of an array because the
+  // linked list can remove elements from the beginning faster than
+  // array.shift()
+  this.buffer = new BufferList();
+  this.length = 0;
+  this.pipes = null;
+  this.pipesCount = 0;
+  this.flowing = null;
+  this.ended = false;
+  this.endEmitted = false;
+  this.reading = false;
+
+  // a flag to be able to tell if the event 'readable'/'data' is emitted
+  // immediately, or on a later tick.  We set this to true at first, because
+  // any actions that shouldn't happen until "later" should generally also
+  // not happen before the first read call.
+  this.sync = true;
+
+  // whenever we return null, then we set a flag to say
+  // that we're awaiting a 'readable' event emission.
+  this.needReadable = false;
+  this.emittedReadable = false;
+  this.readableListening = false;
+  this.resumeScheduled = false;
+
+  // has it been destroyed
+  this.destroyed = false;
+
+  // Crypto is kind of old and crusty.  Historically, its default string
+  // encoding is 'binary' so we have to make this configurable.
+  // Everything else in the universe uses 'utf8', though.
+  this.defaultEncoding = options.defaultEncoding || 'utf8';
+
+  // the number of writers that are awaiting a drain event in .pipe()s
+  this.awaitDrain = 0;
+
+  // if true, a maybeReadMore has been scheduled
+  this.readingMore = false;
+
+  this.decoder = null;
+  this.encoding = null;
+  if (options.encoding) {
+    if (!StringDecoder) StringDecoder = require('string_decoder/').StringDecoder;
+    this.decoder = new StringDecoder(options.encoding);
+    this.encoding = options.encoding;
+  }
+}
+
+function Readable(options) {
+  Duplex = Duplex || require('./_stream_duplex');
+
+  if (!(this instanceof Readable)) return new Readable(options);
+
+  this._readableState = new ReadableState(options, this);
+
+  // legacy
+  this.readable = true;
+
+  if (options) {
+    if (typeof options.read === 'function') this._read = options.read;
+
+    if (typeof options.destroy === 'function') this._destroy = options.destroy;
+  }
+
+  Stream.call(this);
+}
+
+Object.defineProperty(Readable.prototype, 'destroyed', {
+  get: function () {
+    if (this._readableState === undefined) {
+      return false;
+    }
+    return this._readableState.destroyed;
+  },
+  set: function (value) {
+    // we ignore the value if the stream
+    // has not been initialized yet
+    if (!this._readableState) {
+      return;
+    }
+
+    // backward compatibility, the user is explicitly
+    // managing destroyed
+    this._readableState.destroyed = value;
+  }
+});
+
+Readable.prototype.destroy = destroyImpl.destroy;
+Readable.prototype._undestroy = destroyImpl.undestroy;
+Readable.prototype._destroy = function (err, cb) {
+  this.push(null);
+  cb(err);
+};
+
+// Manually shove something into the read() buffer.
+// This returns true if the highWaterMark has not been hit yet,
+// similar to how Writable.write() returns true if you should
+// write() some more.
+Readable.prototype.push = function (chunk, encoding) {
+  var state = this._readableState;
+  var skipChunkCheck;
+
+  if (!state.objectMode) {
+    if (typeof chunk === 'string') {
+      encoding = encoding || state.defaultEncoding;
+      if (encoding !== state.encoding) {
+        chunk = Buffer.from(chunk, encoding);
+        encoding = '';
+      }
+      skipChunkCheck = true;
+    }
+  } else {
+    skipChunkCheck = true;
+  }
+
+  return readableAddChunk(this, chunk, encoding, false, skipChunkCheck);
+};
+
+// Unshift should *always* be something directly out of read()
+Readable.prototype.unshift = function (chunk) {
+  return readableAddChunk(this, chunk, null, true, false);
+};
+
+function readableAddChunk(stream, chunk, encoding, addToFront, skipChunkCheck) {
+  var state = stream._readableState;
+  if (chunk === null) {
+    state.reading = false;
+    onEofChunk(stream, state);
+  } else {
+    var er;
+    if (!skipChunkCheck) er = chunkInvalid(state, chunk);
+    if (er) {
+      stream.emit('error', er);
+    } else if (state.objectMode || chunk && chunk.length > 0) {
+      if (typeof chunk !== 'string' && !state.objectMode && Object.getPrototypeOf(chunk) !== Buffer.prototype) {
+        chunk = _uint8ArrayToBuffer(chunk);
+      }
+
+      if (addToFront) {
+        if (state.endEmitted) stream.emit('error', new Error('stream.unshift() after end event'));else addChunk(stream, state, chunk, true);
+      } else if (state.ended) {
+        stream.emit('error', new Error('stream.push() after EOF'));
+      } else {
+        state.reading = false;
+        if (state.decoder && !encoding) {
+          chunk = state.decoder.write(chunk);
+          if (state.objectMode || chunk.length !== 0) addChunk(stream, state, chunk, false);else maybeReadMore(stream, state);
+        } else {
+          addChunk(stream, state, chunk, false);
+        }
+      }
+    } else if (!addToFront) {
+      state.reading = false;
+    }
+  }
+
+  return needMoreData(state);
+}
+
+function addChunk(stream, state, chunk, addToFront) {
+  if (state.flowing && state.length === 0 && !state.sync) {
+    stream.emit('data', chunk);
+    stream.read(0);
+  } else {
+    // update the buffer info.
+    state.length += state.objectMode ? 1 : chunk.length;
+    if (addToFront) state.buffer.unshift(chunk);else state.buffer.push(chunk);
+
+    if (state.needReadable) emitReadable(stream);
+  }
+  maybeReadMore(stream, state);
+}
+
+function chunkInvalid(state, chunk) {
+  var er;
+  if (!_isUint8Array(chunk) && typeof chunk !== 'string' && chunk !== undefined && !state.objectMode) {
+    er = new TypeError('Invalid non-string/buffer chunk');
+  }
+  return er;
+}
+
+// if it's past the high water mark, we can push in some more.
+// Also, if we have no data yet, we can stand some
+// more bytes.  This is to work around cases where hwm=0,
+// such as the repl.  Also, if the push() triggered a
+// readable event, and the user called read(largeNumber) such that
+// needReadable was set, then we ought to push more, so that another
+// 'readable' event will be triggered.
+function needMoreData(state) {
+  return !state.ended && (state.needReadable || state.length < state.highWaterMark || state.length === 0);
+}
+
+Readable.prototype.isPaused = function () {
+  return this._readableState.flowing === false;
+};
+
+// backwards compatibility.
+Readable.prototype.setEncoding = function (enc) {
+  if (!StringDecoder) StringDecoder = require('string_decoder/').StringDecoder;
+  this._readableState.decoder = new StringDecoder(enc);
+  this._readableState.encoding = enc;
+  return this;
+};
+
+// Don't raise the hwm > 8MB
+var MAX_HWM = 0x800000;
+function computeNewHighWaterMark(n) {
+  if (n >= MAX_HWM) {
+    n = MAX_HWM;
+  } else {
+    // Get the next highest power of 2 to prevent increasing hwm excessively in
+    // tiny amounts
+    n--;
+    n |= n >>> 1;
+    n |= n >>> 2;
+    n |= n >>> 4;
+    n |= n >>> 8;
+    n |= n >>> 16;
+    n++;
+  }
+  return n;
+}
+
+// This function is designed to be inlinable, so please take care when making
+// changes to the function body.
+function howMuchToRead(n, state) {
+  if (n <= 0 || state.length === 0 && state.ended) return 0;
+  if (state.objectMode) return 1;
+  if (n !== n) {
+    // Only flow one buffer at a time
+    if (state.flowing && state.length) return state.buffer.head.data.length;else return state.length;
+  }
+  // If we're asking for more than the current hwm, then raise the hwm.
+  if (n > state.highWaterMark) state.highWaterMark = computeNewHighWaterMark(n);
+  if (n <= state.length) return n;
+  // Don't have enough
+  if (!state.ended) {
+    state.needReadable = true;
+    return 0;
+  }
+  return state.length;
+}
+
+// you can override either this method, or the async _read(n) below.
+Readable.prototype.read = function (n) {
+  debug('read', n);
+  n = parseInt(n, 10);
+  var state = this._readableState;
+  var nOrig = n;
+
+  if (n !== 0) state.emittedReadable = false;
+
+  // if we're doing read(0) to trigger a readable event, but we
+  // already have a bunch of data in the buffer, then just trigger
+  // the 'readable' event and move on.
+  if (n === 0 && state.needReadable && (state.length >= state.highWaterMark || state.ended)) {
+    debug('read: emitReadable', state.length, state.ended);
+    if (state.length === 0 && state.ended) endReadable(this);else emitReadable(this);
+    return null;
+  }
+
+  n = howMuchToRead(n, state);
+
+  // if we've ended, and we're now clear, then finish it up.
+  if (n === 0 && state.ended) {
+    if (state.length === 0) endReadable(this);
+    return null;
+  }
+
+  // All the actual chunk generation logic needs to be
+  // *below* the call to _read.  The reason is that in certain
+  // synthetic stream cases, such as passthrough streams, _read
+  // may be a completely synchronous operation which may change
+  // the state of the read buffer, providing enough data when
+  // before there was *not* enough.
+  //
+  // So, the steps are:
+  // 1. Figure out what the state of things will be after we do
+  // a read from the buffer.
+  //
+  // 2. If that resulting state will trigger a _read, then call _read.
+  // Note that this may be asynchronous, or synchronous.  Yes, it is
+  // deeply ugly to write APIs this way, but that still doesn't mean
+  // that the Readable class should behave improperly, as streams are
+  // designed to be sync/async agnostic.
+  // Take note if the _read call is sync or async (ie, if the read call
+  // has returned yet), so that we know whether or not it's safe to emit
+  // 'readable' etc.
+  //
+  // 3. Actually pull the requested chunks out of the buffer and return.
+
+  // if we need a readable event, then we need to do some reading.
+  var doRead = state.needReadable;
+  debug('need readable', doRead);
+
+  // if we currently have less than the highWaterMark, then also read some
+  if (state.length === 0 || state.length - n < state.highWaterMark) {
+    doRead = true;
+    debug('length less than watermark', doRead);
+  }
+
+  // however, if we've ended, then there's no point, and if we're already
+  // reading, then it's unnecessary.
+  if (state.ended || state.reading) {
+    doRead = false;
+    debug('reading or ended', doRead);
+  } else if (doRead) {
+    debug('do read');
+    state.reading = true;
+    state.sync = true;
+    // if the length is currently zero, then we *need* a readable event.
+    if (state.length === 0) state.needReadable = true;
+    // call internal read method
+    this._read(state.highWaterMark);
+    state.sync = false;
+    // If _read pushed data synchronously, then `reading` will be false,
+    // and we need to re-evaluate how much data we can return to the user.
+    if (!state.reading) n = howMuchToRead(nOrig, state);
+  }
+
+  var ret;
+  if (n > 0) ret = fromList(n, state);else ret = null;
+
+  if (ret === null) {
+    state.needReadable = true;
+    n = 0;
+  } else {
+    state.length -= n;
+  }
+
+  if (state.length === 0) {
+    // If we have nothing in the buffer, then we want to know
+    // as soon as we *do* get something into the buffer.
+    if (!state.ended) state.needReadable = true;
+
+    // If we tried to read() past the EOF, then emit end on the next tick.
+    if (nOrig !== n && state.ended) endReadable(this);
+  }
+
+  if (ret !== null) this.emit('data', ret);
+
+  return ret;
+};
+
+function onEofChunk(stream, state) {
+  if (state.ended) return;
+  if (state.decoder) {
+    var chunk = state.decoder.end();
+    if (chunk && chunk.length) {
+      state.buffer.push(chunk);
+      state.length += state.objectMode ? 1 : chunk.length;
+    }
+  }
+  state.ended = true;
+
+  // emit 'readable' now to make sure it gets picked up.
+  emitReadable(stream);
+}
+
+// Don't emit readable right away in sync mode, because this can trigger
+// another read() call => stack overflow.  This way, it might trigger
+// a nextTick recursion warning, but that's not so bad.
+function emitReadable(stream) {
+  var state = stream._readableState;
+  state.needReadable = false;
+  if (!state.emittedReadable) {
+    debug('emitReadable', state.flowing);
+    state.emittedReadable = true;
+    if (state.sync) pna.nextTick(emitReadable_, stream);else emitReadable_(stream);
+  }
+}
+
+function emitReadable_(stream) {
+  debug('emit readable');
+  stream.emit('readable');
+  flow(stream);
+}
+
+// at this point, the user has presumably seen the 'readable' event,
+// and called read() to consume some data.  that may have triggered
+// in turn another _read(n) call, in which case reading = true if
+// it's in progress.
+// However, if we're not ended, or reading, and the length < hwm,
+// then go ahead and try to read some more preemptively.
+function maybeReadMore(stream, state) {
+  if (!state.readingMore) {
+    state.readingMore = true;
+    pna.nextTick(maybeReadMore_, stream, state);
+  }
+}
+
+function maybeReadMore_(stream, state) {
+  var len = state.length;
+  while (!state.reading && !state.flowing && !state.ended && state.length < state.highWaterMark) {
+    debug('maybeReadMore read 0');
+    stream.read(0);
+    if (len === state.length)
+      // didn't get any data, stop spinning.
+      break;else len = state.length;
+  }
+  state.readingMore = false;
+}
+
+// abstract method.  to be overridden in specific implementation classes.
+// call cb(er, data) where data is <= n in length.
+// for virtual (non-string, non-buffer) streams, "length" is somewhat
+// arbitrary, and perhaps not very meaningful.
+Readable.prototype._read = function (n) {
+  this.emit('error', new Error('_read() is not implemented'));
+};
+
+Readable.prototype.pipe = function (dest, pipeOpts) {
+  var src = this;
+  var state = this._readableState;
+
+  switch (state.pipesCount) {
+    case 0:
+      state.pipes = dest;
+      break;
+    case 1:
+      state.pipes = [state.pipes, dest];
+      break;
+    default:
+      state.pipes.push(dest);
+      break;
+  }
+  state.pipesCount += 1;
+  debug('pipe count=%d opts=%j', state.pipesCount, pipeOpts);
+
+  var doEnd = (!pipeOpts || pipeOpts.end !== false) && dest !== process.stdout && dest !== process.stderr;
+
+  var endFn = doEnd ? onend : unpipe;
+  if (state.endEmitted) pna.nextTick(endFn);else src.once('end', endFn);
+
+  dest.on('unpipe', onunpipe);
+  function onunpipe(readable, unpipeInfo) {
+    debug('onunpipe');
+    if (readable === src) {
+      if (unpipeInfo && unpipeInfo.hasUnpiped === false) {
+        unpipeInfo.hasUnpiped = true;
+        cleanup();
+      }
+    }
+  }
+
+  function onend() {
+    debug('onend');
+    dest.end();
+  }
+
+  // when the dest drains, it reduces the awaitDrain counter
+  // on the source.  This would be more elegant with a .once()
+  // handler in flow(), but adding and removing repeatedly is
+  // too slow.
+  var ondrain = pipeOnDrain(src);
+  dest.on('drain', ondrain);
+
+  var cleanedUp = false;
+  function cleanup() {
+    debug('cleanup');
+    // cleanup event handlers once the pipe is broken
+    dest.removeListener('close', onclose);
+    dest.removeListener('finish', onfinish);
+    dest.removeListener('drain', ondrain);
+    dest.removeListener('error', onerror);
+    dest.removeListener('unpipe', onunpipe);
+    src.removeListener('end', onend);
+    src.removeListener('end', unpipe);
+    src.removeListener('data', ondata);
+
+    cleanedUp = true;
+
+    // if the reader is waiting for a drain event from this
+    // specific writer, then it would cause it to never start
+    // flowing again.
+    // So, if this is awaiting a drain, then we just call it now.
+    // If we don't know, then assume that we are waiting for one.
+    if (state.awaitDrain && (!dest._writableState || dest._writableState.needDrain)) ondrain();
+  }
+
+  // If the user pushes more data while we're writing to dest then we'll end up
+  // in ondata again. However, we only want to increase awaitDrain once because
+  // dest will only emit one 'drain' event for the multiple writes.
+  // => Introduce a guard on increasing awaitDrain.
+  var increasedAwaitDrain = false;
+  src.on('data', ondata);
+  function ondata(chunk) {
+    debug('ondata');
+    increasedAwaitDrain = false;
+    var ret = dest.write(chunk);
+    if (false === ret && !increasedAwaitDrain) {
+      // If the user unpiped during `dest.write()`, it is possible
+      // to get stuck in a permanently paused state if that write
+      // also returned false.
+      // => Check whether `dest` is still a piping destination.
+      if ((state.pipesCount === 1 && state.pipes === dest || state.pipesCount > 1 && indexOf(state.pipes, dest) !== -1) && !cleanedUp) {
+        debug('false write response, pause', src._readableState.awaitDrain);
+        src._readableState.awaitDrain++;
+        increasedAwaitDrain = true;
+      }
+      src.pause();
+    }
+  }
+
+  // if the dest has an error, then stop piping into it.
+  // however, don't suppress the throwing behavior for this.
+  function onerror(er) {
+    debug('onerror', er);
+    unpipe();
+    dest.removeListener('error', onerror);
+    if (EElistenerCount(dest, 'error') === 0) dest.emit('error', er);
+  }
+
+  // Make sure our error handler is attached before userland ones.
+  prependListener(dest, 'error', onerror);
+
+  // Both close and finish should trigger unpipe, but only once.
+  function onclose() {
+    dest.removeListener('finish', onfinish);
+    unpipe();
+  }
+  dest.once('close', onclose);
+  function onfinish() {
+    debug('onfinish');
+    dest.removeListener('close', onclose);
+    unpipe();
+  }
+  dest.once('finish', onfinish);
+
+  function unpipe() {
+    debug('unpipe');
+    src.unpipe(dest);
+  }
+
+  // tell the dest that it's being piped to
+  dest.emit('pipe', src);
+
+  // start the flow if it hasn't been started already.
+  if (!state.flowing) {
+    debug('pipe resume');
+    src.resume();
+  }
+
+  return dest;
+};
+
+function pipeOnDrain(src) {
+  return function () {
+    var state = src._readableState;
+    debug('pipeOnDrain', state.awaitDrain);
+    if (state.awaitDrain) state.awaitDrain--;
+    if (state.awaitDrain === 0 && EElistenerCount(src, 'data')) {
+      state.flowing = true;
+      flow(src);
+    }
+  };
+}
+
+Readable.prototype.unpipe = function (dest) {
+  var state = this._readableState;
+  var unpipeInfo = { hasUnpiped: false };
+
+  // if we're not piping anywhere, then do nothing.
+  if (state.pipesCount === 0) return this;
+
+  // just one destination.  most common case.
+  if (state.pipesCount === 1) {
+    // passed in one, but it's not the right one.
+    if (dest && dest !== state.pipes) return this;
+
+    if (!dest) dest = state.pipes;
+
+    // got a match.
+    state.pipes = null;
+    state.pipesCount = 0;
+    state.flowing = false;
+    if (dest) dest.emit('unpipe', this, unpipeInfo);
+    return this;
+  }
+
+  // slow case. multiple pipe destinations.
+
+  if (!dest) {
+    // remove all.
+    var dests = state.pipes;
+    var len = state.pipesCount;
+    state.pipes = null;
+    state.pipesCount = 0;
+    state.flowing = false;
+
+    for (var i = 0; i < len; i++) {
+      dests[i].emit('unpipe', this, unpipeInfo);
+    }return this;
+  }
+
+  // try to find the right one.
+  var index = indexOf(state.pipes, dest);
+  if (index === -1) return this;
+
+  state.pipes.splice(index, 1);
+  state.pipesCount -= 1;
+  if (state.pipesCount === 1) state.pipes = state.pipes[0];
+
+  dest.emit('unpipe', this, unpipeInfo);
+
+  return this;
+};
+
+// set up data events if they are asked for
+// Ensure readable listeners eventually get something
+Readable.prototype.on = function (ev, fn) {
+  var res = Stream.prototype.on.call(this, ev, fn);
+
+  if (ev === 'data') {
+    // Start flowing on next tick if stream isn't explicitly paused
+    if (this._readableState.flowing !== false) this.resume();
+  } else if (ev === 'readable') {
+    var state = this._readableState;
+    if (!state.endEmitted && !state.readableListening) {
+      state.readableListening = state.needReadable = true;
+      state.emittedReadable = false;
+      if (!state.reading) {
+        pna.nextTick(nReadingNextTick, this);
+      } else if (state.length) {
+        emitReadable(this);
+      }
+    }
+  }
+
+  return res;
+};
+Readable.prototype.addListener = Readable.prototype.on;
+
+function nReadingNextTick(self) {
+  debug('readable nexttick read 0');
+  self.read(0);
+}
+
+// pause() and resume() are remnants of the legacy readable stream API
+// If the user uses them, then switch into old mode.
+Readable.prototype.resume = function () {
+  var state = this._readableState;
+  if (!state.flowing) {
+    debug('resume');
+    state.flowing = true;
+    resume(this, state);
+  }
+  return this;
+};
+
+function resume(stream, state) {
+  if (!state.resumeScheduled) {
+    state.resumeScheduled = true;
+    pna.nextTick(resume_, stream, state);
+  }
+}
+
+function resume_(stream, state) {
+  if (!state.reading) {
+    debug('resume read 0');
+    stream.read(0);
+  }
+
+  state.resumeScheduled = false;
+  state.awaitDrain = 0;
+  stream.emit('resume');
+  flow(stream);
+  if (state.flowing && !state.reading) stream.read(0);
+}
+
+Readable.prototype.pause = function () {
+  debug('call pause flowing=%j', this._readableState.flowing);
+  if (false !== this._readableState.flowing) {
+    debug('pause');
+    this._readableState.flowing = false;
+    this.emit('pause');
+  }
+  return this;
+};
+
+function flow(stream) {
+  var state = stream._readableState;
+  debug('flow', state.flowing);
+  while (state.flowing && stream.read() !== null) {}
+}
+
+// wrap an old-style stream as the async data source.
+// This is *not* part of the readable stream interface.
+// It is an ugly unfortunate mess of history.
+Readable.prototype.wrap = function (stream) {
+  var _this = this;
+
+  var state = this._readableState;
+  var paused = false;
+
+  stream.on('end', function () {
+    debug('wrapped end');
+    if (state.decoder && !state.ended) {
+      var chunk = state.decoder.end();
+      if (chunk && chunk.length) _this.push(chunk);
+    }
+
+    _this.push(null);
+  });
+
+  stream.on('data', function (chunk) {
+    debug('wrapped data');
+    if (state.decoder) chunk = state.decoder.write(chunk);
+
+    // don't skip over falsy values in objectMode
+    if (state.objectMode && (chunk === null || chunk === undefined)) return;else if (!state.objectMode && (!chunk || !chunk.length)) return;
+
+    var ret = _this.push(chunk);
+    if (!ret) {
+      paused = true;
+      stream.pause();
+    }
+  });
+
+  // proxy all the other methods.
+  // important when wrapping filters and duplexes.
+  for (var i in stream) {
+    if (this[i] === undefined && typeof stream[i] === 'function') {
+      this[i] = function (method) {
+        return function () {
+          return stream[method].apply(stream, arguments);
+        };
+      }(i);
+    }
+  }
+
+  // proxy certain important events.
+  for (var n = 0; n < kProxyEvents.length; n++) {
+    stream.on(kProxyEvents[n], this.emit.bind(this, kProxyEvents[n]));
+  }
+
+  // when we try to consume some more bytes, simply unpause the
+  // underlying stream.
+  this._read = function (n) {
+    debug('wrapped _read', n);
+    if (paused) {
+      paused = false;
+      stream.resume();
+    }
+  };
+
+  return this;
+};
+
+Object.defineProperty(Readable.prototype, 'readableHighWaterMark', {
+  // making it explicit this property is not enumerable
+  // because otherwise some prototype manipulation in
+  // userland will fail
+  enumerable: false,
+  get: function () {
+    return this._readableState.highWaterMark;
+  }
+});
+
+// exposed for testing purposes only.
+Readable._fromList = fromList;
+
+// Pluck off n bytes from an array of buffers.
+// Length is the combined lengths of all the buffers in the list.
+// This function is designed to be inlinable, so please take care when making
+// changes to the function body.
+function fromList(n, state) {
+  // nothing buffered
+  if (state.length === 0) return null;
+
+  var ret;
+  if (state.objectMode) ret = state.buffer.shift();else if (!n || n >= state.length) {
+    // read it all, truncate the list
+    if (state.decoder) ret = state.buffer.join('');else if (state.buffer.length === 1) ret = state.buffer.head.data;else ret = state.buffer.concat(state.length);
+    state.buffer.clear();
+  } else {
+    // read part of list
+    ret = fromListPartial(n, state.buffer, state.decoder);
+  }
+
+  return ret;
+}
+
+// Extracts only enough buffered data to satisfy the amount requested.
+// This function is designed to be inlinable, so please take care when making
+// changes to the function body.
+function fromListPartial(n, list, hasStrings) {
+  var ret;
+  if (n < list.head.data.length) {
+    // slice is the same for buffers and strings
+    ret = list.head.data.slice(0, n);
+    list.head.data = list.head.data.slice(n);
+  } else if (n === list.head.data.length) {
+    // first chunk is a perfect match
+    ret = list.shift();
+  } else {
+    // result spans more than one buffer
+    ret = hasStrings ? copyFromBufferString(n, list) : copyFromBuffer(n, list);
+  }
+  return ret;
+}
+
+// Copies a specified amount of characters from the list of buffered data
+// chunks.
+// This function is designed to be inlinable, so please take care when making
+// changes to the function body.
+function copyFromBufferString(n, list) {
+  var p = list.head;
+  var c = 1;
+  var ret = p.data;
+  n -= ret.length;
+  while (p = p.next) {
+    var str = p.data;
+    var nb = n > str.length ? str.length : n;
+    if (nb === str.length) ret += str;else ret += str.slice(0, n);
+    n -= nb;
+    if (n === 0) {
+      if (nb === str.length) {
+        ++c;
+        if (p.next) list.head = p.next;else list.head = list.tail = null;
+      } else {
+        list.head = p;
+        p.data = str.slice(nb);
+      }
+      break;
+    }
+    ++c;
+  }
+  list.length -= c;
+  return ret;
+}
+
+// Copies a specified amount of bytes from the list of buffered data chunks.
+// This function is designed to be inlinable, so please take care when making
+// changes to the function body.
+function copyFromBuffer(n, list) {
+  var ret = Buffer.allocUnsafe(n);
+  var p = list.head;
+  var c = 1;
+  p.data.copy(ret);
+  n -= p.data.length;
+  while (p = p.next) {
+    var buf = p.data;
+    var nb = n > buf.length ? buf.length : n;
+    buf.copy(ret, ret.length - n, 0, nb);
+    n -= nb;
+    if (n === 0) {
+      if (nb === buf.length) {
+        ++c;
+        if (p.next) list.head = p.next;else list.head = list.tail = null;
+      } else {
+        list.head = p;
+        p.data = buf.slice(nb);
+      }
+      break;
+    }
+    ++c;
+  }
+  list.length -= c;
+  return ret;
+}
+
+function endReadable(stream) {
+  var state = stream._readableState;
+
+  // If we get here before consuming all the bytes, then that is a
+  // bug in node.  Should never happen.
+  if (state.length > 0) throw new Error('"endReadable()" called on non-empty stream');
+
+  if (!state.endEmitted) {
+    state.ended = true;
+    pna.nextTick(endReadableNT, state, stream);
+  }
+}
+
+function endReadableNT(state, stream) {
+  // Check that we didn't get one last unshift.
+  if (!state.endEmitted && state.length === 0) {
+    state.endEmitted = true;
+    stream.readable = false;
+    stream.emit('end');
+  }
+}
+
+function indexOf(xs, x) {
+  for (var i = 0, l = xs.length; i < l; i++) {
+    if (xs[i] === x) return i;
+  }
+  return -1;
+}
+}).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
+},{"./_stream_duplex":14,"./internal/streams/BufferList":19,"./internal/streams/destroy":20,"./internal/streams/stream":21,"_process":12,"core-util-is":4,"events":5,"inherits":7,"isarray":9,"process-nextick-args":11,"safe-buffer":22,"string_decoder/":23,"util":2}],17:[function(require,module,exports){
+// Copyright Joyent, Inc. and other Node contributors.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to permit
+// persons to whom the Software is furnished to do so, subject to the
+// following conditions:
+//
+// The above copyright notice and this permission notice shall be included
+// in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+// USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+// a transform stream is a readable/writable stream where you do
+// something with the data.  Sometimes it's called a "filter",
+// but that's not a great name for it, since that implies a thing where
+// some bits pass through, and others are simply ignored.  (That would
+// be a valid example of a transform, of course.)
+//
+// While the output is causally related to the input, it's not a
+// necessarily symmetric or synchronous transformation.  For example,
+// a zlib stream might take multiple plain-text writes(), and then
+// emit a single compressed chunk some time in the future.
+//
+// Here's how this works:
+//
+// The Transform stream has all the aspects of the readable and writable
+// stream classes.  When you write(chunk), that calls _write(chunk,cb)
+// internally, and returns false if there's a lot of pending writes
+// buffered up.  When you call read(), that calls _read(n) until
+// there's enough pending readable data buffered up.
+//
+// In a transform stream, the written data is placed in a buffer.  When
+// _read(n) is called, it transforms the queued up data, calling the
+// buffered _write cb's as it consumes chunks.  If consuming a single
+// written chunk would result in multiple output chunks, then the first
+// outputted bit calls the readcb, and subsequent chunks just go into
+// the read buffer, and will cause it to emit 'readable' if necessary.
+//
+// This way, back-pressure is actually determined by the reading side,
+// since _read has to be called to start processing a new chunk.  However,
+// a pathological inflate type of transform can cause excessive buffering
+// here.  For example, imagine a stream where every byte of input is
+// interpreted as an integer from 0-255, and then results in that many
+// bytes of output.  Writing the 4 bytes {ff,ff,ff,ff} would result in
+// 1kb of data being output.  In this case, you could write a very small
+// amount of input, and end up with a very large amount of output.  In
+// such a pathological inflating mechanism, there'd be no way to tell
+// the system to stop doing the transform.  A single 4MB write could
+// cause the system to run out of memory.
+//
+// However, even in such a pathological case, only a single written chunk
+// would be consumed, and then the rest would wait (un-transformed) until
+// the results of the previous transformed chunk were consumed.
+
+'use strict';
+
+module.exports = Transform;
+
+var Duplex = require('./_stream_duplex');
+
+/*<replacement>*/
+var util = require('core-util-is');
+util.inherits = require('inherits');
+/*</replacement>*/
+
+util.inherits(Transform, Duplex);
+
+function afterTransform(er, data) {
+  var ts = this._transformState;
+  ts.transforming = false;
+
+  var cb = ts.writecb;
+
+  if (!cb) {
+    return this.emit('error', new Error('write callback called multiple times'));
+  }
+
+  ts.writechunk = null;
+  ts.writecb = null;
+
+  if (data != null) // single equals check for both `null` and `undefined`
+    this.push(data);
+
+  cb(er);
+
+  var rs = this._readableState;
+  rs.reading = false;
+  if (rs.needReadable || rs.length < rs.highWaterMark) {
+    this._read(rs.highWaterMark);
+  }
+}
+
+function Transform(options) {
+  if (!(this instanceof Transform)) return new Transform(options);
+
+  Duplex.call(this, options);
+
+  this._transformState = {
+    afterTransform: afterTransform.bind(this),
+    needTransform: false,
+    transforming: false,
+    writecb: null,
+    writechunk: null,
+    writeencoding: null
+  };
+
+  // start out asking for a readable event once data is transformed.
+  this._readableState.needReadable = true;
+
+  // we have implemented the _read method, and done the other things
+  // that Readable wants before the first _read call, so unset the
+  // sync guard flag.
+  this._readableState.sync = false;
+
+  if (options) {
+    if (typeof options.transform === 'function') this._transform = options.transform;
+
+    if (typeof options.flush === 'function') this._flush = options.flush;
+  }
+
+  // When the writable side finishes, then flush out anything remaining.
+  this.on('prefinish', prefinish);
+}
+
+function prefinish() {
+  var _this = this;
+
+  if (typeof this._flush === 'function') {
+    this._flush(function (er, data) {
+      done(_this, er, data);
+    });
+  } else {
+    done(this, null, null);
+  }
+}
+
+Transform.prototype.push = function (chunk, encoding) {
+  this._transformState.needTransform = false;
+  return Duplex.prototype.push.call(this, chunk, encoding);
+};
+
+// This is the part where you do stuff!
+// override this function in implementation classes.
+// 'chunk' is an input chunk.
+//
+// Call `push(newChunk)` to pass along transformed output
+// to the readable side.  You may call 'push' zero or more times.
+//
+// Call `cb(err)` when you are done with this chunk.  If you pass
+// an error, then that'll put the hurt on the whole operation.  If you
+// never call cb(), then you'll never get another chunk.
+Transform.prototype._transform = function (chunk, encoding, cb) {
+  throw new Error('_transform() is not implemented');
+};
+
+Transform.prototype._write = function (chunk, encoding, cb) {
+  var ts = this._transformState;
+  ts.writecb = cb;
+  ts.writechunk = chunk;
+  ts.writeencoding = encoding;
+  if (!ts.transforming) {
+    var rs = this._readableState;
+    if (ts.needTransform || rs.needReadable || rs.length < rs.highWaterMark) this._read(rs.highWaterMark);
+  }
+};
+
+// Doesn't matter what the args are here.
+// _transform does all the work.
+// That we got here means that the readable side wants more data.
+Transform.prototype._read = function (n) {
+  var ts = this._transformState;
+
+  if (ts.writechunk !== null && ts.writecb && !ts.transforming) {
+    ts.transforming = true;
+    this._transform(ts.writechunk, ts.writeencoding, ts.afterTransform);
+  } else {
+    // mark that we need a transform, so that any data that comes in
+    // will get processed, now that we've asked for it.
+    ts.needTransform = true;
+  }
+};
+
+Transform.prototype._destroy = function (err, cb) {
+  var _this2 = this;
+
+  Duplex.prototype._destroy.call(this, err, function (err2) {
+    cb(err2);
+    _this2.emit('close');
+  });
+};
+
+function done(stream, er, data) {
+  if (er) return stream.emit('error', er);
+
+  if (data != null) // single equals check for both `null` and `undefined`
+    stream.push(data);
+
+  // if there's nothing in the write buffer, then that means
+  // that nothing more will ever be provided
+  if (stream._writableState.length) throw new Error('Calling transform done when ws.length != 0');
+
+  if (stream._transformState.transforming) throw new Error('Calling transform done when still transforming');
+
+  return stream.push(null);
+}
+},{"./_stream_duplex":14,"core-util-is":4,"inherits":7}],18:[function(require,module,exports){
+(function (process,global,setImmediate){
+// Copyright Joyent, Inc. and other Node contributors.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to permit
+// persons to whom the Software is furnished to do so, subject to the
+// following conditions:
+//
+// The above copyright notice and this permission notice shall be included
+// in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+// USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+// A bit simpler than readable streams.
+// Implement an async ._write(chunk, encoding, cb), and it'll handle all
+// the drain event emission and buffering.
+
+'use strict';
+
+/*<replacement>*/
+
+var pna = require('process-nextick-args');
+/*</replacement>*/
+
+module.exports = Writable;
+
+/* <replacement> */
+function WriteReq(chunk, encoding, cb) {
+  this.chunk = chunk;
+  this.encoding = encoding;
+  this.callback = cb;
+  this.next = null;
+}
+
+// It seems a linked list but it is not
+// there will be only 2 of these for each stream
+function CorkedRequest(state) {
+  var _this = this;
+
+  this.next = null;
+  this.entry = null;
+  this.finish = function () {
+    onCorkedFinish(_this, state);
+  };
+}
+/* </replacement> */
+
+/*<replacement>*/
+var asyncWrite = !process.browser && ['v0.10', 'v0.9.'].indexOf(process.version.slice(0, 5)) > -1 ? setImmediate : pna.nextTick;
+/*</replacement>*/
+
+/*<replacement>*/
+var Duplex;
+/*</replacement>*/
+
+Writable.WritableState = WritableState;
+
+/*<replacement>*/
+var util = require('core-util-is');
+util.inherits = require('inherits');
+/*</replacement>*/
+
+/*<replacement>*/
+var internalUtil = {
+  deprecate: require('util-deprecate')
+};
+/*</replacement>*/
+
+/*<replacement>*/
+var Stream = require('./internal/streams/stream');
+/*</replacement>*/
+
+/*<replacement>*/
+
+var Buffer = require('safe-buffer').Buffer;
+var OurUint8Array = global.Uint8Array || function () {};
+function _uint8ArrayToBuffer(chunk) {
+  return Buffer.from(chunk);
+}
+function _isUint8Array(obj) {
+  return Buffer.isBuffer(obj) || obj instanceof OurUint8Array;
+}
+
+/*</replacement>*/
+
+var destroyImpl = require('./internal/streams/destroy');
+
+util.inherits(Writable, Stream);
+
+function nop() {}
+
+function WritableState(options, stream) {
+  Duplex = Duplex || require('./_stream_duplex');
+
+  options = options || {};
+
+  // Duplex streams are both readable and writable, but share
+  // the same options object.
+  // However, some cases require setting options to different
+  // values for the readable and the writable sides of the duplex stream.
+  // These options can be provided separately as readableXXX and writableXXX.
+  var isDuplex = stream instanceof Duplex;
+
+  // object stream flag to indicate whether or not this stream
+  // contains buffers or objects.
+  this.objectMode = !!options.objectMode;
+
+  if (isDuplex) this.objectMode = this.objectMode || !!options.writableObjectMode;
+
+  // the point at which write() starts returning false
+  // Note: 0 is a valid value, means that we always return false if
+  // the entire buffer is not flushed immediately on write()
+  var hwm = options.highWaterMark;
+  var writableHwm = options.writableHighWaterMark;
+  var defaultHwm = this.objectMode ? 16 : 16 * 1024;
+
+  if (hwm || hwm === 0) this.highWaterMark = hwm;else if (isDuplex && (writableHwm || writableHwm === 0)) this.highWaterMark = writableHwm;else this.highWaterMark = defaultHwm;
+
+  // cast to ints.
+  this.highWaterMark = Math.floor(this.highWaterMark);
+
+  // if _final has been called
+  this.finalCalled = false;
+
+  // drain event flag.
+  this.needDrain = false;
+  // at the start of calling end()
+  this.ending = false;
+  // when end() has been called, and returned
+  this.ended = false;
+  // when 'finish' is emitted
+  this.finished = false;
+
+  // has it been destroyed
+  this.destroyed = false;
+
+  // should we decode strings into buffers before passing to _write?
+  // this is here so that some node-core streams can optimize string
+  // handling at a lower level.
+  var noDecode = options.decodeStrings === false;
+  this.decodeStrings = !noDecode;
+
+  // Crypto is kind of old and crusty.  Historically, its default string
+  // encoding is 'binary' so we have to make this configurable.
+  // Everything else in the universe uses 'utf8', though.
+  this.defaultEncoding = options.defaultEncoding || 'utf8';
+
+  // not an actual buffer we keep track of, but a measurement
+  // of how much we're waiting to get pushed to some underlying
+  // socket or file.
+  this.length = 0;
+
+  // a flag to see when we're in the middle of a write.
+  this.writing = false;
+
+  // when true all writes will be buffered until .uncork() call
+  this.corked = 0;
+
+  // a flag to be able to tell if the onwrite cb is called immediately,
+  // or on a later tick.  We set this to true at first, because any
+  // actions that shouldn't happen until "later" should generally also
+  // not happen before the first write call.
+  this.sync = true;
+
+  // a flag to know if we're processing previously buffered items, which
+  // may call the _write() callback in the same tick, so that we don't
+  // end up in an overlapped onwrite situation.
+  this.bufferProcessing = false;
+
+  // the callback that's passed to _write(chunk,cb)
+  this.onwrite = function (er) {
+    onwrite(stream, er);
+  };
+
+  // the callback that the user supplies to write(chunk,encoding,cb)
+  this.writecb = null;
+
+  // the amount that is being written when _write is called.
+  this.writelen = 0;
+
+  this.bufferedRequest = null;
+  this.lastBufferedRequest = null;
+
+  // number of pending user-supplied write callbacks
+  // this must be 0 before 'finish' can be emitted
+  this.pendingcb = 0;
+
+  // emit prefinish if the only thing we're waiting for is _write cbs
+  // This is relevant for synchronous Transform streams
+  this.prefinished = false;
+
+  // True if the error was already emitted and should not be thrown again
+  this.errorEmitted = false;
+
+  // count buffered requests
+  this.bufferedRequestCount = 0;
+
+  // allocate the first CorkedRequest, there is always
+  // one allocated and free to use, and we maintain at most two
+  this.corkedRequestsFree = new CorkedRequest(this);
+}
+
+WritableState.prototype.getBuffer = function getBuffer() {
+  var current = this.bufferedRequest;
+  var out = [];
+  while (current) {
+    out.push(current);
+    current = current.next;
+  }
+  return out;
 };
 
 (function () {
-    var cwd = '/';
-    var path;
-    process.cwd = function () { return cwd };
-    process.chdir = function (dir) {
-        if (!path) path = require('path');
-        cwd = path.resolve(dir, cwd);
-    };
+  try {
+    Object.defineProperty(WritableState.prototype, 'buffer', {
+      get: internalUtil.deprecate(function () {
+        return this.getBuffer();
+      }, '_writableState.buffer is deprecated. Use _writableState.getBuffer ' + 'instead.', 'DEP0003')
+    });
+  } catch (_) {}
 })();
 
-});
+// Test _writableState for inheritance to account for Duplex streams,
+// whose prototype chain only points to Readable.
+var realHasInstance;
+if (typeof Symbol === 'function' && Symbol.hasInstance && typeof Function.prototype[Symbol.hasInstance] === 'function') {
+  realHasInstance = Function.prototype[Symbol.hasInstance];
+  Object.defineProperty(Writable, Symbol.hasInstance, {
+    value: function (object) {
+      if (realHasInstance.call(this, object)) return true;
+      if (this !== Writable) return false;
 
-require.define("/node_modules/voxel-engine/package.json",function(require,module,exports,__dirname,__filename,process,global){module.exports = {}
-});
-
-require.define("/node_modules/voxel-engine/index.js",function(require,module,exports,__dirname,__filename,process,global){var voxel = require('voxel')
-var voxelMesh = require('voxel-mesh')
-var ray = require('voxel-raycast')
-var texture = require('voxel-texture')
-var control = require('voxel-control')
-var voxelView = require('voxel-view')
-var THREE = require('three')
-var Stats = require('./lib/stats')
-var Detector = require('./lib/detector')
-var inherits = require('inherits')
-var path = require('path')
-var EventEmitter = require('events').EventEmitter
-if (process.browser) var interact = require('interact')
-var requestAnimationFrame = require('raf')
-var collisions = require('collide-3d-tilemap')
-var aabb = require('aabb-3d')
-var glMatrix = require('gl-matrix')
-var vector = glMatrix.vec3
-var SpatialEventEmitter = require('spatial-events')
-var regionChange = require('voxel-region-change')
-var kb = require('kb-controls')
-var physical = require('voxel-physical')
-var pin = require('pin-it')
-var tic = require('tic')()
-
-module.exports = Game
-
-function Game(opts) {
-  if (!(this instanceof Game)) return new Game(opts)
-  var self = this
-  if (!opts) opts = {}
-  if (process.browser && this.notCapable(opts)) return
-  
-  // is this a client or a headless server
-  this.isClient = Boolean( (typeof opts.isClient !== 'undefined') ? opts.isClient : process.browser )
-
-  if (!('generateChunks' in opts)) opts.generateChunks = true
-  this.generateChunks = opts.generateChunks
-  this.setConfigurablePositions(opts)
-  this.configureChunkLoading(opts)
-  this.setDimensions(opts)
-  this.THREE = THREE
-  this.vector = vector
-  this.glMatrix = glMatrix
-  this.arrayType = opts.arrayType || Uint8Array
-  this.cubeSize = 1 // backwards compat
-  this.chunkSize = opts.chunkSize || 32
-  
-  // chunkDistance and removeDistance should not be set to the same thing
-  // as it causes lag when you go back and forth on a chunk boundary
-  this.chunkDistance = opts.chunkDistance || 2
-  this.removeDistance = opts.removeDistance || this.chunkDistance + 1
-  
-  this.skyColor = opts.skyColor || 0xBFD1E5
-  this.antialias = opts.antialias
-  this.playerHeight = opts.playerHeight || 1.62
-  this.meshType = opts.meshType || 'surfaceMesh'
-  this.mesher = opts.mesher || voxel.meshers.culled
-  this.materialType = opts.materialType || THREE.MeshLambertMaterial
-  this.materialParams = opts.materialParams || {}
-  this.items = []
-  this.voxels = voxel(this)
-  this.scene = new THREE.Scene()
-  this.view = opts.view || new voxelView(THREE, {
-    width: this.width,
-    height: this.height,
-    skyColor: this.skyColor,
-    antialias: this.antialias
-  })
-  this.view.bindToScene(this.scene)
-  this.camera = this.view.getCamera()
-  if (!opts.lightsDisabled) this.addLights(this.scene)
-  
-  this.fogScale = opts.fogScale || 32
-  if (!opts.fogDisabled) this.scene.fog = new THREE.Fog( this.skyColor, 0.00025, this.worldWidth() * this.fogScale )
-  
-  this.collideVoxels = collisions(
-    this.getBlock.bind(this),
-    1,
-    [Infinity, Infinity, Infinity],
-    [-Infinity, -Infinity, -Infinity]
-  )
-  
-  this.timer = this.initializeTimer((opts.tickFPS || 16))
-  this.paused = false
-
-  this.spatial = new SpatialEventEmitter
-  this.region = regionChange(this.spatial, aabb([0, 0, 0], [1, 1, 1]), this.chunkSize)
-  this.voxelRegion = regionChange(this.spatial, 1)
-  this.chunkRegion = regionChange(this.spatial, this.chunkSize)
-  this.asyncChunkGeneration = false
-
-  // contains chunks that has had an update this tick. Will be generated right before redrawing the frame
-  this.chunksNeedsUpdate = {}
-  // contains new chunks yet to be generated. Handled by game.loadPendingChunks
-  this.pendingChunks = []
-
-  this.materials = texture({
-    game: this,
-    texturePath: opts.texturePath || './textures/',
-    materialType: opts.materialType || THREE.MeshLambertMaterial,
-    materialParams: opts.materialParams || {},
-    materialFlatColor: opts.materialFlatColor === true
-  })
-
-  this.materialNames = opts.materials || [['grass', 'dirt', 'grass_dirt'], 'brick', 'dirt']
-  
-  self.chunkRegion.on('change', function(newChunk) {
-    self.removeFarChunks()
-  })
-
-  if (this.isClient) this.materials.load(this.materialNames)
-
-  if (this.generateChunks) this.handleChunkGeneration()
-
-  // client side only after this point
-  if (!this.isClient) return
-  
-  this.paused = true
-  this.initializeRendering(opts)
- 
-  this.showAllChunks()
-
-  setTimeout(function() {
-    self.asyncChunkGeneration = 'asyncChunkGeneration' in opts ? opts.asyncChunkGeneration : true
-  }, 2000)
-
-  this.initializeControls(opts)
-}
-
-inherits(Game, EventEmitter)
-
-// # External API
-
-Game.prototype.voxelPosition = function(gamePosition) {
-  var _ = Math.floor
-  var p = gamePosition
-  var v = []
-  v[0] = _(p[0])
-  v[1] = _(p[1])
-  v[2] = _(p[2])
-  return v
-}
-
-Game.prototype.cameraPosition = function() {
-  return this.view.cameraPosition()
-}
-
-Game.prototype.cameraVector = function() {
-  return this.view.cameraVector()
-}
-
-Game.prototype.makePhysical = function(target, envelope, blocksCreation) {
-  var vel = this.terminalVelocity
-  envelope = envelope || [2/3, 1.5, 2/3]
-  var obj = physical(target, this.potentialCollisionSet(), envelope, {x: vel[0], y: vel[1], z: vel[2]})
-  obj.blocksCreation = !!blocksCreation
-  return obj
-}
-
-Game.prototype.addItem = function(item) {
-  if (!item.tick) {
-    var newItem = physical(
-      item.mesh,
-      this.potentialCollisionSet(),
-      [item.size, item.size, item.size]
-    )
-    
-    if (item.velocity) {
-      newItem.velocity.copy(item.velocity)
-      newItem.subjectTo(this.gravity)
+      return object && object._writableState instanceof WritableState;
     }
-    
-    newItem.repr = function() { return 'debris' }
-    newItem.mesh = item.mesh
-    newItem.blocksCreation = item.blocksCreation
-    
-    item = newItem
-  }
-  
-  this.items.push(item)
-  if (item.mesh) this.scene.add(item.mesh)
-  return this.items[this.items.length - 1]
+  });
+} else {
+  realHasInstance = function (object) {
+    return object instanceof this;
+  };
 }
 
-Game.prototype.removeItem = function(item) {
-  var ix = this.items.indexOf(item)
-  if (ix < 0) return
-  this.items.splice(ix, 1)
-  if (item.mesh) this.scene.remove(item.mesh)
-}
+function Writable(options) {
+  Duplex = Duplex || require('./_stream_duplex');
 
-// only intersects voxels, not items (for now)
-Game.prototype.raycast = // backwards compat
-Game.prototype.raycastVoxels = function(start, direction, maxDistance, epilson) {
-  if (!start) return this.raycastVoxels(this.cameraPosition(), this.cameraVector(), 10)
-  
-  var hitNormal = [0, 0, 0]
-  var hitPosition = [0, 0, 0]
-  var cp = start || this.cameraPosition()
-  var cv = direction || this.cameraVector()
-  var hitBlock = ray(this, cp, cv, maxDistance || 10.0, hitPosition, hitNormal, epilson || this.epilson)
-  if (hitBlock <= 0) return false
-  var adjacentPosition = [0, 0, 0]
-  var voxelPosition = this.voxelPosition(hitPosition)
-  vector.add(adjacentPosition, voxelPosition, hitNormal)
-  
-  return {
-    position: hitPosition,
-    voxel: voxelPosition,
-    direction: direction,
-    value: hitBlock,
-    normal: hitNormal,
-    adjacent: adjacentPosition
-  }
-}
+  // Writable ctor is applied to Duplexes, too.
+  // `realHasInstance` is necessary because using plain `instanceof`
+  // would return false, as no `_writableState` property is attached.
 
-Game.prototype.canCreateBlock = function(pos) {
-  pos = this.parseVectorArguments(arguments)
-  var floored = pos.map(function(i) { return Math.floor(i) })
-  var bbox = aabb(floored, [1, 1, 1])
-  
-  for (var i = 0, len = this.items.length; i < len; ++i) {
-    var item = this.items[i]
-    var itemInTheWay = item.blocksCreation && item.aabb && bbox.intersects(item.aabb())
-    if (itemInTheWay) return false
+  // Trying to use the custom `instanceof` for Writable here will also break the
+  // Node.js LazyTransform implementation, which has a non-trivial getter for
+  // `_writableState` that would lead to infinite recursion.
+  if (!realHasInstance.call(Writable, this) && !(this instanceof Duplex)) {
+    return new Writable(options);
   }
 
-  return true
-}
+  this._writableState = new WritableState(options, this);
 
-Game.prototype.createBlock = function(pos, val) {
-  if (typeof val === 'string') val = this.materials.find(val)
-  if (!this.canCreateBlock(pos)) return false
-  this.setBlock(pos, val)
-  return true
-}
+  // legacy.
+  this.writable = true;
 
-Game.prototype.setBlock = function(pos, val) {
-  if (typeof val === 'string') val = this.materials.find(val)
-  var old = this.voxels.voxelAtPosition(pos, val)
-  var c = this.voxels.chunkAtPosition(pos)
-  var chunk = this.voxels.chunks[c.join('|')]
-  if (!chunk) return// todo - does self.emit('missingChunk', c.join('|')) make sense here?
-  this.addChunkToNextUpdate(chunk)
-  this.spatial.emit('change-block', pos, old, val)
-  this.emit('setBlock', pos, val, old)
-}
+  if (options) {
+    if (typeof options.write === 'function') this._write = options.write;
 
-Game.prototype.getBlock = function(pos) {
-  pos = this.parseVectorArguments(arguments)
-  return this.voxels.voxelAtPosition(pos)
-}
+    if (typeof options.writev === 'function') this._writev = options.writev;
 
-Game.prototype.blockPosition = function(pos) {
-  pos = this.parseVectorArguments(arguments)
-  var ox = Math.floor(pos[0])
-  var oy = Math.floor(pos[1])
-  var oz = Math.floor(pos[2])
-  return [ox, oy, oz]
-}
+    if (typeof options.destroy === 'function') this._destroy = options.destroy;
 
-Game.prototype.blocks = function(low, high, iterator) {
-  var l = low, h = high
-  var d = [ h[0]-l[0], h[1]-l[1], h[2]-l[2] ]
-  if (!iterator) var voxels = new this.arrayType(d[0]*d[1]*d[2])
-  var i = 0
-  for(var z=l[2]; z<h[2]; ++z)
-  for(var y=l[1]; y<h[1]; ++y)
-  for(var x=l[0]; x<h[0]; ++x, ++i) {
-    if (iterator) iterator(x, y, z, i)
-    else voxels[i] = this.voxels.voxelAtPosition([x, y, z])
-  }
-  if (!iterator) return {voxels: voxels, dims: d}
-}
-
-// backwards compat
-Game.prototype.createAdjacent = function(hit, val) {
-  this.createBlock(hit.adjacent, val)
-}
-
-Game.prototype.appendTo = function (element) {
-  this.view.appendTo(element)
-}
-
-// # Defaults/options parsing
-
-Game.prototype.gravity = [0, -0.0000036, 0]
-Game.prototype.friction = 0.3
-Game.prototype.epilson = 1e-8
-Game.prototype.terminalVelocity = [0.9, 0.1, 0.9]
-
-Game.prototype.defaultButtons = {
-  'W': 'forward'
-, 'A': 'left'
-, 'S': 'backward'
-, 'D': 'right'
-, '<up>': 'forward'
-, '<left>': 'left'
-, '<down>': 'backward'
-, '<right>': 'right'
-, '<mouse 1>': 'fire'
-, '<mouse 3>': 'firealt'
-, '<space>': 'jump'
-, '<shift>': 'crouch'
-, '<control>': 'alt'
-}
-
-// used in methods that have identity function(pos) {}
-Game.prototype.parseVectorArguments = function(args) {
-  if (!args) return false
-  if (args[0] instanceof Array) return args[0]
-  return [args[0], args[1], args[2]]
-}
-
-Game.prototype.setConfigurablePositions = function(opts) {
-  var sp = opts.startingPosition
-  this.startingPosition = sp || [35, 1024, 35]
-  var wo = opts.worldOrigin
-  this.worldOrigin = wo || [0, 0, 0]
-}
-
-Game.prototype.setDimensions = function(opts) {
-  if (opts.container) this.container = opts.container
-  if (opts.container && opts.container.clientHeight) {
-    this.height = opts.container.clientHeight
-  } else {
-    this.height = typeof window === "undefined" ? 1 : window.innerHeight
-  }
-  if (opts.container && opts.container.clientWidth) {
-    this.width = opts.container.clientWidth
-  } else {
-    this.width = typeof window === "undefined" ? 1 : window.innerWidth
-  }
-}
-
-Game.prototype.notCapable = function(opts) {
-  var self = this
-  if( !Detector().webgl ) {
-    this.view = {
-      appendTo: function(el) {
-        el.appendChild(self.notCapableMessage())
-      }
-    }
-    return true
-  }
-  return false
-}
-
-Game.prototype.notCapableMessage = function() {
-  var wrapper = document.createElement('div')
-  wrapper.className = "errorMessage"
-  var a = document.createElement('a')
-  a.title = "You need WebGL and Pointer Lock (Chrome 23/Firefox 14) to play this game. Click here for more information."
-  a.innerHTML = a.title
-  a.href = "http://get.webgl.org"
-  wrapper.appendChild(a)
-  return wrapper
-}
-
-Game.prototype.onWindowResize = function() {
-  var width = window.innerWidth
-  var height = window.innerHeight
-  if (this.container) {
-    width = this.container.clientWidth
-    height = this.container.clientHeight
-  }
-  this.view.resizeWindow(width, height)
-}
-
-// # Physics/collision related methods
-
-Game.prototype.control = function(target) {
-  this.controlling = target
-  return this.controls.target(target)
-}
-
-Game.prototype.potentialCollisionSet = function() {
-  return [{ collide: this.collideTerrain.bind(this) }]
-}
-
-/**
- * Get the position of the player under control.
- * If there is no player under control, return
- * current position of the game's camera.
- *
- * @return {Array} an [x, y, z] tuple
- */
-
-Game.prototype.playerPosition = function() {
-  var target = this.controls.target()
-  var position = target
-    ? target.avatar.position
-    : this.camera.localToWorld(this.camera.position.clone())
-  return [position.x, position.y, position.z]
-}
-
-Game.prototype.playerAABB = function(position) {
-  var pos = position || this.playerPosition()
-  var lower = []
-  var upper = [1/2, this.playerHeight, 1/2]
-  var playerBottom = [1/4, this.playerHeight, 1/4]
-  vector.subtract(lower, pos, playerBottom)
-  var bbox = aabb(lower, upper)
-  return bbox
-}
-
-Game.prototype.collideTerrain = function(other, bbox, vec, resting) {
-  var self = this
-  var axes = ['x', 'y', 'z']
-  var vec3 = [vec.x, vec.y, vec.z]
-  this.collideVoxels(bbox, vec3, function hit(axis, tile, coords, dir, edge) {
-    if (!tile) return
-    if (Math.abs(vec3[axis]) < Math.abs(edge)) return
-    vec3[axis] = vec[axes[axis]] = edge
-    other.acceleration[axes[axis]] = 0
-    resting[axes[axis]] = dir
-    other.friction[axes[(axis + 1) % 3]] = other.friction[axes[(axis + 2) % 3]] = axis === 1 ? self.friction  : 1
-    return true
-  })
-}
-
-// # Three.js specific methods
-
-Game.prototype.addStats = function() {
-  stats = new Stats()
-  stats.domElement.style.position  = 'absolute'
-  stats.domElement.style.bottom  = '0px'
-  document.body.appendChild( stats.domElement )
-}
-
-Game.prototype.addLights = function(scene) {
-  var ambientLight, directionalLight
-  ambientLight = new THREE.AmbientLight(0xcccccc)
-  scene.add(ambientLight)
-  var light	= new THREE.DirectionalLight( 0xffffff , 1)
-  light.position.set( 1, 1, 0.5 ).normalize()
-  scene.add( light )
-}
-
-// # Chunk related methods
-
-Game.prototype.configureChunkLoading = function(opts) {
-  var self = this
-  if (!opts.generateChunks) return
-  if (!opts.generate) {
-    this.generate = function(x,y,z) {
-      return x*x+y*y+z*z <= 15*15 ? 1 : 0 // sphere world
-    }
-  } else {
-    this.generate = opts.generate
-  }
-  if (opts.generateVoxelChunk) {
-    this.generateVoxelChunk = opts.generateVoxelChunk
-  } else {
-    this.generateVoxelChunk = function(low, high) {
-      return voxel.generate(low, high, self.generate, self)
-    }
-  }
-}
-
-Game.prototype.worldWidth = function() {
-  return this.chunkSize * 2 * this.chunkDistance
-}
-
-Game.prototype.chunkToWorld = function(pos) {
-  return [
-    pos[0] * this.chunkSize,
-    pos[1] * this.chunkSize,
-    pos[2] * this.chunkSize
-  ]
-}
-
-Game.prototype.removeFarChunks = function(playerPosition) {
-  var self = this
-  playerPosition = playerPosition || this.playerPosition()
-  var nearbyChunks = this.voxels.nearbyChunks(playerPosition, this.removeDistance).map(function(chunkPos) {
-    return chunkPos.join('|')
-  })
-  Object.keys(self.voxels.chunks).map(function(chunkIndex) {
-    if (nearbyChunks.indexOf(chunkIndex) > -1) return
-    var chunk = self.voxels.chunks[chunkIndex]
-    var mesh = self.voxels.meshes[chunkIndex]
-    var pendingIndex = self.pendingChunks.indexOf(chunkIndex)
-    if (pendingIndex !== -1) self.pendingChunks.splice(pendingIndex, 1)
-    if (!chunk) return
-    var chunkPosition = chunk.position
-    if (mesh) {
-      if (mesh.surfaceMesh) {
-        self.scene.remove(mesh.surfaceMesh)
-        mesh.surfaceMesh.geometry.dispose()
-      }
-      if (mesh.wireMesh) {
-        mesh.wireMesh.geometry.dispose()
-        self.scene.remove(mesh.wireMesh)
-      }
-      delete mesh.data
-      delete mesh.geometry
-      delete mesh.meshed
-      delete mesh.surfaceMesh
-      delete mesh.wireMesh
-    }
-    delete self.voxels.chunks[chunkIndex]
-    self.emit('removeChunk', chunkPosition)
-  })
-  self.voxels.requestMissingChunks(playerPosition)
-}
-
-Game.prototype.addChunkToNextUpdate = function(chunk) {
-  this.chunksNeedsUpdate[chunk.position.join('|')] = chunk
-}
-
-Game.prototype.updateDirtyChunks = function() {
-  var self = this
-  Object.keys(this.chunksNeedsUpdate).forEach(function showChunkAtIndex(chunkIndex) {
-    var chunk = self.chunksNeedsUpdate[chunkIndex]
-    self.emit('dirtyChunkUpdate', chunk)
-    self.showChunk(chunk)
-  })
-  this.chunksNeedsUpdate = {}
-}
-
-Game.prototype.loadPendingChunks = function(count) {
-  var pendingChunks = this.pendingChunks
-
-  if (!this.asyncChunkGeneration) {
-    count = pendingChunks.length
-  } else {
-    count = count || (pendingChunks.length * 0.1)
-    count = Math.max(1, Math.min(count, pendingChunks.length))
+    if (typeof options.final === 'function') this._final = options.final;
   }
 
-  for (var i = 0; i < count; i += 1) {
-    var chunkPos = pendingChunks[i].split('|')
-    var chunk = this.voxels.generateChunk(chunkPos[0]|0, chunkPos[1]|0, chunkPos[2]|0)
-
-    if (this.isClient) this.showChunk(chunk)
-  }
-
-  if (count) pendingChunks.splice(0, count)
+  Stream.call(this);
 }
 
-Game.prototype.getChunkAtPosition = function(pos) {
-  var chunkID = this.voxels.chunkAtPosition(pos).join('|')
-  var chunk = this.voxels.chunks[chunkID]
-  return chunk
-}
-
-Game.prototype.showAllChunks = function() {
-  for (var chunkIndex in this.voxels.chunks) {
-    this.showChunk(this.voxels.chunks[chunkIndex])
-  }
-}
-
-Game.prototype.showChunk = function(chunk) {
-  var chunkIndex = chunk.position.join('|')
-  var bounds = this.voxels.getBounds.apply(this.voxels, chunk.position)
-  var scale = new THREE.Vector3(1, 1, 1)
-  var mesh = voxelMesh(chunk, this.mesher, scale, this.THREE)
-  this.voxels.chunks[chunkIndex] = chunk
-  if (this.voxels.meshes[chunkIndex]) {
-    if (this.voxels.meshes[chunkIndex].surfaceMesh) this.scene.remove(this.voxels.meshes[chunkIndex].surfaceMesh)
-    if (this.voxels.meshes[chunkIndex].wireMesh) this.scene.remove(this.voxels.meshes[chunkIndex].wireMesh)
-  }
-  this.voxels.meshes[chunkIndex] = mesh
-  if (this.isClient) {
-    if (this.meshType === 'wireMesh') mesh.createWireMesh()
-    else mesh.createSurfaceMesh(this.materials.material)
-    this.materials.paint(mesh)
-  }
-  mesh.setPosition(bounds[0][0], bounds[0][1], bounds[0][2])
-  mesh.addToScene(this.scene)
-  this.emit('renderChunk', chunk)
-  return mesh
-}
-
-// # Debugging methods
-
-Game.prototype.addMarker = function(position) {
-  var geometry = new THREE.SphereGeometry( 0.1, 10, 10 )
-  var material = new THREE.MeshPhongMaterial( { color: 0xffffff, shading: THREE.FlatShading } )
-  var mesh = new THREE.Mesh( geometry, material )
-  mesh.position.copy(position)
-  this.scene.add(mesh)
-}
-
-Game.prototype.addAABBMarker = function(aabb, color) {
-  var geometry = new THREE.CubeGeometry(aabb.width(), aabb.height(), aabb.depth())
-  var material = new THREE.MeshBasicMaterial({ color: color || 0xffffff, wireframe: true, transparent: true, opacity: 0.5, side: THREE.DoubleSide })
-  var mesh = new THREE.Mesh(geometry, material)
-  mesh.position.set(aabb.x0() + aabb.width() / 2, aabb.y0() + aabb.height() / 2, aabb.z0() + aabb.depth() / 2)
-  this.scene.add(mesh)
-  return mesh
-}
-
-Game.prototype.addVoxelMarker = function(x, y, z, color) {
-  var bbox = aabb([x, y, z], [1, 1, 1])
-  return this.addAABBMarker(bbox, color)
-}
-
-Game.prototype.pin = pin
-
-// # Misc internal methods
-
-Game.prototype.onControlChange = function(gained, stream) {
-  this.paused = false
-
-  if (!gained && !this.optout) {
-    this.buttons.disable()
-    return
-  }
-
-  this.buttons.enable()
-  stream.pipe(this.controls.createWriteRotationStream())
-}
-
-Game.prototype.onControlOptOut = function() {
-  this.optout = true
-}
-
-Game.prototype.onFire = function(state) {
-  this.emit('fire', this.controlling, state)
-}
-
-Game.prototype.setInterval = tic.interval.bind(tic)
-Game.prototype.setTimeout = tic.timeout.bind(tic)
-
-Game.prototype.tick = function(delta) {
-  for(var i = 0, len = this.items.length; i < len; ++i) {
-    this.items[i].tick(delta)
-  }
-  
-  if (this.materials) this.materials.tick(delta)
-
-  if (this.pendingChunks.length) this.loadPendingChunks()
-  if (Object.keys(this.chunksNeedsUpdate).length > 0) this.updateDirtyChunks()
-  
-  tic.tick(delta)
-
-  this.emit('tick', delta)
-  
-  if (!this.controls) return
-  var playerPos = this.playerPosition()
-  this.spatial.emit('position', playerPos, playerPos)
-}
-
-Game.prototype.render = function(delta) {
-  this.view.render(this.scene)
-}
-
-Game.prototype.initializeTimer = function(rate) {
-  var self = this
-  var accum = 0
-  var now = 0
-  var last = null
-  var dt = 0
-  var wholeTick
-  
-  self.frameUpdated = true
-  self.interval = setInterval(timer, 0)
-  return self.interval
-  
-  function timer() {
-    if (self.paused) {
-      last = Date.now()
-      accum = 0
-      return
-    }
-    now = Date.now()
-    dt = now - (last || now)
-    last = now
-    accum += dt
-    if (accum < rate) return
-    wholeTick = ((accum / rate)|0)
-    if (wholeTick <= 0) return
-    wholeTick *= rate
-    
-    self.tick(wholeTick)
-    accum -= wholeTick
-    
-    self.frameUpdated = true
-  }
-}
-
-Game.prototype.initializeRendering = function(opts) {
-  var self = this
-
-  if (!opts.statsDisabled) self.addStats()
-
-  window.addEventListener('resize', self.onWindowResize.bind(self), false)
-
-  requestAnimationFrame(window).on('data', function(dt) {
-    self.emit('prerender', dt)
-    self.render(dt)
-    self.emit('postrender', dt)
-  })
-  if (typeof stats !== 'undefined') {
-    self.on('postrender', function() {
-      stats.update()
-    })
-  }
-}
-
-Game.prototype.initializeControls = function(opts) {
-  // player control
-  this.keybindings = opts.keybindings || this.defaultButtons
-  this.buttons = kb(document.body, this.keybindings)
-  this.buttons.disable()
-  this.optout = false
-  this.interact = interact(opts.interactElement || this.view.element, opts.interactMouseDrag)
-  this.interact
-      .on('attain', this.onControlChange.bind(this, true))
-      .on('release', this.onControlChange.bind(this, false))
-      .on('opt-out', this.onControlOptOut.bind(this))
-  this.hookupControls(this.buttons, opts)
-}
-
-Game.prototype.hookupControls = function(buttons, opts) {
-  opts = opts || {}
-  opts.controls = opts.controls || {}
-  opts.controls.onfire = this.onFire.bind(this)
-  this.controls = control(buttons, opts.controls)
-  this.items.push(this.controls)
-  this.controlling = null
-}
-
-Game.prototype.handleChunkGeneration = function() {
-  var self = this
-  this.voxels.on('missingChunk', function(chunkPos) {
-    self.pendingChunks.push(chunkPos.join('|'))
-  })
-  this.voxels.requestMissingChunks(this.worldOrigin)
-  this.loadPendingChunks(this.pendingChunks.length)
-}
-
-// teardown methods
-Game.prototype.destroy = function() {
-  clearInterval(this.timer)
-}
-
-});
-
-require.define("/node_modules/voxel/package.json",function(require,module,exports,__dirname,__filename,process,global){module.exports = {"main":"index.js"}
-});
-
-require.define("/node_modules/voxel/index.js",function(require,module,exports,__dirname,__filename,process,global){var chunker = require('./chunker')
-
-module.exports = function(opts) {
-  if (!opts.generateVoxelChunk) opts.generateVoxelChunk = function(low, high) {
-    return generate(low, high, module.exports.generator['Valley'])
-  }
-  return chunker(opts)
-}
-
-module.exports.meshers = {
-  culled: require('./meshers/culled').mesher,
-  greedy: require('./meshers/greedy').mesher,
-  monotone: require('./meshers/monotone').mesher,
-  stupid: require('./meshers/stupid').mesher
-}
-
-module.exports.Chunker = chunker.Chunker
-module.exports.geometry = {}
-module.exports.generator = {}
-module.exports.generate = generate
-
-// from https://github.com/mikolalysenko/mikolalysenko.github.com/blob/master/MinecraftMeshes2/js/testdata.js#L4
-function generate(l, h, f, game) {
-  var d = [ h[0]-l[0], h[1]-l[1], h[2]-l[2] ]
-  var v = new Int8Array(d[0]*d[1]*d[2])
-  var n = 0
-  for(var k=l[2]; k<h[2]; ++k)
-  for(var j=l[1]; j<h[1]; ++j)
-  for(var i=l[0]; i<h[0]; ++i, ++n) {
-    v[n] = f(i,j,k,n,game)
-  }
-  return {voxels:v, dims:d}
-}
-
-// shape and terrain generator functions
-module.exports.generator['Sphere'] = function(i,j,k) {
-  return i*i+j*j+k*k <= 16*16 ? 1 : 0
-}
-
-module.exports.generator['Noise'] = function(i,j,k) {
-  return Math.random() < 0.1 ? Math.random() * 0xffffff : 0;
-}
-
-module.exports.generator['Dense Noise'] = function(i,j,k) {
-  return Math.round(Math.random() * 0xffffff);
-}
-
-module.exports.generator['Checker'] = function(i,j,k) {
-  return !!((i+j+k)&1) ? (((i^j^k)&2) ? 1 : 0xffffff) : 0;
-}
-
-module.exports.generator['Hill'] = function(i,j,k) {
-  return j <= 16 * Math.exp(-(i*i + k*k) / 64) ? 1 : 0;
-}
-
-module.exports.generator['Valley'] = function(i,j,k) {
-  return j <= (i*i + k*k) * 31 / (32*32*2) + 1 ? 1 : 0;
-}
-
-module.exports.generator['Hilly Terrain'] = function(i,j,k) {
-  var h0 = 3.0 * Math.sin(Math.PI * i / 12.0 - Math.PI * k * 0.1) + 27;    
-  if(j > h0+1) {
-    return 0;
-  }
-  if(h0 <= j) {
-    return 1;
-  }
-  var h1 = 2.0 * Math.sin(Math.PI * i * 0.25 - Math.PI * k * 0.3) + 20;
-  if(h1 <= j) {
-    return 2;
-  }
-  if(2 < j) {
-    return Math.random() < 0.1 ? 0x222222 : 0xaaaaaa;
-  }
-  return 3;
-}
-
-module.exports.scale = function ( x, fromLow, fromHigh, toLow, toHigh ) {
-  return ( x - fromLow ) * ( toHigh - toLow ) / ( fromHigh - fromLow ) + toLow
-}
-
-// convenience function that uses the above functions to prebake some simple voxel geometries
-module.exports.generateExamples = function() {
-  return {
-    'Sphere': generate([-16,-16,-16], [16,16,16], module.exports.generator['Sphere']),
-    'Noise': generate([0,0,0], [16,16,16], module.exports.generator['Noise']),
-    'Dense Noise': generate([0,0,0], [16,16,16], module.exports.generator['Dense Noise']),
-    'Checker': generate([0,0,0], [8,8,8], module.exports.generator['Checker']),
-    'Hill': generate([-16, 0, -16], [16,16,16], module.exports.generator['Hill']),
-    'Valley': generate([0,0,0], [32,32,32], module.exports.generator['Valley']),
-    'Hilly Terrain': generate([0, 0, 0], [32,32,32], module.exports.generator['Hilly Terrain'])
-  }
-}
-
-
-});
-
-require.define("/node_modules/voxel/chunker.js",function(require,module,exports,__dirname,__filename,process,global){var events = require('events')
-var inherits = require('inherits')
-
-module.exports = function(opts) {
-  return new Chunker(opts)
-}
-
-module.exports.Chunker = Chunker
-
-function Chunker(opts) {
-  this.distance = opts.chunkDistance || 2
-  this.chunkSize = opts.chunkSize || 32
-  this.cubeSize = opts.cubeSize || 25
-  this.generateVoxelChunk = opts.generateVoxelChunk
-  this.chunks = {}
-  this.meshes = {}
-
-  if (this.chunkSize & this.chunkSize-1 !== 0)
-    throw new Error('chunkSize must be a power of 2')
-  var bits = 0;
-  for (var size = this.chunkSize; size > 0; size >>= 1) bits++;
-  this.chunkBits = bits - 1;
-}
-
-inherits(Chunker, events.EventEmitter)
-
-Chunker.prototype.nearbyChunks = function(position, distance) {
-  var current = this.chunkAtPosition(position)
-  var x = current[0]
-  var y = current[1]
-  var z = current[2]
-  var dist = distance || this.distance
-  var nearby = []
-  for (var cx = (x - dist); cx !== (x + dist); ++cx) {
-    for (var cy = (y - dist); cy !== (y + dist); ++cy) {
-      for (var cz = (z - dist); cz !== (z + dist); ++cz) {
-        nearby.push([cx, cy, cz])
-      }
-    }
-  }
-  return nearby
-}
-
-Chunker.prototype.requestMissingChunks = function(position) {
-  var self = this
-  this.nearbyChunks(position).map(function(chunk) {
-    if (!self.chunks[chunk.join('|')]) {
-      self.emit('missingChunk', chunk)
-    }
-  })
-}
-
-Chunker.prototype.getBounds = function(x, y, z) {
-  var bits = this.chunkBits
-  var low = [x << bits, y << bits, z << bits]
-  var high = [(x+1) << bits, (y+1) << bits, (z+1) << bits]
-  return [low, high]
-}
-
-Chunker.prototype.generateChunk = function(x, y, z) {
-  var self = this
-  var bounds = this.getBounds(x, y, z)
-  var chunk = this.generateVoxelChunk(bounds[0], bounds[1], x, y, z)
-  var position = [x, y, z]
-  chunk.position = position
-  this.chunks[position.join('|')] = chunk
-  return chunk
-}
-
-Chunker.prototype.chunkAtCoordinates = function(x, y, z) {
-  var bits = this.chunkBits;
-  var cx = x >> bits;
-  var cy = y >> bits;
-  var cz = z >> bits;
-  var chunkPos = [cx, cy, cz];
-  return chunkPos;
-}
-
-Chunker.prototype.chunkAtPosition = function(position) {
-  var cubeSize = this.cubeSize;
-  var x = Math.floor(position[0] / cubeSize)
-  var y = Math.floor(position[1] / cubeSize)
-  var z = Math.floor(position[2] / cubeSize)
-  var chunkPos = this.chunkAtCoordinates(x, y, z)
-  return chunkPos
+// Otherwise people can pipe Writable streams, which is just wrong.
+Writable.prototype.pipe = function () {
+  this.emit('error', new Error('Cannot pipe, not readable'));
 };
 
-Chunker.prototype.voxelIndexFromCoordinates = function(x, y, z) {
-  var bits = this.chunkBits
-  var mask = (1 << bits) - 1
-  var vidx = (x & mask) + ((y & mask) << bits) + ((z & mask) << bits * 2)
-  return vidx
+function writeAfterEnd(stream, cb) {
+  var er = new Error('write after end');
+  // TODO: defer error events consistently everywhere, not just the cb
+  stream.emit('error', er);
+  pna.nextTick(cb, er);
 }
 
-Chunker.prototype.voxelIndexFromPosition = function(pos) {
-  var v = this.voxelVector(pos)
-  return this.voxelIndex(v)
-}
+// Checks that a user-supplied chunk is valid, especially for the particular
+// mode the stream is in. Currently this means that `null` is never accepted
+// and undefined/non-string values are only allowed in object mode.
+function validChunk(stream, state, chunk, cb) {
+  var valid = true;
+  var er = false;
 
-Chunker.prototype.voxelAtCoordinates = function(x, y, z, val) {
-  var ckey = this.chunkAtCoordinates(x, y, z).join('|')
-  var chunk = this.chunks[ckey]
-  if (!chunk) return false
-  var vidx = this.voxelIndexFromCoordinates(x, y, z)
-  var v = chunk.voxels[vidx]
-  if (typeof val !== 'undefined') {
-    chunk.voxels[vidx] = val
+  if (chunk === null) {
+    er = new TypeError('May not write null values to stream');
+  } else if (typeof chunk !== 'string' && chunk !== undefined && !state.objectMode) {
+    er = new TypeError('Invalid non-string/buffer chunk');
   }
-  return v
+  if (er) {
+    stream.emit('error', er);
+    pna.nextTick(cb, er);
+    valid = false;
+  }
+  return valid;
 }
 
-Chunker.prototype.voxelAtPosition = function(pos, val) {
-  var cubeSize = this.cubeSize;
-  var x = Math.floor(pos[0] / cubeSize)
-  var y = Math.floor(pos[1] / cubeSize)
-  var z = Math.floor(pos[2] / cubeSize)
-  var v = this.voxelAtCoordinates(x, y, z, val)
-  return v;
-}
+Writable.prototype.write = function (chunk, encoding, cb) {
+  var state = this._writableState;
+  var ret = false;
+  var isBuf = !state.objectMode && _isUint8Array(chunk);
 
-// deprecated
-Chunker.prototype.voxelIndex = function(voxelVector) {
-  var vidx = this.voxelIndexFromCoordinates(voxelVector[0], voxelVector[1], voxelVector[2])
-  return vidx
-}
-
-// deprecated
-Chunker.prototype.voxelVector = function(pos) {
-  var cubeSize = this.cubeSize
-  var mask = (1 << this.chunkBits) - 1
-  var vx = (Math.floor(pos[0] / cubeSize)) & mask
-  var vy = (Math.floor(pos[1] / cubeSize)) & mask
-  var vz = (Math.floor(pos[2] / cubeSize)) & mask
-  return [vx, vy, vz]
-};
-
-});
-
-require.define("events",function(require,module,exports,__dirname,__filename,process,global){if (!process.EventEmitter) process.EventEmitter = function () {};
-
-var EventEmitter = exports.EventEmitter = process.EventEmitter;
-var isArray = typeof Array.isArray === 'function'
-    ? Array.isArray
-    : function (xs) {
-        return Object.prototype.toString.call(xs) === '[object Array]'
-    }
-;
-function indexOf (xs, x) {
-    if (xs.indexOf) return xs.indexOf(x);
-    for (var i = 0; i < xs.length; i++) {
-        if (x === xs[i]) return i;
-    }
-    return -1;
-}
-
-// By default EventEmitters will print a warning if more than
-// 10 listeners are added to it. This is a useful default which
-// helps finding memory leaks.
-//
-// Obviously not all Emitters should be limited to 10. This function allows
-// that to be increased. Set to zero for unlimited.
-var defaultMaxListeners = 10;
-EventEmitter.prototype.setMaxListeners = function(n) {
-  if (!this._events) this._events = {};
-  this._events.maxListeners = n;
-};
-
-
-EventEmitter.prototype.emit = function(type) {
-  // If there is no 'error' event listener then throw.
-  if (type === 'error') {
-    if (!this._events || !this._events.error ||
-        (isArray(this._events.error) && !this._events.error.length))
-    {
-      if (arguments[1] instanceof Error) {
-        throw arguments[1]; // Unhandled 'error' event
-      } else {
-        throw new Error("Uncaught, unspecified 'error' event.");
-      }
-      return false;
-    }
+  if (isBuf && !Buffer.isBuffer(chunk)) {
+    chunk = _uint8ArrayToBuffer(chunk);
   }
 
-  if (!this._events) return false;
-  var handler = this._events[type];
-  if (!handler) return false;
+  if (typeof encoding === 'function') {
+    cb = encoding;
+    encoding = null;
+  }
 
-  if (typeof handler == 'function') {
-    switch (arguments.length) {
-      // fast cases
-      case 1:
-        handler.call(this);
-        break;
-      case 2:
-        handler.call(this, arguments[1]);
-        break;
-      case 3:
-        handler.call(this, arguments[1], arguments[2]);
-        break;
-      // slower
-      default:
-        var args = Array.prototype.slice.call(arguments, 1);
-        handler.apply(this, args);
-    }
-    return true;
+  if (isBuf) encoding = 'buffer';else if (!encoding) encoding = state.defaultEncoding;
 
-  } else if (isArray(handler)) {
-    var args = Array.prototype.slice.call(arguments, 1);
+  if (typeof cb !== 'function') cb = nop;
 
-    var listeners = handler.slice();
-    for (var i = 0, l = listeners.length; i < l; i++) {
-      listeners[i].apply(this, args);
-    }
-    return true;
+  if (state.ended) writeAfterEnd(this, cb);else if (isBuf || validChunk(this, state, chunk, cb)) {
+    state.pendingcb++;
+    ret = writeOrBuffer(this, state, isBuf, chunk, encoding, cb);
+  }
 
-  } else {
-    return false;
+  return ret;
+};
+
+Writable.prototype.cork = function () {
+  var state = this._writableState;
+
+  state.corked++;
+};
+
+Writable.prototype.uncork = function () {
+  var state = this._writableState;
+
+  if (state.corked) {
+    state.corked--;
+
+    if (!state.writing && !state.corked && !state.finished && !state.bufferProcessing && state.bufferedRequest) clearBuffer(this, state);
   }
 };
 
-// EventEmitter is defined in src/node_events.cc
-// EventEmitter.prototype.emit() is also defined there.
-EventEmitter.prototype.addListener = function(type, listener) {
-  if ('function' !== typeof listener) {
-    throw new Error('addListener only takes instances of Function');
-  }
-
-  if (!this._events) this._events = {};
-
-  // To avoid recursion in the case that type == "newListeners"! Before
-  // adding it to the listeners, first emit "newListeners".
-  this.emit('newListener', type, listener);
-
-  if (!this._events[type]) {
-    // Optimize the case of one listener. Don't need the extra array object.
-    this._events[type] = listener;
-  } else if (isArray(this._events[type])) {
-
-    // Check for listener leak
-    if (!this._events[type].warned) {
-      var m;
-      if (this._events.maxListeners !== undefined) {
-        m = this._events.maxListeners;
-      } else {
-        m = defaultMaxListeners;
-      }
-
-      if (m && m > 0 && this._events[type].length > m) {
-        this._events[type].warned = true;
-        console.error('(node) warning: possible EventEmitter memory ' +
-                      'leak detected. %d listeners added. ' +
-                      'Use emitter.setMaxListeners() to increase limit.',
-                      this._events[type].length);
-        console.trace();
-      }
-    }
-
-    // If we've already got an array, just append.
-    this._events[type].push(listener);
-  } else {
-    // Adding the second element, need to change to array.
-    this._events[type] = [this._events[type], listener];
-  }
-
+Writable.prototype.setDefaultEncoding = function setDefaultEncoding(encoding) {
+  // node::ParseEncoding() requires lower case.
+  if (typeof encoding === 'string') encoding = encoding.toLowerCase();
+  if (!(['hex', 'utf8', 'utf-8', 'ascii', 'binary', 'base64', 'ucs2', 'ucs-2', 'utf16le', 'utf-16le', 'raw'].indexOf((encoding + '').toLowerCase()) > -1)) throw new TypeError('Unknown encoding: ' + encoding);
+  this._writableState.defaultEncoding = encoding;
   return this;
 };
 
-EventEmitter.prototype.on = EventEmitter.prototype.addListener;
+function decodeChunk(state, chunk, encoding) {
+  if (!state.objectMode && state.decodeStrings !== false && typeof chunk === 'string') {
+    chunk = Buffer.from(chunk, encoding);
+  }
+  return chunk;
+}
 
-EventEmitter.prototype.once = function(type, listener) {
-  var self = this;
-  self.on(type, function g() {
-    self.removeListener(type, g);
-    listener.apply(this, arguments);
+Object.defineProperty(Writable.prototype, 'writableHighWaterMark', {
+  // making it explicit this property is not enumerable
+  // because otherwise some prototype manipulation in
+  // userland will fail
+  enumerable: false,
+  get: function () {
+    return this._writableState.highWaterMark;
+  }
+});
+
+// if we're already writing something, then just put this
+// in the queue, and wait our turn.  Otherwise, call _write
+// If we return false, then we need a drain event, so set that flag.
+function writeOrBuffer(stream, state, isBuf, chunk, encoding, cb) {
+  if (!isBuf) {
+    var newChunk = decodeChunk(state, chunk, encoding);
+    if (chunk !== newChunk) {
+      isBuf = true;
+      encoding = 'buffer';
+      chunk = newChunk;
+    }
+  }
+  var len = state.objectMode ? 1 : chunk.length;
+
+  state.length += len;
+
+  var ret = state.length < state.highWaterMark;
+  // we must ensure that previous needDrain will not be reset to false.
+  if (!ret) state.needDrain = true;
+
+  if (state.writing || state.corked) {
+    var last = state.lastBufferedRequest;
+    state.lastBufferedRequest = {
+      chunk: chunk,
+      encoding: encoding,
+      isBuf: isBuf,
+      callback: cb,
+      next: null
+    };
+    if (last) {
+      last.next = state.lastBufferedRequest;
+    } else {
+      state.bufferedRequest = state.lastBufferedRequest;
+    }
+    state.bufferedRequestCount += 1;
+  } else {
+    doWrite(stream, state, false, len, chunk, encoding, cb);
+  }
+
+  return ret;
+}
+
+function doWrite(stream, state, writev, len, chunk, encoding, cb) {
+  state.writelen = len;
+  state.writecb = cb;
+  state.writing = true;
+  state.sync = true;
+  if (writev) stream._writev(chunk, state.onwrite);else stream._write(chunk, encoding, state.onwrite);
+  state.sync = false;
+}
+
+function onwriteError(stream, state, sync, er, cb) {
+  --state.pendingcb;
+
+  if (sync) {
+    // defer the callback if we are being called synchronously
+    // to avoid piling up things on the stack
+    pna.nextTick(cb, er);
+    // this can emit finish, and it will always happen
+    // after error
+    pna.nextTick(finishMaybe, stream, state);
+    stream._writableState.errorEmitted = true;
+    stream.emit('error', er);
+  } else {
+    // the caller expect this to happen before if
+    // it is async
+    cb(er);
+    stream._writableState.errorEmitted = true;
+    stream.emit('error', er);
+    // this can emit finish, but finish must
+    // always follow error
+    finishMaybe(stream, state);
+  }
+}
+
+function onwriteStateUpdate(state) {
+  state.writing = false;
+  state.writecb = null;
+  state.length -= state.writelen;
+  state.writelen = 0;
+}
+
+function onwrite(stream, er) {
+  var state = stream._writableState;
+  var sync = state.sync;
+  var cb = state.writecb;
+
+  onwriteStateUpdate(state);
+
+  if (er) onwriteError(stream, state, sync, er, cb);else {
+    // Check if we're actually ready to finish, but don't emit yet
+    var finished = needFinish(state);
+
+    if (!finished && !state.corked && !state.bufferProcessing && state.bufferedRequest) {
+      clearBuffer(stream, state);
+    }
+
+    if (sync) {
+      /*<replacement>*/
+      asyncWrite(afterWrite, stream, state, finished, cb);
+      /*</replacement>*/
+    } else {
+      afterWrite(stream, state, finished, cb);
+    }
+  }
+}
+
+function afterWrite(stream, state, finished, cb) {
+  if (!finished) onwriteDrain(stream, state);
+  state.pendingcb--;
+  cb();
+  finishMaybe(stream, state);
+}
+
+// Must force callback to be called on nextTick, so that we don't
+// emit 'drain' before the write() consumer gets the 'false' return
+// value, and has a chance to attach a 'drain' listener.
+function onwriteDrain(stream, state) {
+  if (state.length === 0 && state.needDrain) {
+    state.needDrain = false;
+    stream.emit('drain');
+  }
+}
+
+// if there's something in the buffer waiting, then process it
+function clearBuffer(stream, state) {
+  state.bufferProcessing = true;
+  var entry = state.bufferedRequest;
+
+  if (stream._writev && entry && entry.next) {
+    // Fast case, write everything using _writev()
+    var l = state.bufferedRequestCount;
+    var buffer = new Array(l);
+    var holder = state.corkedRequestsFree;
+    holder.entry = entry;
+
+    var count = 0;
+    var allBuffers = true;
+    while (entry) {
+      buffer[count] = entry;
+      if (!entry.isBuf) allBuffers = false;
+      entry = entry.next;
+      count += 1;
+    }
+    buffer.allBuffers = allBuffers;
+
+    doWrite(stream, state, true, state.length, buffer, '', holder.finish);
+
+    // doWrite is almost always async, defer these to save a bit of time
+    // as the hot path ends with doWrite
+    state.pendingcb++;
+    state.lastBufferedRequest = null;
+    if (holder.next) {
+      state.corkedRequestsFree = holder.next;
+      holder.next = null;
+    } else {
+      state.corkedRequestsFree = new CorkedRequest(state);
+    }
+    state.bufferedRequestCount = 0;
+  } else {
+    // Slow case, write chunks one-by-one
+    while (entry) {
+      var chunk = entry.chunk;
+      var encoding = entry.encoding;
+      var cb = entry.callback;
+      var len = state.objectMode ? 1 : chunk.length;
+
+      doWrite(stream, state, false, len, chunk, encoding, cb);
+      entry = entry.next;
+      state.bufferedRequestCount--;
+      // if we didn't call the onwrite immediately, then
+      // it means that we need to wait until it does.
+      // also, that means that the chunk and cb are currently
+      // being processed, so move the buffer counter past them.
+      if (state.writing) {
+        break;
+      }
+    }
+
+    if (entry === null) state.lastBufferedRequest = null;
+  }
+
+  state.bufferedRequest = entry;
+  state.bufferProcessing = false;
+}
+
+Writable.prototype._write = function (chunk, encoding, cb) {
+  cb(new Error('_write() is not implemented'));
+};
+
+Writable.prototype._writev = null;
+
+Writable.prototype.end = function (chunk, encoding, cb) {
+  var state = this._writableState;
+
+  if (typeof chunk === 'function') {
+    cb = chunk;
+    chunk = null;
+    encoding = null;
+  } else if (typeof encoding === 'function') {
+    cb = encoding;
+    encoding = null;
+  }
+
+  if (chunk !== null && chunk !== undefined) this.write(chunk, encoding);
+
+  // .end() fully uncorks
+  if (state.corked) {
+    state.corked = 1;
+    this.uncork();
+  }
+
+  // ignore unnecessary end() calls.
+  if (!state.ending && !state.finished) endWritable(this, state, cb);
+};
+
+function needFinish(state) {
+  return state.ending && state.length === 0 && state.bufferedRequest === null && !state.finished && !state.writing;
+}
+function callFinal(stream, state) {
+  stream._final(function (err) {
+    state.pendingcb--;
+    if (err) {
+      stream.emit('error', err);
+    }
+    state.prefinished = true;
+    stream.emit('prefinish');
+    finishMaybe(stream, state);
+  });
+}
+function prefinish(stream, state) {
+  if (!state.prefinished && !state.finalCalled) {
+    if (typeof stream._final === 'function') {
+      state.pendingcb++;
+      state.finalCalled = true;
+      pna.nextTick(callFinal, stream, state);
+    } else {
+      state.prefinished = true;
+      stream.emit('prefinish');
+    }
+  }
+}
+
+function finishMaybe(stream, state) {
+  var need = needFinish(state);
+  if (need) {
+    prefinish(stream, state);
+    if (state.pendingcb === 0) {
+      state.finished = true;
+      stream.emit('finish');
+    }
+  }
+  return need;
+}
+
+function endWritable(stream, state, cb) {
+  state.ending = true;
+  finishMaybe(stream, state);
+  if (cb) {
+    if (state.finished) pna.nextTick(cb);else stream.once('finish', cb);
+  }
+  state.ended = true;
+  stream.writable = false;
+}
+
+function onCorkedFinish(corkReq, state, err) {
+  var entry = corkReq.entry;
+  corkReq.entry = null;
+  while (entry) {
+    var cb = entry.callback;
+    state.pendingcb--;
+    cb(err);
+    entry = entry.next;
+  }
+  if (state.corkedRequestsFree) {
+    state.corkedRequestsFree.next = corkReq;
+  } else {
+    state.corkedRequestsFree = corkReq;
+  }
+}
+
+Object.defineProperty(Writable.prototype, 'destroyed', {
+  get: function () {
+    if (this._writableState === undefined) {
+      return false;
+    }
+    return this._writableState.destroyed;
+  },
+  set: function (value) {
+    // we ignore the value if the stream
+    // has not been initialized yet
+    if (!this._writableState) {
+      return;
+    }
+
+    // backward compatibility, the user is explicitly
+    // managing destroyed
+    this._writableState.destroyed = value;
+  }
+});
+
+Writable.prototype.destroy = destroyImpl.destroy;
+Writable.prototype._undestroy = destroyImpl.undestroy;
+Writable.prototype._destroy = function (err, cb) {
+  this.end();
+  cb(err);
+};
+}).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("timers").setImmediate)
+},{"./_stream_duplex":14,"./internal/streams/destroy":20,"./internal/streams/stream":21,"_process":12,"core-util-is":4,"inherits":7,"process-nextick-args":11,"safe-buffer":22,"timers":29,"util-deprecate":30}],19:[function(require,module,exports){
+'use strict';
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+var Buffer = require('safe-buffer').Buffer;
+var util = require('util');
+
+function copyBuffer(src, target, offset) {
+  src.copy(target, offset);
+}
+
+module.exports = function () {
+  function BufferList() {
+    _classCallCheck(this, BufferList);
+
+    this.head = null;
+    this.tail = null;
+    this.length = 0;
+  }
+
+  BufferList.prototype.push = function push(v) {
+    var entry = { data: v, next: null };
+    if (this.length > 0) this.tail.next = entry;else this.head = entry;
+    this.tail = entry;
+    ++this.length;
+  };
+
+  BufferList.prototype.unshift = function unshift(v) {
+    var entry = { data: v, next: this.head };
+    if (this.length === 0) this.tail = entry;
+    this.head = entry;
+    ++this.length;
+  };
+
+  BufferList.prototype.shift = function shift() {
+    if (this.length === 0) return;
+    var ret = this.head.data;
+    if (this.length === 1) this.head = this.tail = null;else this.head = this.head.next;
+    --this.length;
+    return ret;
+  };
+
+  BufferList.prototype.clear = function clear() {
+    this.head = this.tail = null;
+    this.length = 0;
+  };
+
+  BufferList.prototype.join = function join(s) {
+    if (this.length === 0) return '';
+    var p = this.head;
+    var ret = '' + p.data;
+    while (p = p.next) {
+      ret += s + p.data;
+    }return ret;
+  };
+
+  BufferList.prototype.concat = function concat(n) {
+    if (this.length === 0) return Buffer.alloc(0);
+    if (this.length === 1) return this.head.data;
+    var ret = Buffer.allocUnsafe(n >>> 0);
+    var p = this.head;
+    var i = 0;
+    while (p) {
+      copyBuffer(p.data, ret, i);
+      i += p.data.length;
+      p = p.next;
+    }
+    return ret;
+  };
+
+  return BufferList;
+}();
+
+if (util && util.inspect && util.inspect.custom) {
+  module.exports.prototype[util.inspect.custom] = function () {
+    var obj = util.inspect({ length: this.length });
+    return this.constructor.name + ' ' + obj;
+  };
+}
+},{"safe-buffer":22,"util":2}],20:[function(require,module,exports){
+'use strict';
+
+/*<replacement>*/
+
+var pna = require('process-nextick-args');
+/*</replacement>*/
+
+// undocumented cb() API, needed for core, not for public API
+function destroy(err, cb) {
+  var _this = this;
+
+  var readableDestroyed = this._readableState && this._readableState.destroyed;
+  var writableDestroyed = this._writableState && this._writableState.destroyed;
+
+  if (readableDestroyed || writableDestroyed) {
+    if (cb) {
+      cb(err);
+    } else if (err && (!this._writableState || !this._writableState.errorEmitted)) {
+      pna.nextTick(emitErrorNT, this, err);
+    }
+    return this;
+  }
+
+  // we set destroyed to true before firing error callbacks in order
+  // to make it re-entrance safe in case destroy() is called within callbacks
+
+  if (this._readableState) {
+    this._readableState.destroyed = true;
+  }
+
+  // if this is a duplex stream mark the writable part as destroyed as well
+  if (this._writableState) {
+    this._writableState.destroyed = true;
+  }
+
+  this._destroy(err || null, function (err) {
+    if (!cb && err) {
+      pna.nextTick(emitErrorNT, _this, err);
+      if (_this._writableState) {
+        _this._writableState.errorEmitted = true;
+      }
+    } else if (cb) {
+      cb(err);
+    }
   });
 
   return this;
-};
+}
 
-EventEmitter.prototype.removeListener = function(type, listener) {
-  if ('function' !== typeof listener) {
-    throw new Error('removeListener only takes instances of Function');
+function undestroy() {
+  if (this._readableState) {
+    this._readableState.destroyed = false;
+    this._readableState.reading = false;
+    this._readableState.ended = false;
+    this._readableState.endEmitted = false;
   }
 
-  // does not use listeners(), so no side effect of creating _events[type]
-  if (!this._events || !this._events[type]) return this;
+  if (this._writableState) {
+    this._writableState.destroyed = false;
+    this._writableState.ended = false;
+    this._writableState.ending = false;
+    this._writableState.finished = false;
+    this._writableState.errorEmitted = false;
+  }
+}
 
-  var list = this._events[type];
+function emitErrorNT(self, err) {
+  self.emit('error', err);
+}
 
-  if (isArray(list)) {
-    var i = indexOf(list, listener);
-    if (i < 0) return this;
-    list.splice(i, 1);
-    if (list.length == 0)
-      delete this._events[type];
-  } else if (this._events[type] === listener) {
-    delete this._events[type];
+module.exports = {
+  destroy: destroy,
+  undestroy: undestroy
+};
+},{"process-nextick-args":11}],21:[function(require,module,exports){
+module.exports = require('events').EventEmitter;
+
+},{"events":5}],22:[function(require,module,exports){
+/* eslint-disable node/no-deprecated-api */
+var buffer = require('buffer')
+var Buffer = buffer.Buffer
+
+// alternative to using Object.keys for old browsers
+function copyProps (src, dst) {
+  for (var key in src) {
+    dst[key] = src[key]
+  }
+}
+if (Buffer.from && Buffer.alloc && Buffer.allocUnsafe && Buffer.allocUnsafeSlow) {
+  module.exports = buffer
+} else {
+  // Copy properties from require('buffer')
+  copyProps(buffer, exports)
+  exports.Buffer = SafeBuffer
+}
+
+function SafeBuffer (arg, encodingOrOffset, length) {
+  return Buffer(arg, encodingOrOffset, length)
+}
+
+// Copy static methods from Buffer
+copyProps(Buffer, SafeBuffer)
+
+SafeBuffer.from = function (arg, encodingOrOffset, length) {
+  if (typeof arg === 'number') {
+    throw new TypeError('Argument must not be a number')
+  }
+  return Buffer(arg, encodingOrOffset, length)
+}
+
+SafeBuffer.alloc = function (size, fill, encoding) {
+  if (typeof size !== 'number') {
+    throw new TypeError('Argument must be a number')
+  }
+  var buf = Buffer(size)
+  if (fill !== undefined) {
+    if (typeof encoding === 'string') {
+      buf.fill(fill, encoding)
+    } else {
+      buf.fill(fill)
+    }
+  } else {
+    buf.fill(0)
+  }
+  return buf
+}
+
+SafeBuffer.allocUnsafe = function (size) {
+  if (typeof size !== 'number') {
+    throw new TypeError('Argument must be a number')
+  }
+  return Buffer(size)
+}
+
+SafeBuffer.allocUnsafeSlow = function (size) {
+  if (typeof size !== 'number') {
+    throw new TypeError('Argument must be a number')
+  }
+  return buffer.SlowBuffer(size)
+}
+
+},{"buffer":3}],23:[function(require,module,exports){
+// Copyright Joyent, Inc. and other Node contributors.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to permit
+// persons to whom the Software is furnished to do so, subject to the
+// following conditions:
+//
+// The above copyright notice and this permission notice shall be included
+// in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+// USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+'use strict';
+
+/*<replacement>*/
+
+var Buffer = require('safe-buffer').Buffer;
+/*</replacement>*/
+
+var isEncoding = Buffer.isEncoding || function (encoding) {
+  encoding = '' + encoding;
+  switch (encoding && encoding.toLowerCase()) {
+    case 'hex':case 'utf8':case 'utf-8':case 'ascii':case 'binary':case 'base64':case 'ucs2':case 'ucs-2':case 'utf16le':case 'utf-16le':case 'raw':
+      return true;
+    default:
+      return false;
+  }
+};
+
+function _normalizeEncoding(enc) {
+  if (!enc) return 'utf8';
+  var retried;
+  while (true) {
+    switch (enc) {
+      case 'utf8':
+      case 'utf-8':
+        return 'utf8';
+      case 'ucs2':
+      case 'ucs-2':
+      case 'utf16le':
+      case 'utf-16le':
+        return 'utf16le';
+      case 'latin1':
+      case 'binary':
+        return 'latin1';
+      case 'base64':
+      case 'ascii':
+      case 'hex':
+        return enc;
+      default:
+        if (retried) return; // undefined
+        enc = ('' + enc).toLowerCase();
+        retried = true;
+    }
+  }
+};
+
+// Do not cache `Buffer.isEncoding` when checking encoding names as some
+// modules monkey-patch it to support additional encodings
+function normalizeEncoding(enc) {
+  var nenc = _normalizeEncoding(enc);
+  if (typeof nenc !== 'string' && (Buffer.isEncoding === isEncoding || !isEncoding(enc))) throw new Error('Unknown encoding: ' + enc);
+  return nenc || enc;
+}
+
+// StringDecoder provides an interface for efficiently splitting a series of
+// buffers into a series of JS strings without breaking apart multi-byte
+// characters.
+exports.StringDecoder = StringDecoder;
+function StringDecoder(encoding) {
+  this.encoding = normalizeEncoding(encoding);
+  var nb;
+  switch (this.encoding) {
+    case 'utf16le':
+      this.text = utf16Text;
+      this.end = utf16End;
+      nb = 4;
+      break;
+    case 'utf8':
+      this.fillLast = utf8FillLast;
+      nb = 4;
+      break;
+    case 'base64':
+      this.text = base64Text;
+      this.end = base64End;
+      nb = 3;
+      break;
+    default:
+      this.write = simpleWrite;
+      this.end = simpleEnd;
+      return;
+  }
+  this.lastNeed = 0;
+  this.lastTotal = 0;
+  this.lastChar = Buffer.allocUnsafe(nb);
+}
+
+StringDecoder.prototype.write = function (buf) {
+  if (buf.length === 0) return '';
+  var r;
+  var i;
+  if (this.lastNeed) {
+    r = this.fillLast(buf);
+    if (r === undefined) return '';
+    i = this.lastNeed;
+    this.lastNeed = 0;
+  } else {
+    i = 0;
+  }
+  if (i < buf.length) return r ? r + this.text(buf, i) : this.text(buf, i);
+  return r || '';
+};
+
+StringDecoder.prototype.end = utf8End;
+
+// Returns only complete characters in a Buffer
+StringDecoder.prototype.text = utf8Text;
+
+// Attempts to complete a partial non-UTF-8 character using bytes from a Buffer
+StringDecoder.prototype.fillLast = function (buf) {
+  if (this.lastNeed <= buf.length) {
+    buf.copy(this.lastChar, this.lastTotal - this.lastNeed, 0, this.lastNeed);
+    return this.lastChar.toString(this.encoding, 0, this.lastTotal);
+  }
+  buf.copy(this.lastChar, this.lastTotal - this.lastNeed, 0, buf.length);
+  this.lastNeed -= buf.length;
+};
+
+// Checks the type of a UTF-8 byte, whether it's ASCII, a leading byte, or a
+// continuation byte. If an invalid byte is detected, -2 is returned.
+function utf8CheckByte(byte) {
+  if (byte <= 0x7F) return 0;else if (byte >> 5 === 0x06) return 2;else if (byte >> 4 === 0x0E) return 3;else if (byte >> 3 === 0x1E) return 4;
+  return byte >> 6 === 0x02 ? -1 : -2;
+}
+
+// Checks at most 3 bytes at the end of a Buffer in order to detect an
+// incomplete multi-byte UTF-8 character. The total number of bytes (2, 3, or 4)
+// needed to complete the UTF-8 character (if applicable) are returned.
+function utf8CheckIncomplete(self, buf, i) {
+  var j = buf.length - 1;
+  if (j < i) return 0;
+  var nb = utf8CheckByte(buf[j]);
+  if (nb >= 0) {
+    if (nb > 0) self.lastNeed = nb - 1;
+    return nb;
+  }
+  if (--j < i || nb === -2) return 0;
+  nb = utf8CheckByte(buf[j]);
+  if (nb >= 0) {
+    if (nb > 0) self.lastNeed = nb - 2;
+    return nb;
+  }
+  if (--j < i || nb === -2) return 0;
+  nb = utf8CheckByte(buf[j]);
+  if (nb >= 0) {
+    if (nb > 0) {
+      if (nb === 2) nb = 0;else self.lastNeed = nb - 3;
+    }
+    return nb;
+  }
+  return 0;
+}
+
+// Validates as many continuation bytes for a multi-byte UTF-8 character as
+// needed or are available. If we see a non-continuation byte where we expect
+// one, we "replace" the validated continuation bytes we've seen so far with
+// a single UTF-8 replacement character ('\ufffd'), to match v8's UTF-8 decoding
+// behavior. The continuation byte check is included three times in the case
+// where all of the continuation bytes for a character exist in the same buffer.
+// It is also done this way as a slight performance increase instead of using a
+// loop.
+function utf8CheckExtraBytes(self, buf, p) {
+  if ((buf[0] & 0xC0) !== 0x80) {
+    self.lastNeed = 0;
+    return '\ufffd';
+  }
+  if (self.lastNeed > 1 && buf.length > 1) {
+    if ((buf[1] & 0xC0) !== 0x80) {
+      self.lastNeed = 1;
+      return '\ufffd';
+    }
+    if (self.lastNeed > 2 && buf.length > 2) {
+      if ((buf[2] & 0xC0) !== 0x80) {
+        self.lastNeed = 2;
+        return '\ufffd';
+      }
+    }
+  }
+}
+
+// Attempts to complete a multi-byte UTF-8 character using bytes from a Buffer.
+function utf8FillLast(buf) {
+  var p = this.lastTotal - this.lastNeed;
+  var r = utf8CheckExtraBytes(this, buf, p);
+  if (r !== undefined) return r;
+  if (this.lastNeed <= buf.length) {
+    buf.copy(this.lastChar, p, 0, this.lastNeed);
+    return this.lastChar.toString(this.encoding, 0, this.lastTotal);
+  }
+  buf.copy(this.lastChar, p, 0, buf.length);
+  this.lastNeed -= buf.length;
+}
+
+// Returns all complete UTF-8 characters in a Buffer. If the Buffer ended on a
+// partial character, the character's bytes are buffered until the required
+// number of bytes are available.
+function utf8Text(buf, i) {
+  var total = utf8CheckIncomplete(this, buf, i);
+  if (!this.lastNeed) return buf.toString('utf8', i);
+  this.lastTotal = total;
+  var end = buf.length - (total - this.lastNeed);
+  buf.copy(this.lastChar, 0, end);
+  return buf.toString('utf8', i, end);
+}
+
+// For UTF-8, a replacement character is added when ending on a partial
+// character.
+function utf8End(buf) {
+  var r = buf && buf.length ? this.write(buf) : '';
+  if (this.lastNeed) return r + '\ufffd';
+  return r;
+}
+
+// UTF-16LE typically needs two bytes per character, but even if we have an even
+// number of bytes available, we need to check if we end on a leading/high
+// surrogate. In that case, we need to wait for the next two bytes in order to
+// decode the last character properly.
+function utf16Text(buf, i) {
+  if ((buf.length - i) % 2 === 0) {
+    var r = buf.toString('utf16le', i);
+    if (r) {
+      var c = r.charCodeAt(r.length - 1);
+      if (c >= 0xD800 && c <= 0xDBFF) {
+        this.lastNeed = 2;
+        this.lastTotal = 4;
+        this.lastChar[0] = buf[buf.length - 2];
+        this.lastChar[1] = buf[buf.length - 1];
+        return r.slice(0, -1);
+      }
+    }
+    return r;
+  }
+  this.lastNeed = 1;
+  this.lastTotal = 2;
+  this.lastChar[0] = buf[buf.length - 1];
+  return buf.toString('utf16le', i, buf.length - 1);
+}
+
+// For UTF-16LE we do not explicitly append special replacement characters if we
+// end on a partial character, we simply let v8 handle that.
+function utf16End(buf) {
+  var r = buf && buf.length ? this.write(buf) : '';
+  if (this.lastNeed) {
+    var end = this.lastTotal - this.lastNeed;
+    return r + this.lastChar.toString('utf16le', 0, end);
+  }
+  return r;
+}
+
+function base64Text(buf, i) {
+  var n = (buf.length - i) % 3;
+  if (n === 0) return buf.toString('base64', i);
+  this.lastNeed = 3 - n;
+  this.lastTotal = 3;
+  if (n === 1) {
+    this.lastChar[0] = buf[buf.length - 1];
+  } else {
+    this.lastChar[0] = buf[buf.length - 2];
+    this.lastChar[1] = buf[buf.length - 1];
+  }
+  return buf.toString('base64', i, buf.length - n);
+}
+
+function base64End(buf) {
+  var r = buf && buf.length ? this.write(buf) : '';
+  if (this.lastNeed) return r + this.lastChar.toString('base64', 0, 3 - this.lastNeed);
+  return r;
+}
+
+// Pass bytes on through for single-byte encodings (e.g. ascii, latin1, hex)
+function simpleWrite(buf) {
+  return buf.toString(this.encoding);
+}
+
+function simpleEnd(buf) {
+  return buf && buf.length ? this.write(buf) : '';
+}
+},{"safe-buffer":22}],24:[function(require,module,exports){
+module.exports = require('./readable').PassThrough
+
+},{"./readable":25}],25:[function(require,module,exports){
+exports = module.exports = require('./lib/_stream_readable.js');
+exports.Stream = exports;
+exports.Readable = exports;
+exports.Writable = require('./lib/_stream_writable.js');
+exports.Duplex = require('./lib/_stream_duplex.js');
+exports.Transform = require('./lib/_stream_transform.js');
+exports.PassThrough = require('./lib/_stream_passthrough.js');
+
+},{"./lib/_stream_duplex.js":14,"./lib/_stream_passthrough.js":15,"./lib/_stream_readable.js":16,"./lib/_stream_transform.js":17,"./lib/_stream_writable.js":18}],26:[function(require,module,exports){
+module.exports = require('./readable').Transform
+
+},{"./readable":25}],27:[function(require,module,exports){
+module.exports = require('./lib/_stream_writable.js');
+
+},{"./lib/_stream_writable.js":18}],28:[function(require,module,exports){
+// Copyright Joyent, Inc. and other Node contributors.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to permit
+// persons to whom the Software is furnished to do so, subject to the
+// following conditions:
+//
+// The above copyright notice and this permission notice shall be included
+// in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+// USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+module.exports = Stream;
+
+var EE = require('events').EventEmitter;
+var inherits = require('inherits');
+
+inherits(Stream, EE);
+Stream.Readable = require('readable-stream/readable.js');
+Stream.Writable = require('readable-stream/writable.js');
+Stream.Duplex = require('readable-stream/duplex.js');
+Stream.Transform = require('readable-stream/transform.js');
+Stream.PassThrough = require('readable-stream/passthrough.js');
+
+// Backwards-compat with node 0.4.x
+Stream.Stream = Stream;
+
+
+
+// old-style streams.  Note that the pipe method (the only relevant
+// part of this class) is overridden in the Readable class.
+
+function Stream() {
+  EE.call(this);
+}
+
+Stream.prototype.pipe = function(dest, options) {
+  var source = this;
+
+  function ondata(chunk) {
+    if (dest.writable) {
+      if (false === dest.write(chunk) && source.pause) {
+        source.pause();
+      }
+    }
   }
 
-  return this;
-};
+  source.on('data', ondata);
 
-EventEmitter.prototype.removeAllListeners = function(type) {
-  // does not use listeners(), so no side effect of creating _events[type]
-  if (type && this._events && this._events[type]) this._events[type] = null;
-  return this;
-};
-
-EventEmitter.prototype.listeners = function(type) {
-  if (!this._events) this._events = {};
-  if (!this._events[type]) this._events[type] = [];
-  if (!isArray(this._events[type])) {
-    this._events[type] = [this._events[type]];
+  function ondrain() {
+    if (source.readable && source.resume) {
+      source.resume();
+    }
   }
-  return this._events[type];
+
+  dest.on('drain', ondrain);
+
+  // If the 'end' option is not supplied, dest.end() will be called when
+  // source gets the 'end' or 'close' events.  Only dest.end() once.
+  if (!dest._isStdio && (!options || options.end !== false)) {
+    source.on('end', onend);
+    source.on('close', onclose);
+  }
+
+  var didOnEnd = false;
+  function onend() {
+    if (didOnEnd) return;
+    didOnEnd = true;
+
+    dest.end();
+  }
+
+
+  function onclose() {
+    if (didOnEnd) return;
+    didOnEnd = true;
+
+    if (typeof dest.destroy === 'function') dest.destroy();
+  }
+
+  // don't leave dangling pipes when there are errors.
+  function onerror(er) {
+    cleanup();
+    if (EE.listenerCount(this, 'error') === 0) {
+      throw er; // Unhandled stream error in pipe.
+    }
+  }
+
+  source.on('error', onerror);
+  dest.on('error', onerror);
+
+  // remove all the event listeners that were added.
+  function cleanup() {
+    source.removeListener('data', ondata);
+    dest.removeListener('drain', ondrain);
+
+    source.removeListener('end', onend);
+    source.removeListener('close', onclose);
+
+    source.removeListener('error', onerror);
+    dest.removeListener('error', onerror);
+
+    source.removeListener('end', cleanup);
+    source.removeListener('close', cleanup);
+
+    dest.removeListener('close', cleanup);
+  }
+
+  source.on('end', cleanup);
+  source.on('close', cleanup);
+
+  dest.on('close', cleanup);
+
+  dest.emit('pipe', source);
+
+  // Allow for unix-like usage: A.pipe(B).pipe(C)
+  return dest;
 };
 
+},{"events":5,"inherits":7,"readable-stream/duplex.js":13,"readable-stream/passthrough.js":24,"readable-stream/readable.js":25,"readable-stream/transform.js":26,"readable-stream/writable.js":27}],29:[function(require,module,exports){
+(function (setImmediate,clearImmediate){
+var nextTick = require('process/browser.js').nextTick;
+var apply = Function.prototype.apply;
+var slice = Array.prototype.slice;
+var immediateIds = {};
+var nextImmediateId = 0;
+
+// DOM APIs, for completeness
+
+exports.setTimeout = function() {
+  return new Timeout(apply.call(setTimeout, window, arguments), clearTimeout);
+};
+exports.setInterval = function() {
+  return new Timeout(apply.call(setInterval, window, arguments), clearInterval);
+};
+exports.clearTimeout =
+exports.clearInterval = function(timeout) { timeout.close(); };
+
+function Timeout(id, clearFn) {
+  this._id = id;
+  this._clearFn = clearFn;
+}
+Timeout.prototype.unref = Timeout.prototype.ref = function() {};
+Timeout.prototype.close = function() {
+  this._clearFn.call(window, this._id);
+};
+
+// Does not start the time, just sets up the members needed.
+exports.enroll = function(item, msecs) {
+  clearTimeout(item._idleTimeoutId);
+  item._idleTimeout = msecs;
+};
+
+exports.unenroll = function(item) {
+  clearTimeout(item._idleTimeoutId);
+  item._idleTimeout = -1;
+};
+
+exports._unrefActive = exports.active = function(item) {
+  clearTimeout(item._idleTimeoutId);
+
+  var msecs = item._idleTimeout;
+  if (msecs >= 0) {
+    item._idleTimeoutId = setTimeout(function onTimeout() {
+      if (item._onTimeout)
+        item._onTimeout();
+    }, msecs);
+  }
+};
+
+// That's not how node.js implements it but the exposed api is the same.
+exports.setImmediate = typeof setImmediate === "function" ? setImmediate : function(fn) {
+  var id = nextImmediateId++;
+  var args = arguments.length < 2 ? false : slice.call(arguments, 1);
+
+  immediateIds[id] = true;
+
+  nextTick(function onNextTick() {
+    if (immediateIds[id]) {
+      // fn.call() is faster so we optimize for the common use-case
+      // @see http://jsperf.com/call-apply-segu
+      if (args) {
+        fn.apply(null, args);
+      } else {
+        fn.call(null);
+      }
+      // Prevent ids from leaking
+      exports.clearImmediate(id);
+    }
+  });
+
+  return id;
+};
+
+exports.clearImmediate = typeof clearImmediate === "function" ? clearImmediate : function(id) {
+  delete immediateIds[id];
+};
+}).call(this,require("timers").setImmediate,require("timers").clearImmediate)
+},{"process/browser.js":12,"timers":29}],30:[function(require,module,exports){
+(function (global){
+
+/**
+ * Module exports.
+ */
+
+module.exports = deprecate;
+
+/**
+ * Mark that a method should not be used.
+ * Returns a modified function which warns once by default.
+ *
+ * If `localStorage.noDeprecation = true` is set, then it is a no-op.
+ *
+ * If `localStorage.throwDeprecation = true` is set, then deprecated functions
+ * will throw an Error when invoked.
+ *
+ * If `localStorage.traceDeprecation = true` is set, then deprecated functions
+ * will invoke `console.trace()` instead of `console.error()`.
+ *
+ * @param {Function} fn - the function to deprecate
+ * @param {String} msg - the string to print to the console when `fn` is invoked
+ * @returns {Function} a new "deprecated" version of `fn`
+ * @api public
+ */
+
+function deprecate (fn, msg) {
+  if (config('noDeprecation')) {
+    return fn;
+  }
+
+  var warned = false;
+  function deprecated() {
+    if (!warned) {
+      if (config('throwDeprecation')) {
+        throw new Error(msg);
+      } else if (config('traceDeprecation')) {
+        console.trace(msg);
+      } else {
+        console.warn(msg);
+      }
+      warned = true;
+    }
+    return fn.apply(this, arguments);
+  }
+
+  return deprecated;
+}
+
+/**
+ * Checks `localStorage` for boolean values for the given `name`.
+ *
+ * @param {String} name
+ * @returns {Boolean}
+ * @api private
+ */
+
+function config (name) {
+  // accessing global.localStorage can trigger a DOMException in sandboxed iframes
+  try {
+    if (!global.localStorage) return false;
+  } catch (_) {
+    return false;
+  }
+  var val = global.localStorage[name];
+  if (null == val) return false;
+  return String(val).toLowerCase() === 'true';
+}
+
+}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
+},{}],31:[function(require,module,exports){
+window.addEventListener('load', function () {
+    var THREE = require('three');
+
+    var createGame = require('voxel-engine');
+    window.game = createGame({
+        generate: function(x, y, z) { return y === -1 ? 1 : 0; },
+        materials: ["#000", "#f00", "#0f0", "#00f", "#fff"],
+        materialFlatColor: true
+    });
+    game.appendTo(document.body);
+    // game.gravity = [0, 0, 0];
+
+    var createPlayer = require('voxel-player')(game);
+    var player = createPlayer('dude.png');
+    player.possess();
+    player.position.set(-2, 0, 5);
+
+    // window.addEventListener('keyup', function (event) {
+    //     player.velocity = {x: 0, y: 0, z: 0};
+    // });
+
+    // WebSocket Client
+
+    const socket = new WebSocket("ws://localhost:8001/");
+
+    socket.addEventListener('message', function (event) {
+        var msg = JSON.parse(event.data);
+
+        // console.log('Got message:', msg);
+        
+        if (msg.action === "voxel") {
+            game.materials.load(msg.color);
+            game.setBlock(msg.position, msg.color);
+        }
+
+        else if (msg.action === "unvoxel") {
+            game.setBlock(msg.position, 0);
+        }
+
+        else {
+            console.log('unhandled websocket message:', msg);
+        }
+
+        socket.send('"OK"');
+    });
 });
 
-require.define("/node_modules/inherits/package.json",function(require,module,exports,__dirname,__filename,process,global){module.exports = {"main":"./inherits.js"}
-});
+},{"three":54,"voxel-engine":59,"voxel-player":65}],32:[function(require,module,exports){
+module.exports = AABB
 
-require.define("/node_modules/inherits/inherits.js",function(require,module,exports,__dirname,__filename,process,global){module.exports = inherits
+var vec3 = require('gl-matrix').vec3
+
+function AABB(pos, vec) {
+  if(!(this instanceof AABB)) {
+    return new AABB(pos, vec)
+  }
+
+  this.base = pos
+  this.vec = vec
+
+  this.mag = vec3.length(this.vec)
+
+  this.max = vec3.create()
+  vec3.add(this.max, this.base, this.vec)
+}
+
+var cons = AABB
+  , proto = cons.prototype
+
+proto.width = function() {
+  return this.vec[0]
+}
+
+proto.height = function() {
+  return this.vec[1]
+}
+
+proto.depth = function() {
+  return this.vec[2]
+}
+
+proto.x0 = function() {
+  return this.base[0]
+}
+
+proto.y0 = function() {
+  return this.base[1]
+}
+
+proto.z0 = function() {
+  return this.base[2]
+}
+
+proto.x1 = function() {
+  return this.max[0]
+}
+
+proto.y1 = function() {
+  return this.max[1]
+}
+
+proto.z1 = function() {
+  return this.max[2]
+}
+
+proto.translate = function(by) {
+  vec3.add(this.max, this.max, by)
+  vec3.add(this.base, this.base, by)
+  return this
+}
+
+proto.expand = function(aabb) {
+  var max = vec3.create()
+    , min = vec3.create()
+
+  vec3.max(max, aabb.max, this.max)
+  vec3.min(min, aabb.base, this.base)
+  vec3.sub(max, max, min)
+
+  return new AABB(min, max)
+}
+
+proto.intersects = function(aabb) {
+  if(aabb.base[0] > this.max[0]) return false
+  if(aabb.base[1] > this.max[1]) return false
+  if(aabb.base[2] > this.max[2]) return false
+  if(aabb.max[0] < this.base[0]) return false
+  if(aabb.max[1] < this.base[1]) return false
+  if(aabb.max[2] < this.base[2]) return false
+
+  return true
+}
+
+proto.union = function(aabb) {
+  if(!this.intersects(aabb)) return null
+
+  var base_x = Math.max(aabb.base[0], this.base[0])
+    , base_y = Math.max(aabb.base[1], this.base[1])
+    , base_z = Math.max(aabb.base[2], this.base[2])
+    , max_x = Math.min(aabb.max[0], this.max[0])
+    , max_y = Math.min(aabb.max[1], this.max[1])
+    , max_z = Math.min(aabb.max[2], this.max[2])
+
+  return new AABB([base_x, base_y, base_z], [max_x - base_x, max_y - base_y, max_z - base_z])
+}
+
+},{"gl-matrix":44}],33:[function(require,module,exports){
+(function (global){
+!function(e){if("object"==typeof exports&&"undefined"!=typeof module)module.exports=e();else if("function"==typeof define&&define.amd)define([],e);else{var f;"undefined"!=typeof window?f=window:"undefined"!=typeof global?f=global:"undefined"!=typeof self&&(f=self),f.atlaspack=e()}}(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);throw new Error("Cannot find module '"+o+"'")}var f=n[o]={exports:{}};t[o][0].call(f.exports,function(e){var n=t[o][1][e];return s(n?n:e)},f,f.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+/*
+ * atlaspack
+ * https://github.com/shama/atlaspack
+ *
+ * Copyright (c) 2014 Kyle Robinson Young
+ * Licensed under the MIT license.
+ *
+ * Based on Nick Welch's binpack: https://github.com/mackstann/binpack
+ */
+
+function Rect(x, y, w, h) {
+  this.x = x; this.y = y;
+  this.w = w; this.h = h;
+}
+
+Rect.prototype.fitsIn = function(outer) {
+  return outer.w >= this.w && outer.h >= this.h;
+};
+
+Rect.prototype.sameSizeAs = function(other) {
+  return this.w === other.w && this.h === other.h;
+};
+
+function Atlas(x, y, w, h) {
+  if (arguments.length === 1) {
+    this.canvas = x;
+    x = y = 0;
+    w = this.canvas.width;
+    h = this.canvas.height;
+  }
+  if (arguments.length === 2) {
+    w = x; h = y; x = y = 0;
+  }
+  this.left = this.right = null;
+  this.rect = new Rect(x, y, w, h);
+  this.filled = false;
+  this.tilepad = false;
+  this._cache = [];
+  this._uvcache = Object.create(null);
+}
+module.exports = function() {
+  if (arguments.length === 1) { return new Atlas(arguments[0]); }
+  if (arguments.length === 2) { return new Atlas(arguments[0], arguments[1]); }
+  return new Atlas(arguments[0], arguments[1], arguments[2], arguments[3]);
+};
+module.exports.Atlas = Atlas;
+module.exports.Rect = Rect;
+
+// pack image/rect to the atlas
+Atlas.prototype.pack = function(rect) {
+  this._cache = [];
+  this._uvcache = Object.create(null);
+  rect = this._toRect(rect);
+
+  if (this.img && this.tilepad) {
+    rect = this._tilepad(rect);
+  }
+
+  if (this.left !== null) {
+    return this._ontoCanvas(this.left.pack(rect) || this.right.pack(rect));
+  }
+  // if atlas filled or wont fit
+  if (this.filled || !rect.fitsIn(this.rect)) {
+    return false;
+  }
+  // if this atlas has been filled
+  if (rect.sameSizeAs(this.rect)) {
+    this.filled = true;
+    return this._ontoCanvas(this);
+  }
+  if ((this.rect.w - rect.w) > (this.rect.h - rect.h)) {
+    this.left = new Atlas(this.rect.x, this.rect.y, rect.w, this.rect.h);
+    this.right = new Atlas(this.rect.x + rect.w, this.rect.y, this.rect.w - rect.w, this.rect.h);
+  } else {
+    this.left = new Atlas(this.rect.x, this.rect.y, this.rect.w, rect.h);
+    this.right = new Atlas(this.rect.x, this.rect.y + rect.h, this.rect.w, this.rect.h - rect.h);
+  }
+  return this._ontoCanvas(this.left.pack(rect));
+};
+
+Atlas.prototype.expand = function(rect) {
+  var self = this;
+  rect = this._toRect(rect);
+
+  if (this.img && this.tilepad) {
+    rect = this._tilepad(rect);
+  }
+
+  var atlas;
+  if (this.rect.w < this.rect.h) {
+    atlas = new Atlas(0, 0, this.rect.w + rect.w, this.rect.h);
+    atlas.right = new Atlas(this.rect.w, 0, rect.w, this.rect.h);
+    atlas.left = this;
+  } else {
+    atlas = new Atlas(0, 0, this.rect.w, this.rect.h + rect.h);
+    atlas.right = new Atlas(0, this.rect.h, this.rect.w, rect.h);
+    atlas.left = this;
+  }
+
+  ['canvas', 'context', 'img'].forEach(function(p) {
+    if (self[p]) {
+      atlas[p] = self[p];
+      self[p] = null;
+    }
+  });
+
+  // resize canvas
+  if (atlas.canvas) {
+    if (!atlas.context) {
+      atlas.context = atlas.canvas.getContext('2d');
+    }
+    var old = atlas.context.getImageData(0, 0, atlas.canvas.width, atlas.canvas.height);
+    atlas.canvas.width = atlas.rect.w;
+    atlas.canvas.height = atlas.rect.h;
+    atlas.context.putImageData(old, 0, 0);
+  }
+
+  return (atlas.pack(rect) === false) ? atlas.expand(rect) : atlas;
+};
+
+Atlas.prototype.index = function() {
+  var self = this;
+  if (self._cache.length > 0) {
+    return self._cache;
+  }
+  (function loop(atlas) {
+    if (atlas.left !== null) {
+      loop(atlas.left);
+      loop(atlas.right);
+    } else if (atlas.rect.name) {
+      self._cache.push(atlas.rect);
+    }
+  }(self));
+  return self._cache;
+};
+
+Atlas.prototype.uv = function(w, h) {
+  var self = this;
+  w = w || self.rect.w;
+  h = h || self.rect.h;
+  var isPad = this.tilepad;
+  (function loop(atlas) {
+    if (atlas.left !== null) {
+      loop(atlas.left);
+      loop(atlas.right);
+    } else if (typeof atlas.rect.name !== 'undefined') {
+      var p = (isPad) ? atlas.rect.w / 4 : 0;
+      self._uvcache[atlas.rect.name] = [
+        [atlas.rect.x + p, atlas.rect.y + p],
+        [(atlas.rect.x + p) + (atlas.rect.w - (p * 2)), atlas.rect.y + p],
+        [(atlas.rect.x + p) + (atlas.rect.w - (p * 2)), (atlas.rect.y + p) + (atlas.rect.h - (p * 2))],
+        [(atlas.rect.x + p), (atlas.rect.y + p) + (atlas.rect.h - (p * 2))],
+      ].map(function(uv) {
+        if (uv[0] !== 0) {
+          uv[0] = uv[0] / w;
+        }
+        if (uv[1] !== 0) {
+          uv[1] = uv[1] / h;
+        }
+        return uv;
+      });
+    }
+  }(self));
+  return self._uvcache;
+};
+
+Atlas.prototype.json = function(input) {
+  var self = this;
+  if (input) {
+    if (typeof input === 'string') input = JSON.parse(input);
+    return (function loop(obj) {
+      if (!obj || !obj.rect) return;
+      var atlas = new Atlas(obj.rect.x, obj.rect.y, obj.rect.w, obj.rect.h);
+      if (obj.left) atlas.left = loop(obj.left);
+      if (obj.right) atlas.right = loop(obj.right);
+      return atlas;
+    }(input));
+  } else {
+    return JSON.stringify(function loop(atlas) {
+      var obj = {
+        left: null, right: null,
+        rect: atlas.rect, filled: atlas.filled
+      };
+      if (atlas.left !== null) {
+        obj.left = loop(atlas.left);
+        obj.right = loop(atlas.right);
+      }
+      return obj;
+    }(self), null, 2);
+  }
+};
+
+// Pads the image by tiling itself around itself
+Atlas.prototype._tilepad = function(rect) {
+  var img = this.img;
+  if (!img) return rect;
+
+  var p = img.width / 2;
+
+  var canvas = document.createElement('canvas');
+  canvas.name = img.name || img.src;
+  canvas.id = img.id || '';
+  canvas.width = img.width + img.width;
+  canvas.height = img.height + img.height;
+  var ctx = canvas.getContext('2d');
+
+  var pattern = ctx.createPattern(img, 'repeat');
+  ctx.fillStyle = pattern;
+  ctx.translate(p, p);
+  ctx.fillRect(-p, -p, canvas.width + p, canvas.height + p);
+  ctx.translate(-p, -p);
+
+  this.img = canvas;
+
+  return new Rect(rect.x, rect.y, this.img.width, this.img.height);
+};
+
+// if has an image and canvas, draw to the canvas as we go
+Atlas.prototype._ontoCanvas = function(node) {
+  if (node && this.img && this.canvas) {
+    if (!this.context) {
+      this.context = this.canvas.getContext('2d');
+    }
+    this.context.clearRect(node.rect.x, node.rect.y, node.rect.w, node.rect.h);
+    this.context.drawImage(this.img, node.rect.x, node.rect.y, node.rect.w, node.rect.h);
+    node.rect.name = this.img.id || this.img.name || this.img.src || null;
+  }
+  return node;
+};
+
+// make sure we're always working with rects
+Atlas.prototype._toRect = function(rect) {
+  // if rect is an image
+  if (rect.nodeName && rect.nodeName === 'IMG') {
+    this.img = rect;
+    rect = new Rect(rect.x, rect.y, rect.width, rect.height);
+  }
+  // if rect is an object
+  if (!(rect instanceof Rect)) {
+    rect = new Rect(rect.x || 0, rect.y || 0, rect.w || rect.width, rect.h || rect.height);
+  }
+  return rect;
+};
+
+Atlas.prototype._debug = function() {
+  if (!this.canvas) { return; }
+  var context = this.canvas.getContext('2d');
+  this.index().forEach(function(rect) {
+    context.lineWidth = 1;
+    context.strokeStyle = 'red';
+    context.strokeRect(rect.x, rect.y, rect.w, rect.h);
+  });
+};
+
+},{}]},{},[1])
+(1)
+});;
+
+}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
+},{}],34:[function(require,module,exports){
+module.exports = function(field, tilesize, dimensions, offset) {
+  dimensions = dimensions || [ 
+    Math.sqrt(field.length) >> 0
+  , Math.sqrt(field.length) >> 0
+  , Math.sqrt(field.length) >> 0
+  ] 
+
+  offset = offset || [
+    0
+  , 0
+  , 0
+  ]
+
+  field = typeof field === 'function' ? field : function(x, y, z) {
+    return this[x + y * dimensions[1] + (z * dimensions[1] * dimensions[2])]
+  }.bind(field) 
+
+  var coords
+
+  coords = [0, 0, 0]
+
+  return collide
+
+  function collide(box, vec, oncollision) {
+    if(vec[0] === 0 && vec[1] === 0 && vec[2] === 0) return
+
+    // collide x, then y
+    collideaxis(0)
+    collideaxis(1)
+    collideaxis(2)
+
+    function collideaxis(i_axis) {
+      var j_axis = (i_axis + 1) % 3
+        , k_axis = (i_axis + 2) % 3 
+        , posi = vec[i_axis] > 0
+        , leading = box[posi ? 'max' : 'base'][i_axis] 
+        , dir = posi ? 1 : -1
+        , i_start = Math.floor(leading / tilesize)
+        , i_end = (Math.floor((leading + vec[i_axis]) / tilesize)) + dir
+        , j_start = Math.floor(box.base[j_axis] / tilesize)
+        , j_end = Math.ceil(box.max[j_axis] / tilesize)
+        , k_start = Math.floor(box.base[k_axis] / tilesize) 
+        , k_end = Math.ceil(box.max[k_axis] / tilesize)
+        , done = false
+        , edge_vector
+        , edge
+        , tile
+
+      // loop from the current tile coord to the dest tile coord
+      //    -> loop on the opposite axis to get the other candidates
+      //      -> if `oncollision` return `true` we've hit something and
+      //         should break out of the loops entirely.
+      //         NB: `oncollision` is where the client gets the chance
+      //         to modify the `vec` in-flight.
+      // once we're done translate the box to the vec results
+
+      var step = 0
+      for(var i = i_start; !done && i !== i_end; ++step, i += dir) {
+        if(i < offset[i_axis] || i >= dimensions[i_axis]) continue
+        for(var j = j_start; !done && j !== j_end; ++j) {
+          if(j < offset[j_axis] || j >= dimensions[j_axis]) continue
+          for(var k = k_start; k !== k_end; ++k) {
+            if(k < offset[k_axis] || k >= dimensions[k_axis]) continue
+            coords[i_axis] = i
+            coords[j_axis] = j
+            coords[k_axis] = k
+            tile = field.apply(field, coords)
+
+            if(tile === undefined) continue
+
+            edge = dir > 0 ? i * tilesize : (i + 1) * tilesize
+            edge_vector = edge - leading
+
+            if(oncollision(i_axis, tile, coords, dir, edge_vector)) {
+              done = true
+              break
+            }
+          } 
+        }
+      }
+
+      coords[0] = coords[1] = coords[2] = 0
+      coords[i_axis] = vec[i_axis]
+      box.translate(coords)
+    }
+  }  
+}
+
+},{}],35:[function(require,module,exports){
+module.exports = require('./lib/index')
+
+},{"./lib/index":36}],36:[function(require,module,exports){
+var WriteStream = require('./writable')
+  , ReadStream = require('./readable')
+  , DOMStream = {}
+
+DOMStream.WriteStream = WriteStream
+DOMStream.ReadStream = ReadStream
+
+DOMStream.createAppendStream = function(el, mimetype) {
+  return new DOMStream.WriteStream(
+      el
+    , DOMStream.WriteStream.APPEND
+    , mimetype
+  )
+}
+
+DOMStream.createWriteStream = function(el, mimetype) {
+  return new DOMStream.WriteStream(
+      el
+    , DOMStream.WriteStream.WRITE
+    , mimetype
+  )
+}
+
+DOMStream.createReadStream =
+DOMStream.createEventStream = function(el, type, preventDefault) {
+  preventDefault = preventDefault === undefined ? true : preventDefault
+
+  return new DOMStream.ReadStream(
+      el
+    , type
+    , preventDefault
+  )
+}
+
+module.exports = DOMStream
+
+
+},{"./readable":37,"./writable":38}],37:[function(require,module,exports){
+module.exports = DOMStream
+
+var Stream = require('stream').Stream
+
+var listener = function(el, type, onmsg) {
+  return el.addEventListener(type, onmsg, false)
+}
+
+if(typeof $ !== 'undefined')
+  listener = function(el, type, onmsg) {
+    return el = $(el)[type](onmsg)
+  }
+
+if(typeof document !== 'undefined' && !document.createElement('div').addEventListener)
+  listener = function(el, type, onmsg) {
+    return el.attachEvent('on'+type, onmsg)
+  }
+
+function DOMStream(el, eventType, shouldPreventDefault) {
+  this.el = el
+  this.eventType = eventType
+  this.shouldPreventDefault = shouldPreventDefault
+
+  var self = this
+
+  if(el && this.eventType)
+    listener(
+        this.el
+      , this.eventType
+      , function() { return self.listen.apply(self, arguments) }
+    )
+
+  Stream.call(this)
+}
+
+var cons = DOMStream
+  , proto = cons.prototype = Object.create(Stream.prototype)
+
+proto.constructor = cons
+
+proto.listen = function(ev) {
+  if(this.shouldPreventDefault)
+    ev.preventDefault ? ev.preventDefault() : (ev.returnValue = false)
+
+  var collectData =
+    this.eventType === 'submit' ||
+    this.eventType === 'change' ||
+    this.eventType === 'keydown' ||
+    this.eventType === 'keyup' ||
+    this.eventType === 'input'
+
+  if(collectData) {
+    if(this.el.tagName.toUpperCase() === 'FORM')
+      return this.handleFormSubmit(ev)
+
+    return this.emit('data', valueFromElement(this.el))
+  }
+
+  this.emit('data', ev)
+}
+
+proto.handleFormSubmit = function(ev) {
+  var elements = []
+
+  if(this.el.querySelectorAll) {
+    elements = this.el.querySelectorAll('input,textarea,select')
+  } else {
+    var inputs = {'INPUT':true, 'TEXTAREA':true, 'SELECT':true}
+
+    var recurse = function(el) {
+      for(var i = 0, len = el.childNodes.length; i < len; ++i) {
+        if(el.childNodes[i].tagName) {
+          if(inputs[el.childNodes[i].tagName.toUpperCase()]) {
+            elements.push(el)
+          } else {
+            recurse(el.childNodes[i])
+          }
+        }
+      }
+    }
+
+    recurse(this.el)
+  }
+
+  var output = {}
+    , attr
+    , val
+
+  for(var i = 0, len = elements.length; i < len; ++i) {
+    attr = elements[i].getAttribute('name')
+    val = valueFromElement(elements[i])
+
+    if(val !== null) {
+      output[attr] = val
+    }
+  }
+
+  return this.emit('data', output)
+}
+
+function valueFromElement(el) {
+  switch(el.getAttribute('type')) {
+    case 'radio':
+      return el.checked ? el.value : null
+    case 'checkbox':
+      return 'data', el.checked
+  }
+  return el.value
+}
+
+},{"stream":28}],38:[function(require,module,exports){
+module.exports = DOMStream
+
+var Stream = require('stream').Stream
+
+function DOMStream(el, mode, mimetype) {
+  this.el = el
+  this.mode = mode
+  this.mimetype = mimetype || 'text/html'
+
+  Stream.call(this)
+}
+
+var cons = DOMStream
+  , proto = cons.prototype = Object.create(Stream.prototype)
+
+proto.constructor = cons
+
+cons.APPEND = 0
+cons.WRITE = 1
+
+proto.writable = true
+
+proto.setMimetype = function(mime) {
+  this.mimetype = mime
+}
+
+proto.write = function(data) {
+  var result = (this.mode === cons.APPEND) ? this.append(data) : this.insert(data)
+  this.emit('data', this.el.childNodes)
+  return result
+}
+
+proto.end = function() {
+
+}
+
+proto.insert = function(data) {
+  this.el.innerHTML = ''
+  return this.append(data)
+}
+
+proto.append = function(data) {
+  var result = this[this.resolveMimetypeHandler()](data)
+
+  for(var i = 0, len = result.length; i < len; ++i) {
+    this.el.appendChild(result[i])
+  }
+
+  return true
+}
+
+proto.resolveMimetypeHandler = function() {
+  var type = this.mimetype.replace(/(\/\w)/, function(x) {
+    return x.slice(1).toUpperCase()
+  })
+  type = type.charAt(0).toUpperCase() + type.slice(1)
+
+  return 'construct'+type
+}
+
+proto.constructTextHtml = function(data) {
+  var isTableFragment = /(tr|td|th)/.test(data) && !/table/.test(data)
+    , div
+
+  if(isTableFragment) {
+    // wuh-oh.
+    div = document.createElement('table')
+  }
+
+  div = div || document.createElement('div')
+  div.innerHTML = data 
+
+  return [].slice.call(div.childNodes)
+}
+
+proto.constructTextPlain = function(data) {
+  var textNode = document.createTextNode(data)
+
+  return [textNode]
+}
+
+},{"stream":28}],39:[function(require,module,exports){
+module.exports = dragstream
+
+var Stream = require('stream')
+  , read = require('domnode-dom').createReadStream
+  , through = require('through')
+
+function dragstream(el) {
+  var body = el.ownerDocument.body
+    , down = read(el, 'mousedown')
+    , up = read(body, 'mouseup', false)
+    , move = read(body, 'mousemove', false)
+    , anchor = {x: 0, y: 0, t: 0}
+    , drag = through(on_move)
+
+  // default to "paused"
+  drag.pause()
+
+  down.on('data', on_down)
+  up.on('data', on_up)
+
+  return move.pipe(drag)
+
+  // listeners:
+
+  function on_move(ev) {
+    if(drag.paused) return
+
+    drag.emit('data', datum(
+        ev.screenX - anchor.x
+      , ev.screenY - anchor.y
+      , +new Date
+    ))
+
+    anchor.x = ev.screenX
+    anchor.y = ev.screenY
+  }
+
+  function on_down(ev) {
+    anchor.x = ev.screenX
+    anchor.y = ev.screenY
+    anchor.t = +new Date
+    drag.resume()
+    drag.emit('data', datum(
+        anchor.x
+      , anchor.y
+      , anchor.t
+    ))
+  }
+
+  function on_up(ev) {
+    drag.pause()
+    drag.emit('data', datum(
+        ev.screenX - anchor.x
+      , ev.screenY - anchor.y
+      , +new Date
+    ))
+  }
+
+  function datum(dx, dy, when) {
+    return {
+      dx: dx
+    , dy: dy
+    , dt: when - anchor.t
+    }
+  }
+}
+
+},{"domnode-dom":35,"stream":28,"through":55}],40:[function(require,module,exports){
+var EventEmitter = require('events').EventEmitter;
+
+module.exports = function (elem) {
+    return new Ever(elem);
+};
+
+function Ever (elem) {
+    this.element = elem;
+}
+
+Ever.prototype = new EventEmitter;
+
+Ever.prototype.on = function (name, cb, useCapture) {
+    if (!this._events) this._events = {};
+    if (!this._events[name]) this._events[name] = [];
+    this._events[name].push(cb);
+    this.element.addEventListener(name, cb, useCapture || false);
+
+    return this;
+};
+Ever.prototype.addListener = Ever.prototype.on;
+
+Ever.prototype.removeListener = function (type, listener, useCapture) {
+    if (!this._events) this._events = {};
+    this.element.removeEventListener(type, listener, useCapture || false);
+    
+    var xs = this.listeners(type);
+    var ix = xs.indexOf(listener);
+    if (ix >= 0) xs.splice(ix, 1);
+
+    return this;
+};
+
+Ever.prototype.removeAllListeners = function (type) {
+    var self = this;
+    function removeAll (t) {
+        var xs = self.listeners(t);
+        for (var i = 0; i < xs.length; i++) {
+            self.removeListener(t, xs[i]);
+        }
+    }
+    
+    if (type) {
+        removeAll(type)
+    }
+    else if (self._events) {
+        for (var key in self._events) {
+            if (key) removeAll(key);
+        }
+    }
+    return EventEmitter.prototype.removeAllListeners.apply(self, arguments);
+}
+
+var initSignatures = require('./init.json');
+
+Ever.prototype.emit = function (name, ev) {
+    if (typeof name === 'object') {
+        ev = name;
+        name = ev.type;
+    }
+    
+    if (!isEvent(ev)) {
+        var type = Ever.typeOf(name);
+        
+        var opts = ev || {};
+        if (opts.type === undefined) opts.type = name;
+        
+        ev = document.createEvent(type + 's');
+        var init = typeof ev['init' + type] === 'function'
+            ? 'init' + type : 'initEvent'
+        ;
+        
+        var sig = initSignatures[init];
+        var used = {};
+        var args = [];
+        
+        for (var i = 0; i < sig.length; i++) {
+            var key = sig[i];
+            args.push(opts[key]);
+            used[key] = true;
+        }
+        ev[init].apply(ev, args);
+        
+        // attach remaining unused options to the object
+        for (var key in opts) {
+            if (!used[key]) ev[key] = opts[key];
+        }
+    }
+    return this.element.dispatchEvent(ev);
+};
+
+function isEvent (ev) {
+    var s = Object.prototype.toString.call(ev);
+    return /\[object \S+Event\]/.test(s);
+}
+
+Ever.types = require('./types.json');
+Ever.typeOf = (function () {
+    var types = {};
+    for (var key in Ever.types) {
+        var ts = Ever.types[key];
+        for (var i = 0; i < ts.length; i++) {
+            types[ts[i]] = key;
+        }
+    }
+    
+    return function (name) {
+        return types[name] || 'Event';
+    };
+})();;
+
+},{"./init.json":41,"./types.json":42,"events":5}],41:[function(require,module,exports){
+module.exports={
+  "initEvent" : [
+    "type",
+    "canBubble", 
+    "cancelable"
+  ],
+  "initUIEvent" : [
+    "type",
+    "canBubble", 
+    "cancelable", 
+    "view", 
+    "detail"
+  ],
+  "initMouseEvent" : [
+    "type",
+    "canBubble", 
+    "cancelable", 
+    "view", 
+    "detail", 
+    "screenX", 
+    "screenY", 
+    "clientX", 
+    "clientY", 
+    "ctrlKey", 
+    "altKey", 
+    "shiftKey", 
+    "metaKey", 
+    "button",
+    "relatedTarget"
+  ],
+  "initMutationEvent" : [
+    "type",
+    "canBubble", 
+    "cancelable", 
+    "relatedNode", 
+    "prevValue", 
+    "newValue", 
+    "attrName", 
+    "attrChange"
+  ]
+}
+
+},{}],42:[function(require,module,exports){
+module.exports={
+  "MouseEvent" : [
+    "click",
+    "mousedown",
+    "mouseup",
+    "mouseover",
+    "mousemove",
+    "mouseout"
+  ],
+  "KeyBoardEvent" : [
+    "keydown",
+    "keyup",
+    "keypress"
+  ],
+  "MutationEvent" : [
+    "DOMSubtreeModified",
+    "DOMNodeInserted",
+    "DOMNodeRemoved",
+    "DOMNodeRemovedFromDocument",
+    "DOMNodeInsertedIntoDocument",
+    "DOMAttrModified",
+    "DOMCharacterDataModified"
+  ],
+  "HTMLEvent" : [
+    "load",
+    "unload",
+    "abort",
+    "error",
+    "select",
+    "change",
+    "submit",
+    "reset",
+    "focus",
+    "blur",
+    "resize",
+    "scroll"
+  ],
+  "UIEvent" : [
+    "DOMFocusIn",
+    "DOMFocusOut",
+    "DOMActivate"
+  ]
+}
+
+},{}],43:[function(require,module,exports){
+module.exports = fullscreen
+fullscreen.available = available
+
+var EE = require('events').EventEmitter
+
+function available() {
+  return !!shim(document.body)
+}
+
+function fullscreen(el) {
+  var ael = el.addEventListener || el.attachEvent
+    , doc = el.ownerDocument
+    , body = doc.body
+    , rfs = shim(el)
+    , ee = new EE
+
+  var vendors = ['', 'webkit', 'moz', 'ms', 'o']
+
+  for(var i = 0, len = vendors.length; i < len; ++i) {
+    ael.call(doc, vendors[i]+'fullscreenchange', onfullscreenchange)
+    ael.call(doc, vendors[i]+'fullscreenerror', onfullscreenerror)
+  }
+
+  ee.release = release
+  ee.request = request
+  ee.target = fullscreenelement
+
+  if(!shim) {
+    setTimeout(function() {
+      ee.emit('error', new Error('fullscreen is not supported'))
+    }, 0)
+  }
+  return ee
+
+  function onfullscreenchange() {
+    if(!fullscreenelement()) {
+      return ee.emit('release')
+    }
+    ee.emit('attain')
+  }
+
+  function onfullscreenerror() {
+    ee.emit('error')
+  }
+
+  function request() {
+    return rfs.call(el)
+  }
+
+  function release() {
+    (el.exitFullscreen ||
+    el.exitFullscreen ||
+    el.webkitExitFullScreen ||
+    el.webkitExitFullscreen ||
+    el.mozExitFullScreen ||
+    el.mozExitFullscreen ||
+    el.msExitFullScreen ||
+    el.msExitFullscreen ||
+    el.oExitFullScreen ||
+    el.oExitFullscreen).call(el)
+  } 
+
+  function fullscreenelement() {
+    return 0 ||
+      doc.fullScreenElement ||
+      doc.fullscreenElement ||
+      doc.webkitFullScreenElement ||
+      doc.webkitFullscreenElement ||
+      doc.mozFullScreenElement ||
+      doc.mozFullscreenElement ||
+      doc.msFullScreenElement ||
+      doc.msFullscreenElement ||
+      doc.oFullScreenElement ||
+      doc.oFullscreenElement ||
+      null
+  }
+}
+
+function shim(el) {
+  return (el.requestFullscreen ||
+    el.webkitRequestFullscreen ||
+    el.webkitRequestFullScreen ||
+    el.mozRequestFullscreen ||
+    el.mozRequestFullScreen ||
+    el.msRequestFullscreen ||
+    el.msRequestFullScreen ||
+    el.oRequestFullscreen ||
+    el.oRequestFullScreen)
+}
+
+},{"events":5}],44:[function(require,module,exports){
+/**
+ * @fileoverview gl-matrix - High performance matrix and vector operations
+ * @author Brandon Jones
+ * @author Colin MacKenzie IV
+ * @version 2.0.0
+ */
+
+/* Copyright (c) 2012, Brandon Jones, Colin MacKenzie IV. All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
+
+  * Redistributions of source code must retain the above copyright notice, this
+    list of conditions and the following disclaimer.
+  * Redistributions in binary form must reproduce the above copyright notice,
+    this list of conditions and the following disclaimer in the documentation 
+    and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. */
+
+
+(function() {
+  "use strict";
+
+  var shim = {};
+  if (typeof(exports) === 'undefined') {
+    if(typeof define == 'function' && typeof define.amd == 'object' && define.amd) {
+      shim.exports = {};
+      define(function() {
+        return shim.exports;
+      });
+    } else {
+      // gl-matrix lives in a browser, define its namespaces in global
+      shim.exports = window;
+    }    
+  }
+  else {
+    // gl-matrix lives in commonjs, define its namespaces in exports
+    shim.exports = exports;
+  }
+
+  (function(exports) {
+    /* Copyright (c) 2012, Brandon Jones, Colin MacKenzie IV. All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
+
+  * Redistributions of source code must retain the above copyright notice, this
+    list of conditions and the following disclaimer.
+  * Redistributions in binary form must reproduce the above copyright notice,
+    this list of conditions and the following disclaimer in the documentation 
+    and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. */
+
+/**
+ * @class 2 Dimensional Vector
+ * @name vec2
+ */
+
+var vec2 = {};
+
+if(!GLMAT_EPSILON) {
+    var GLMAT_EPSILON = 0.000001;
+}
+ 
+/**
+ * Creates a new, empty vec2
+ *
+ * @returns {vec2} a new 2D vector
+ */
+vec2.create = function() {
+    return new Float32Array(2);
+};
+
+/**
+ * Creates a new vec2 initialized with values from an existing vector
+ *
+ * @param {vec2} a vector to clone
+ * @returns {vec2} a new 2D vector
+ */
+vec2.clone = function(a) {
+    var out = new Float32Array(2);
+    out[0] = a[0];
+    out[1] = a[1];
+    return out;
+};
+
+/**
+ * Creates a new vec2 initialized with the given values
+ *
+ * @param {Number} x X component
+ * @param {Number} y Y component
+ * @returns {vec2} a new 2D vector
+ */
+vec2.fromValues = function(x, y) {
+    var out = new Float32Array(2);
+    out[0] = x;
+    out[1] = y;
+    return out;
+};
+
+/**
+ * Copy the values from one vec2 to another
+ *
+ * @param {vec2} out the receiving vector
+ * @param {vec2} a the source vector
+ * @returns {vec2} out
+ */
+vec2.copy = function(out, a) {
+    out[0] = a[0];
+    out[1] = a[1];
+    return out;
+};
+
+/**
+ * Set the components of a vec2 to the given values
+ *
+ * @param {vec2} out the receiving vector
+ * @param {Number} x X component
+ * @param {Number} y Y component
+ * @returns {vec2} out
+ */
+vec2.set = function(out, x, y) {
+    out[0] = x;
+    out[1] = y;
+    return out;
+};
+
+/**
+ * Adds two vec2's
+ *
+ * @param {vec2} out the receiving vector
+ * @param {vec2} a the first operand
+ * @param {vec2} b the second operand
+ * @returns {vec2} out
+ */
+vec2.add = function(out, a, b) {
+    out[0] = a[0] + b[0];
+    out[1] = a[1] + b[1];
+    return out;
+};
+
+/**
+ * Subtracts two vec2's
+ *
+ * @param {vec2} out the receiving vector
+ * @param {vec2} a the first operand
+ * @param {vec2} b the second operand
+ * @returns {vec2} out
+ */
+vec2.sub = vec2.subtract = function(out, a, b) {
+    out[0] = a[0] - b[0];
+    out[1] = a[1] - b[1];
+    return out;
+};
+
+/**
+ * Multiplies two vec2's
+ *
+ * @param {vec2} out the receiving vector
+ * @param {vec2} a the first operand
+ * @param {vec2} b the second operand
+ * @returns {vec2} out
+ */
+vec2.mul = vec2.multiply = function(out, a, b) {
+    out[0] = a[0] * b[0];
+    out[1] = a[1] * b[1];
+    return out;
+};
+
+/**
+ * Divides two vec2's
+ *
+ * @param {vec2} out the receiving vector
+ * @param {vec2} a the first operand
+ * @param {vec2} b the second operand
+ * @returns {vec2} out
+ */
+vec2.div = vec2.divide = function(out, a, b) {
+    out[0] = a[0] / b[0];
+    out[1] = a[1] / b[1];
+    return out;
+};
+
+/**
+ * Returns the minimum of two vec2's
+ *
+ * @param {vec2} out the receiving vector
+ * @param {vec2} a the first operand
+ * @param {vec2} b the second operand
+ * @returns {vec2} out
+ */
+vec2.min = function(out, a, b) {
+    out[0] = Math.min(a[0], b[0]);
+    out[1] = Math.min(a[1], b[1]);
+    return out;
+};
+
+/**
+ * Returns the maximum of two vec2's
+ *
+ * @param {vec2} out the receiving vector
+ * @param {vec2} a the first operand
+ * @param {vec2} b the second operand
+ * @returns {vec2} out
+ */
+vec2.max = function(out, a, b) {
+    out[0] = Math.max(a[0], b[0]);
+    out[1] = Math.max(a[1], b[1]);
+    return out;
+};
+
+/**
+ * Scales a vec2 by a scalar number
+ *
+ * @param {vec2} out the receiving vector
+ * @param {vec2} a the vector to scale
+ * @param {vec2} b amount to scale the vector by
+ * @returns {vec2} out
+ */
+vec2.scale = function(out, a, b) {
+    out[0] = a[0] * b;
+    out[1] = a[1] * b;
+    return out;
+};
+
+/**
+ * Calculates the euclidian distance between two vec2's
+ *
+ * @param {vec2} a the first operand
+ * @param {vec2} b the second operand
+ * @returns {Number} distance between a and b
+ */
+vec2.dist = vec2.distance = function(a, b) {
+    var x = b[0] - a[0],
+        y = b[1] - a[1];
+    return Math.sqrt(x*x + y*y);
+};
+
+/**
+ * Calculates the squared euclidian distance between two vec2's
+ *
+ * @param {vec2} a the first operand
+ * @param {vec2} b the second operand
+ * @returns {Number} squared distance between a and b
+ */
+vec2.sqrDist = vec2.squaredDistance = function(a, b) {
+    var x = b[0] - a[0],
+        y = b[1] - a[1];
+    return x*x + y*y;
+};
+
+/**
+ * Caclulates the length of a vec2
+ *
+ * @param {vec2} a vector to calculate length of
+ * @returns {Number} length of a
+ */
+vec2.len = vec2.length = function (a) {
+    var x = a[0],
+        y = a[1];
+    return Math.sqrt(x*x + y*y);
+};
+
+/**
+ * Caclulates the squared length of a vec2
+ *
+ * @param {vec2} a vector to calculate squared length of
+ * @returns {Number} squared length of a
+ */
+vec2.sqrLen = vec2.squaredLength = function (a) {
+    var x = a[0],
+        y = a[1];
+    return x*x + y*y;
+};
+
+/**
+ * Negates the components of a vec2
+ *
+ * @param {vec2} out the receiving vector
+ * @param {vec2} a vector to negate
+ * @returns {vec2} out
+ */
+vec2.negate = function(out, a) {
+    out[0] = -a[0];
+    out[1] = -a[1];
+    return out;
+};
+
+/**
+ * Normalize a vec2
+ *
+ * @param {vec2} out the receiving vector
+ * @param {vec2} a vector to normalize
+ * @returns {vec2} out
+ */
+vec2.normalize = function(out, a) {
+    var x = a[0],
+        y = a[1];
+    var len = x*x + y*y;
+    if (len > 0) {
+        //TODO: evaluate use of glm_invsqrt here?
+        len = 1 / Math.sqrt(len);
+        out[0] = a[0] * len;
+        out[1] = a[1] * len;
+    }
+    return out;
+};
+
+/**
+ * Caclulates the dot product of two vec2's
+ *
+ * @param {vec2} a the first operand
+ * @param {vec2} b the second operand
+ * @returns {Number} dot product of a and b
+ */
+vec2.dot = function (a, b) {
+    return a[0] * b[0] + a[1] * b[1];
+};
+
+/**
+ * Computes the cross product of two vec2's
+ * Note that the cross product must by definition produce a 3D vector
+ *
+ * @param {vec3} out the receiving vector
+ * @param {vec2} a the first operand
+ * @param {vec2} b the second operand
+ * @returns {vec3} out
+ */
+vec2.cross = function(out, a, b) {
+    var z = a[0] * b[1] - a[1] * b[0];
+    out[0] = out[1] = 0;
+    out[2] = z;
+    return out;
+};
+
+/**
+ * Performs a linear interpolation between two vec2's
+ *
+ * @param {vec3} out the receiving vector
+ * @param {vec2} a the first operand
+ * @param {vec2} b the second operand
+ * @param {Number} t interpolation amount between the two inputs
+ * @returns {vec2} out
+ */
+vec2.lerp = function (out, a, b, t) {
+    var ax = a[0],
+        ay = a[1];
+    out[0] = ax + t * (b[0] - ax);
+    out[1] = ay + t * (b[1] - ay);
+    return out;
+};
+
+/**
+ * Transforms the vec2 with a mat2
+ *
+ * @param {vec2} out the receiving vector
+ * @param {vec2} a the vector to transform
+ * @param {mat2} m matrix to transform with
+ * @returns {vec2} out
+ */
+vec2.transformMat2 = function(out, a, m) {
+    var x = a[0],
+        y = a[1];
+    out[0] = x * m[0] + y * m[1];
+    out[1] = x * m[2] + y * m[3];
+    return out;
+};
+
+/**
+ * Perform some operation over an array of vec2s.
+ *
+ * @param {Array} a the array of vectors to iterate over
+ * @param {Number} stride Number of elements between the start of each vec2. If 0 assumes tightly packed
+ * @param {Number} offset Number of elements to skip at the beginning of the array
+ * @param {Number} count Number of vec2s to iterate over. If 0 iterates over entire array
+ * @param {Function} fn Function to call for each vector in the array
+ * @param {Object} [arg] additional argument to pass to fn
+ * @returns {Array} a
+ */
+vec2.forEach = (function() {
+    var vec = new Float32Array(2);
+
+    return function(a, stride, offset, count, fn, arg) {
+        var i, l;
+        if(!stride) {
+            stride = 2;
+        }
+
+        if(!offset) {
+            offset = 0;
+        }
+        
+        if(count) {
+            l = Math.min((count * stride) + offset, a.length);
+        } else {
+            l = a.length;
+        }
+
+        for(i = offset; i < l; i += stride) {
+            vec[0] = a[i]; vec[1] = a[i+1];
+            fn(vec, vec, arg);
+            a[i] = vec[0]; a[i+1] = vec[1];
+        }
+        
+        return a;
+    };
+})();
+
+/**
+ * Returns a string representation of a vector
+ *
+ * @param {vec2} vec vector to represent as a string
+ * @returns {String} string representation of the vector
+ */
+vec2.str = function (a) {
+    return 'vec2(' + a[0] + ', ' + a[1] + ')';
+};
+
+if(typeof(exports) !== 'undefined') {
+    exports.vec2 = vec2;
+}
+;
+/* Copyright (c) 2012, Brandon Jones, Colin MacKenzie IV. All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
+
+  * Redistributions of source code must retain the above copyright notice, this
+    list of conditions and the following disclaimer.
+  * Redistributions in binary form must reproduce the above copyright notice,
+    this list of conditions and the following disclaimer in the documentation 
+    and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. */
+
+/**
+ * @class 3 Dimensional Vector
+ * @name vec3
+ */
+
+var vec3 = {};
+
+if(!GLMAT_EPSILON) {
+    var GLMAT_EPSILON = 0.000001;
+}
+ 
+/**
+ * Creates a new, empty vec3
+ *
+ * @returns {vec3} a new 3D vector
+ */
+vec3.create = function() {
+    return new Float32Array(3);
+};
+
+/**
+ * Creates a new vec3 initialized with values from an existing vector
+ *
+ * @param {vec3} a vector to clone
+ * @returns {vec3} a new 3D vector
+ */
+vec3.clone = function(a) {
+    var out = new Float32Array(3);
+    out[0] = a[0];
+    out[1] = a[1];
+    out[2] = a[2];
+    return out;
+};
+
+/**
+ * Creates a new vec3 initialized with the given values
+ *
+ * @param {Number} x X component
+ * @param {Number} y Y component
+ * @param {Number} z Z component
+ * @returns {vec3} a new 3D vector
+ */
+vec3.fromValues = function(x, y, z) {
+    var out = new Float32Array(3);
+    out[0] = x;
+    out[1] = y;
+    out[2] = z;
+    return out;
+};
+
+/**
+ * Copy the values from one vec3 to another
+ *
+ * @param {vec3} out the receiving vector
+ * @param {vec3} a the source vector
+ * @returns {vec3} out
+ */
+vec3.copy = function(out, a) {
+    out[0] = a[0];
+    out[1] = a[1];
+    out[2] = a[2];
+    return out;
+};
+
+/**
+ * Set the components of a vec3 to the given values
+ *
+ * @param {vec3} out the receiving vector
+ * @param {Number} x X component
+ * @param {Number} y Y component
+ * @param {Number} z Z component
+ * @returns {vec3} out
+ */
+vec3.set = function(out, x, y, z) {
+    out[0] = x;
+    out[1] = y;
+    out[2] = z;
+    return out;
+};
+
+/**
+ * Adds two vec3's
+ *
+ * @param {vec3} out the receiving vector
+ * @param {vec3} a the first operand
+ * @param {vec3} b the second operand
+ * @returns {vec3} out
+ */
+vec3.add = function(out, a, b) {
+    out[0] = a[0] + b[0];
+    out[1] = a[1] + b[1];
+    out[2] = a[2] + b[2];
+    return out;
+};
+
+/**
+ * Subtracts two vec3's
+ *
+ * @param {vec3} out the receiving vector
+ * @param {vec3} a the first operand
+ * @param {vec3} b the second operand
+ * @returns {vec3} out
+ */
+vec3.sub = vec3.subtract = function(out, a, b) {
+    out[0] = a[0] - b[0];
+    out[1] = a[1] - b[1];
+    out[2] = a[2] - b[2];
+    return out;
+};
+
+/**
+ * Multiplies two vec3's
+ *
+ * @param {vec3} out the receiving vector
+ * @param {vec3} a the first operand
+ * @param {vec3} b the second operand
+ * @returns {vec3} out
+ */
+vec3.mul = vec3.multiply = function(out, a, b) {
+    out[0] = a[0] * b[0];
+    out[1] = a[1] * b[1];
+    out[2] = a[2] * b[2];
+    return out;
+};
+
+/**
+ * Divides two vec3's
+ *
+ * @param {vec3} out the receiving vector
+ * @param {vec3} a the first operand
+ * @param {vec3} b the second operand
+ * @returns {vec3} out
+ */
+vec3.div = vec3.divide = function(out, a, b) {
+    out[0] = a[0] / b[0];
+    out[1] = a[1] / b[1];
+    out[2] = a[2] / b[2];
+    return out;
+};
+
+/**
+ * Returns the minimum of two vec3's
+ *
+ * @param {vec3} out the receiving vector
+ * @param {vec3} a the first operand
+ * @param {vec3} b the second operand
+ * @returns {vec3} out
+ */
+vec3.min = function(out, a, b) {
+    out[0] = Math.min(a[0], b[0]);
+    out[1] = Math.min(a[1], b[1]);
+    out[2] = Math.min(a[2], b[2]);
+    return out;
+};
+
+/**
+ * Returns the maximum of two vec3's
+ *
+ * @param {vec3} out the receiving vector
+ * @param {vec3} a the first operand
+ * @param {vec3} b the second operand
+ * @returns {vec3} out
+ */
+vec3.max = function(out, a, b) {
+    out[0] = Math.max(a[0], b[0]);
+    out[1] = Math.max(a[1], b[1]);
+    out[2] = Math.max(a[2], b[2]);
+    return out;
+};
+
+/**
+ * Scales a vec3 by a scalar number
+ *
+ * @param {vec3} out the receiving vector
+ * @param {vec3} a the vector to scale
+ * @param {vec3} b amount to scale the vector by
+ * @returns {vec3} out
+ */
+vec3.scale = function(out, a, b) {
+    out[0] = a[0] * b;
+    out[1] = a[1] * b;
+    out[2] = a[2] * b;
+    return out;
+};
+
+/**
+ * Calculates the euclidian distance between two vec3's
+ *
+ * @param {vec3} a the first operand
+ * @param {vec3} b the second operand
+ * @returns {Number} distance between a and b
+ */
+vec3.dist = vec3.distance = function(a, b) {
+    var x = b[0] - a[0],
+        y = b[1] - a[1],
+        z = b[2] - a[2];
+    return Math.sqrt(x*x + y*y + z*z);
+};
+
+/**
+ * Calculates the squared euclidian distance between two vec3's
+ *
+ * @param {vec3} a the first operand
+ * @param {vec3} b the second operand
+ * @returns {Number} squared distance between a and b
+ */
+vec3.sqrDist = vec3.squaredDistance = function(a, b) {
+    var x = b[0] - a[0],
+        y = b[1] - a[1],
+        z = b[2] - a[2];
+    return x*x + y*y + z*z;
+};
+
+/**
+ * Caclulates the length of a vec3
+ *
+ * @param {vec3} a vector to calculate length of
+ * @returns {Number} length of a
+ */
+vec3.len = vec3.length = function (a) {
+    var x = a[0],
+        y = a[1],
+        z = a[2];
+    return Math.sqrt(x*x + y*y + z*z);
+};
+
+/**
+ * Caclulates the squared length of a vec3
+ *
+ * @param {vec3} a vector to calculate squared length of
+ * @returns {Number} squared length of a
+ */
+vec3.sqrLen = vec3.squaredLength = function (a) {
+    var x = a[0],
+        y = a[1],
+        z = a[2];
+    return x*x + y*y + z*z;
+};
+
+/**
+ * Negates the components of a vec3
+ *
+ * @param {vec3} out the receiving vector
+ * @param {vec3} a vector to negate
+ * @returns {vec3} out
+ */
+vec3.negate = function(out, a) {
+    out[0] = -a[0];
+    out[1] = -a[1];
+    out[2] = -a[2];
+    return out;
+};
+
+/**
+ * Normalize a vec3
+ *
+ * @param {vec3} out the receiving vector
+ * @param {vec3} a vector to normalize
+ * @returns {vec3} out
+ */
+vec3.normalize = function(out, a) {
+    var x = a[0],
+        y = a[1],
+        z = a[2];
+    var len = x*x + y*y + z*z;
+    if (len > 0) {
+        //TODO: evaluate use of glm_invsqrt here?
+        len = 1 / Math.sqrt(len);
+        out[0] = a[0] * len;
+        out[1] = a[1] * len;
+        out[2] = a[2] * len;
+    }
+    return out;
+};
+
+/**
+ * Caclulates the dot product of two vec3's
+ *
+ * @param {vec3} a the first operand
+ * @param {vec3} b the second operand
+ * @returns {Number} dot product of a and b
+ */
+vec3.dot = function (a, b) {
+    return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+};
+
+/**
+ * Computes the cross product of two vec3's
+ *
+ * @param {vec3} out the receiving vector
+ * @param {vec3} a the first operand
+ * @param {vec3} b the second operand
+ * @returns {vec3} out
+ */
+vec3.cross = function(out, a, b) {
+    var ax = a[0], ay = a[1], az = a[2],
+        bx = b[0], by = b[1], bz = b[2];
+
+    out[0] = ay * bz - az * by;
+    out[1] = az * bx - ax * bz;
+    out[2] = ax * by - ay * bx;
+    return out;
+};
+
+/**
+ * Performs a linear interpolation between two vec3's
+ *
+ * @param {vec3} out the receiving vector
+ * @param {vec3} a the first operand
+ * @param {vec3} b the second operand
+ * @param {Number} t interpolation amount between the two inputs
+ * @returns {vec3} out
+ */
+vec3.lerp = function (out, a, b, t) {
+    var ax = a[0],
+        ay = a[1],
+        az = a[2];
+    out[0] = ax + t * (b[0] - ax);
+    out[1] = ay + t * (b[1] - ay);
+    out[2] = az + t * (b[2] - az);
+    return out;
+};
+
+/**
+ * Transforms the vec3 with a mat4.
+ * 4th vector component is implicitly '1'
+ *
+ * @param {vec3} out the receiving vector
+ * @param {vec3} a the vector to transform
+ * @param {mat4} m matrix to transform with
+ * @returns {vec3} out
+ */
+vec3.transformMat4 = function(out, a, m) {
+    var x = a[0], y = a[1], z = a[2];
+    out[0] = m[0] * x + m[4] * y + m[8] * z + m[12];
+    out[1] = m[1] * x + m[5] * y + m[9] * z + m[13];
+    out[2] = m[2] * x + m[6] * y + m[10] * z + m[14];
+    return out;
+};
+
+/**
+ * Transforms the vec3 with a quat
+ *
+ * @param {vec3} out the receiving vector
+ * @param {vec3} a the vector to transform
+ * @param {quat} q quaternion to transform with
+ * @returns {vec3} out
+ */
+vec3.transformQuat = function(out, a, q) {
+    var x = a[0], y = a[1], z = a[2],
+        qx = q[0], qy = q[1], qz = q[2], qw = q[3],
+
+        // calculate quat * vec
+        ix = qw * x + qy * z - qz * y,
+        iy = qw * y + qz * x - qx * z,
+        iz = qw * z + qx * y - qy * x,
+        iw = -qx * x - qy * y - qz * z;
+
+    // calculate result * inverse quat
+    out[0] = ix * qw + iw * -qx + iy * -qz - iz * -qy;
+    out[1] = iy * qw + iw * -qy + iz * -qx - ix * -qz;
+    out[2] = iz * qw + iw * -qz + ix * -qy - iy * -qx;
+    return out;
+};
+
+/**
+ * Perform some operation over an array of vec3s.
+ *
+ * @param {Array} a the array of vectors to iterate over
+ * @param {Number} stride Number of elements between the start of each vec3. If 0 assumes tightly packed
+ * @param {Number} offset Number of elements to skip at the beginning of the array
+ * @param {Number} count Number of vec3s to iterate over. If 0 iterates over entire array
+ * @param {Function} fn Function to call for each vector in the array
+ * @param {Object} [arg] additional argument to pass to fn
+ * @returns {Array} a
+ */
+vec3.forEach = (function() {
+    var vec = new Float32Array(3);
+
+    return function(a, stride, offset, count, fn, arg) {
+        var i, l;
+        if(!stride) {
+            stride = 3;
+        }
+
+        if(!offset) {
+            offset = 0;
+        }
+        
+        if(count) {
+            l = Math.min((count * stride) + offset, a.length);
+        } else {
+            l = a.length;
+        }
+
+        for(i = offset; i < l; i += stride) {
+            vec[0] = a[i]; vec[1] = a[i+1]; vec[2] = a[i+2];
+            fn(vec, vec, arg);
+            a[i] = vec[0]; a[i+1] = vec[1]; a[i+2] = vec[2];
+        }
+        
+        return a;
+    };
+})();
+
+/**
+ * Returns a string representation of a vector
+ *
+ * @param {vec3} vec vector to represent as a string
+ * @returns {String} string representation of the vector
+ */
+vec3.str = function (a) {
+    return 'vec3(' + a[0] + ', ' + a[1] + ', ' + a[2] + ')';
+};
+
+if(typeof(exports) !== 'undefined') {
+    exports.vec3 = vec3;
+}
+;
+/* Copyright (c) 2012, Brandon Jones, Colin MacKenzie IV. All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
+
+  * Redistributions of source code must retain the above copyright notice, this
+    list of conditions and the following disclaimer.
+  * Redistributions in binary form must reproduce the above copyright notice,
+    this list of conditions and the following disclaimer in the documentation 
+    and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. */
+
+/**
+ * @class 4 Dimensional Vector
+ * @name vec4
+ */
+
+var vec4 = {};
+
+if(!GLMAT_EPSILON) {
+    var GLMAT_EPSILON = 0.000001;
+}
+
+/**
+ * Creates a new, empty vec4
+ *
+ * @returns {vec4} a new 4D vector
+ */
+vec4.create = function() {
+    return new Float32Array(4);
+};
+
+/**
+ * Creates a new vec4 initialized with values from an existing vector
+ *
+ * @param {vec4} a vector to clone
+ * @returns {vec4} a new 4D vector
+ */
+vec4.clone = function(a) {
+    var out = new Float32Array(4);
+    out[0] = a[0];
+    out[1] = a[1];
+    out[2] = a[2];
+    out[3] = a[3];
+    return out;
+};
+
+/**
+ * Creates a new vec4 initialized with the given values
+ *
+ * @param {Number} x X component
+ * @param {Number} y Y component
+ * @param {Number} z Z component
+ * @param {Number} w W component
+ * @returns {vec4} a new 4D vector
+ */
+vec4.fromValues = function(x, y, z, w) {
+    var out = new Float32Array(4);
+    out[0] = x;
+    out[1] = y;
+    out[2] = z;
+    out[3] = w;
+    return out;
+};
+
+/**
+ * Copy the values from one vec4 to another
+ *
+ * @param {vec4} out the receiving vector
+ * @param {vec4} a the source vector
+ * @returns {vec4} out
+ */
+vec4.copy = function(out, a) {
+    out[0] = a[0];
+    out[1] = a[1];
+    out[2] = a[2];
+    out[3] = a[3];
+    return out;
+};
+
+/**
+ * Set the components of a vec4 to the given values
+ *
+ * @param {vec4} out the receiving vector
+ * @param {Number} x X component
+ * @param {Number} y Y component
+ * @param {Number} z Z component
+ * @param {Number} w W component
+ * @returns {vec4} out
+ */
+vec4.set = function(out, x, y, z, w) {
+    out[0] = x;
+    out[1] = y;
+    out[2] = z;
+    out[3] = w;
+    return out;
+};
+
+/**
+ * Adds two vec4's
+ *
+ * @param {vec4} out the receiving vector
+ * @param {vec4} a the first operand
+ * @param {vec4} b the second operand
+ * @returns {vec4} out
+ */
+vec4.add = function(out, a, b) {
+    out[0] = a[0] + b[0];
+    out[1] = a[1] + b[1];
+    out[2] = a[2] + b[2];
+    out[3] = a[3] + b[3];
+    return out;
+};
+
+/**
+ * Subtracts two vec4's
+ *
+ * @param {vec4} out the receiving vector
+ * @param {vec4} a the first operand
+ * @param {vec4} b the second operand
+ * @returns {vec4} out
+ */
+vec4.sub = vec4.subtract = function(out, a, b) {
+    out[0] = a[0] - b[0];
+    out[1] = a[1] - b[1];
+    out[2] = a[2] - b[2];
+    out[3] = a[3] - b[3];
+    return out;
+};
+
+/**
+ * Multiplies two vec4's
+ *
+ * @param {vec4} out the receiving vector
+ * @param {vec4} a the first operand
+ * @param {vec4} b the second operand
+ * @returns {vec4} out
+ */
+vec4.mul = vec4.multiply = function(out, a, b) {
+    out[0] = a[0] * b[0];
+    out[1] = a[1] * b[1];
+    out[2] = a[2] * b[2];
+    out[3] = a[3] * b[3];
+    return out;
+};
+
+/**
+ * Divides two vec4's
+ *
+ * @param {vec4} out the receiving vector
+ * @param {vec4} a the first operand
+ * @param {vec4} b the second operand
+ * @returns {vec4} out
+ */
+vec4.div = vec4.divide = function(out, a, b) {
+    out[0] = a[0] / b[0];
+    out[1] = a[1] / b[1];
+    out[2] = a[2] / b[2];
+    out[3] = a[3] / b[3];
+    return out;
+};
+
+/**
+ * Returns the minimum of two vec4's
+ *
+ * @param {vec4} out the receiving vector
+ * @param {vec4} a the first operand
+ * @param {vec4} b the second operand
+ * @returns {vec4} out
+ */
+vec4.min = function(out, a, b) {
+    out[0] = Math.min(a[0], b[0]);
+    out[1] = Math.min(a[1], b[1]);
+    out[2] = Math.min(a[2], b[2]);
+    out[3] = Math.min(a[3], b[3]);
+    return out;
+};
+
+/**
+ * Returns the maximum of two vec4's
+ *
+ * @param {vec4} out the receiving vector
+ * @param {vec4} a the first operand
+ * @param {vec4} b the second operand
+ * @returns {vec4} out
+ */
+vec4.max = function(out, a, b) {
+    out[0] = Math.max(a[0], b[0]);
+    out[1] = Math.max(a[1], b[1]);
+    out[2] = Math.max(a[2], b[2]);
+    out[3] = Math.max(a[3], b[3]);
+    return out;
+};
+
+/**
+ * Scales a vec4 by a scalar number
+ *
+ * @param {vec4} out the receiving vector
+ * @param {vec4} a the vector to scale
+ * @param {vec4} b amount to scale the vector by
+ * @returns {vec4} out
+ */
+vec4.scale = function(out, a, b) {
+    out[0] = a[0] * b;
+    out[1] = a[1] * b;
+    out[2] = a[2] * b;
+    out[3] = a[3] * b;
+    return out;
+};
+
+/**
+ * Calculates the euclidian distance between two vec4's
+ *
+ * @param {vec4} a the first operand
+ * @param {vec4} b the second operand
+ * @returns {Number} distance between a and b
+ */
+vec4.dist = vec4.distance = function(a, b) {
+    var x = b[0] - a[0],
+        y = b[1] - a[1],
+        z = b[2] - a[2],
+        w = b[3] - a[3];
+    return Math.sqrt(x*x + y*y + z*z + w*w);
+};
+
+/**
+ * Calculates the squared euclidian distance between two vec4's
+ *
+ * @param {vec4} a the first operand
+ * @param {vec4} b the second operand
+ * @returns {Number} squared distance between a and b
+ */
+vec4.sqrDist = vec4.squaredDistance = function(a, b) {
+    var x = b[0] - a[0],
+        y = b[1] - a[1],
+        z = b[2] - a[2],
+        w = b[3] - a[3];
+    return x*x + y*y + z*z + w*w;
+};
+
+/**
+ * Caclulates the length of a vec4
+ *
+ * @param {vec4} a vector to calculate length of
+ * @returns {Number} length of a
+ */
+vec4.len = vec4.length = function (a) {
+    var x = a[0],
+        y = a[1],
+        z = a[2],
+        w = a[3];
+    return Math.sqrt(x*x + y*y + z*z + w*w);
+};
+
+/**
+ * Caclulates the squared length of a vec4
+ *
+ * @param {vec4} a vector to calculate squared length of
+ * @returns {Number} squared length of a
+ */
+vec4.sqrLen = vec4.squaredLength = function (a) {
+    var x = a[0],
+        y = a[1],
+        z = a[2],
+        w = a[3];
+    return x*x + y*y + z*z + w*w;
+};
+
+/**
+ * Negates the components of a vec4
+ *
+ * @param {vec4} out the receiving vector
+ * @param {vec4} a vector to negate
+ * @returns {vec4} out
+ */
+vec4.negate = function(out, a) {
+    out[0] = -a[0];
+    out[1] = -a[1];
+    out[2] = -a[2];
+    out[3] = -a[3];
+    return out;
+};
+
+/**
+ * Normalize a vec4
+ *
+ * @param {vec4} out the receiving vector
+ * @param {vec4} a vector to normalize
+ * @returns {vec4} out
+ */
+vec4.normalize = function(out, a) {
+    var x = a[0],
+        y = a[1],
+        z = a[2],
+        w = a[3];
+    var len = x*x + y*y + z*z + w*w;
+    if (len > 0) {
+        len = 1 / Math.sqrt(len);
+        out[0] = a[0] * len;
+        out[1] = a[1] * len;
+        out[2] = a[2] * len;
+        out[3] = a[3] * len;
+    }
+    return out;
+};
+
+/**
+ * Caclulates the dot product of two vec4's
+ *
+ * @param {vec4} a the first operand
+ * @param {vec4} b the second operand
+ * @returns {Number} dot product of a and b
+ */
+vec4.dot = function (a, b) {
+    return a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3];
+};
+
+/**
+ * Performs a linear interpolation between two vec4's
+ *
+ * @param {vec4} out the receiving vector
+ * @param {vec4} a the first operand
+ * @param {vec4} b the second operand
+ * @param {Number} t interpolation amount between the two inputs
+ * @returns {vec4} out
+ */
+vec4.lerp = function (out, a, b, t) {
+    var ax = a[0],
+        ay = a[1],
+        az = a[2],
+        aw = a[3];
+    out[0] = ax + t * (b[0] - ax);
+    out[1] = ay + t * (b[1] - ay);
+    out[2] = az + t * (b[2] - az);
+    out[3] = aw + t * (b[3] - aw);
+    return out;
+};
+
+/**
+ * Transforms the vec4 with a mat4.
+ *
+ * @param {vec4} out the receiving vector
+ * @param {vec4} a the vector to transform
+ * @param {mat4} m matrix to transform with
+ * @returns {vec4} out
+ */
+vec4.transformMat4 = function(out, a, m) {
+    var x = a[0], y = a[1], z = a[2], w = a[3];
+    out[0] = m[0] * x + m[4] * y + m[8] * z + m[12] * w;
+    out[1] = m[1] * x + m[5] * y + m[9] * z + m[13] * w;
+    out[2] = m[2] * x + m[6] * y + m[10] * z + m[14] * w;
+    out[3] = m[3] * x + m[7] * y + m[11] * z + m[15] * w;
+    return out;
+};
+
+/**
+ * Transforms the vec4 with a quat
+ *
+ * @param {vec4} out the receiving vector
+ * @param {vec4} a the vector to transform
+ * @param {quat} q quaternion to transform with
+ * @returns {vec4} out
+ */
+vec4.transformQuat = function(out, a, q) {
+    var x = a[0], y = a[1], z = a[2],
+        qx = q[0], qy = q[1], qz = q[2], qw = q[3],
+
+        // calculate quat * vec
+        ix = qw * x + qy * z - qz * y,
+        iy = qw * y + qz * x - qx * z,
+        iz = qw * z + qx * y - qy * x,
+        iw = -qx * x - qy * y - qz * z;
+
+    // calculate result * inverse quat
+    out[0] = ix * qw + iw * -qx + iy * -qz - iz * -qy;
+    out[1] = iy * qw + iw * -qy + iz * -qx - ix * -qz;
+    out[2] = iz * qw + iw * -qz + ix * -qy - iy * -qx;
+    return out;
+};
+
+/**
+ * Perform some operation over an array of vec4s.
+ *
+ * @param {Array} a the array of vectors to iterate over
+ * @param {Number} stride Number of elements between the start of each vec4. If 0 assumes tightly packed
+ * @param {Number} offset Number of elements to skip at the beginning of the array
+ * @param {Number} count Number of vec2s to iterate over. If 0 iterates over entire array
+ * @param {Function} fn Function to call for each vector in the array
+ * @param {Object} [arg] additional argument to pass to fn
+ * @returns {Array} a
+ */
+vec4.forEach = (function() {
+    var vec = new Float32Array(4);
+
+    return function(a, stride, offset, count, fn, arg) {
+        var i, l;
+        if(!stride) {
+            stride = 4;
+        }
+
+        if(!offset) {
+            offset = 0;
+        }
+        
+        if(count) {
+            l = Math.min((count * stride) + offset, a.length);
+        } else {
+            l = a.length;
+        }
+
+        for(i = offset; i < l; i += stride) {
+            vec[0] = a[i]; vec[1] = a[i+1]; vec[2] = a[i+2]; vec[3] = a[i+3];
+            fn(vec, vec, arg);
+            a[i] = vec[0]; a[i+1] = vec[1]; a[i+2] = vec[2]; a[i+3] = vec[3];
+        }
+        
+        return a;
+    };
+})();
+
+/**
+ * Returns a string representation of a vector
+ *
+ * @param {vec4} vec vector to represent as a string
+ * @returns {String} string representation of the vector
+ */
+vec4.str = function (a) {
+    return 'vec4(' + a[0] + ', ' + a[1] + ', ' + a[2] + ', ' + a[3] + ')';
+};
+
+if(typeof(exports) !== 'undefined') {
+    exports.vec4 = vec4;
+}
+;
+/* Copyright (c) 2012, Brandon Jones, Colin MacKenzie IV. All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
+
+  * Redistributions of source code must retain the above copyright notice, this
+    list of conditions and the following disclaimer.
+  * Redistributions in binary form must reproduce the above copyright notice,
+    this list of conditions and the following disclaimer in the documentation 
+    and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. */
+
+/**
+ * @class 2x2 Matrix
+ * @name mat2
+ */
+
+var mat2 = {};
+
+var mat2Identity = new Float32Array([
+    1, 0,
+    0, 1
+]);
+
+if(!GLMAT_EPSILON) {
+    var GLMAT_EPSILON = 0.000001;
+}
+
+/**
+ * Creates a new identity mat2
+ *
+ * @returns {mat2} a new 2x2 matrix
+ */
+mat2.create = function() {
+    return new Float32Array(mat2Identity);
+};
+
+/**
+ * Creates a new mat2 initialized with values from an existing matrix
+ *
+ * @param {mat2} a matrix to clone
+ * @returns {mat2} a new 2x2 matrix
+ */
+mat2.clone = function(a) {
+    var out = new Float32Array(4);
+    out[0] = a[0];
+    out[1] = a[1];
+    out[2] = a[2];
+    out[3] = a[3];
+    return out;
+};
+
+/**
+ * Copy the values from one mat2 to another
+ *
+ * @param {mat2} out the receiving matrix
+ * @param {mat2} a the source matrix
+ * @returns {mat2} out
+ */
+mat2.copy = function(out, a) {
+    out[0] = a[0];
+    out[1] = a[1];
+    out[2] = a[2];
+    out[3] = a[3];
+    return out;
+};
+
+/**
+ * Set a mat2 to the identity matrix
+ *
+ * @param {mat2} out the receiving matrix
+ * @returns {mat2} out
+ */
+mat2.identity = function(out) {
+    out[0] = 1;
+    out[1] = 0;
+    out[2] = 0;
+    out[3] = 1;
+    return out;
+};
+
+/**
+ * Transpose the values of a mat2
+ *
+ * @param {mat2} out the receiving matrix
+ * @param {mat2} a the source matrix
+ * @returns {mat2} out
+ */
+mat2.transpose = function(out, a) {
+    // If we are transposing ourselves we can skip a few steps but have to cache some values
+    if (out === a) {
+        var a1 = a[1];
+        out[1] = a[2];
+        out[2] = a1;
+    } else {
+        out[0] = a[0];
+        out[1] = a[2];
+        out[2] = a[1];
+        out[3] = a[3];
+    }
+    
+    return out;
+};
+
+/**
+ * Inverts a mat2
+ *
+ * @param {mat2} out the receiving matrix
+ * @param {mat2} a the source matrix
+ * @returns {mat2} out
+ */
+mat2.invert = function(out, a) {
+    var a0 = a[0], a1 = a[1], a2 = a[2], a3 = a[3],
+
+        // Calculate the determinant
+        det = a0 * a3 - a2 * a1;
+
+    if (!det) {
+        return null;
+    }
+    det = 1.0 / det;
+    
+    out[0] =  a3 * det;
+    out[1] = -a1 * det;
+    out[2] = -a2 * det;
+    out[3] =  a0 * det;
+
+    return out;
+};
+
+/**
+ * Caclulates the adjugate of a mat2
+ *
+ * @param {mat2} out the receiving matrix
+ * @param {mat2} a the source matrix
+ * @returns {mat2} out
+ */
+mat2.adjoint = function(out, a) {
+    // Caching this value is nessecary if out == a
+    var a0 = a[0];
+    out[0] =  a[3];
+    out[1] = -a[1];
+    out[2] = -a[2];
+    out[3] =  a0;
+
+    return out;
+};
+
+/**
+ * Calculates the determinant of a mat2
+ *
+ * @param {mat2} a the source matrix
+ * @returns {Number} determinant of a
+ */
+mat2.determinant = function (a) {
+    return a[0] * a[3] - a[2] * a[1];
+};
+
+/**
+ * Multiplies two mat2's
+ *
+ * @param {mat2} out the receiving matrix
+ * @param {mat2} a the first operand
+ * @param {mat2} b the second operand
+ * @returns {mat2} out
+ */
+mat2.mul = mat2.multiply = function (out, a, b) {
+    var a0 = a[0], a1 = a[1], a2 = a[2], a3 = a[3];
+    var b0 = b[0], b1 = b[1], b2 = b[2], b3 = b[3];
+    out[0] = a0 * b0 + a1 * b2;
+    out[1] = a0 * b1 + a1 * b3;
+    out[2] = a2 * b0 + a3 * b2;
+    out[3] = a2 * b1 + a3 * b3;
+    return out;
+};
+
+/**
+ * Rotates a mat2 by the given angle
+ *
+ * @param {mat2} out the receiving matrix
+ * @param {mat2} a the matrix to rotate
+ * @param {mat2} rad the angle to rotate the matrix by
+ * @returns {mat2} out
+ */
+mat2.rotate = function (out, a, rad) {
+    var a0 = a[0], a1 = a[1], a2 = a[2], a3 = a[3],
+        s = Math.sin(rad),
+        c = Math.cos(rad);
+    out[0] = a0 *  c + a1 * s;
+    out[1] = a0 * -s + a1 * c;
+    out[2] = a2 *  c + a3 * s;
+    out[3] = a2 * -s + a3 * c;
+    return out;
+};
+
+/**
+ * Scales the mat2 by the dimensions in the given vec2
+ *
+ * @param {mat2} out the receiving matrix
+ * @param {mat2} a the matrix to rotate
+ * @param {mat2} v the vec2 to scale the matrix by
+ * @returns {mat2} out
+ **/
+mat2.scale = function(out, a, v) {
+    var a0 = a[0], a1 = a[1], a2 = a[2], a3 = a[3],
+        v0 = v[0], v1 = v[1];
+    out[0] = a0 * v0;
+    out[1] = a1 * v1;
+    out[2] = a2 * v0;
+    out[3] = a3 * v1;
+    return out;
+};
+
+/**
+ * Returns a string representation of a mat2
+ *
+ * @param {mat2} mat matrix to represent as a string
+ * @returns {String} string representation of the matrix
+ */
+mat2.str = function (a) {
+    return 'mat2(' + a[0] + ', ' + a[1] + ', ' + a[2] + ', ' + a[3] + ')';
+};
+
+if(typeof(exports) !== 'undefined') {
+    exports.mat2 = mat2;
+}
+;
+/* Copyright (c) 2012, Brandon Jones, Colin MacKenzie IV. All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
+
+  * Redistributions of source code must retain the above copyright notice, this
+    list of conditions and the following disclaimer.
+  * Redistributions in binary form must reproduce the above copyright notice,
+    this list of conditions and the following disclaimer in the documentation 
+    and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. */
+
+/**
+ * @class 3x3 Matrix
+ * @name mat3
+ */
+
+var mat3 = {};
+
+var mat3Identity = new Float32Array([
+    1, 0, 0,
+    0, 1, 0,
+    0, 0, 1
+]);
+
+if(!GLMAT_EPSILON) {
+    var GLMAT_EPSILON = 0.000001;
+}
+
+/**
+ * Creates a new identity mat3
+ *
+ * @returns {mat3} a new 3x3 matrix
+ */
+mat3.create = function() {
+    return new Float32Array(mat3Identity);
+};
+
+/**
+ * Creates a new mat3 initialized with values from an existing matrix
+ *
+ * @param {mat3} a matrix to clone
+ * @returns {mat3} a new 3x3 matrix
+ */
+mat3.clone = function(a) {
+    var out = new Float32Array(9);
+    out[0] = a[0];
+    out[1] = a[1];
+    out[2] = a[2];
+    out[3] = a[3];
+    out[4] = a[4];
+    out[5] = a[5];
+    out[6] = a[6];
+    out[7] = a[7];
+    out[8] = a[8];
+    return out;
+};
+
+/**
+ * Copy the values from one mat3 to another
+ *
+ * @param {mat3} out the receiving matrix
+ * @param {mat3} a the source matrix
+ * @returns {mat3} out
+ */
+mat3.copy = function(out, a) {
+    out[0] = a[0];
+    out[1] = a[1];
+    out[2] = a[2];
+    out[3] = a[3];
+    out[4] = a[4];
+    out[5] = a[5];
+    out[6] = a[6];
+    out[7] = a[7];
+    out[8] = a[8];
+    return out;
+};
+
+/**
+ * Set a mat3 to the identity matrix
+ *
+ * @param {mat3} out the receiving matrix
+ * @returns {mat3} out
+ */
+mat3.identity = function(out) {
+    out[0] = 1;
+    out[1] = 0;
+    out[2] = 0;
+    out[3] = 0;
+    out[4] = 1;
+    out[5] = 0;
+    out[6] = 0;
+    out[7] = 0;
+    out[8] = 1;
+    return out;
+};
+
+/**
+ * Transpose the values of a mat3
+ *
+ * @param {mat3} out the receiving matrix
+ * @param {mat3} a the source matrix
+ * @returns {mat3} out
+ */
+mat3.transpose = function(out, a) {
+    // If we are transposing ourselves we can skip a few steps but have to cache some values
+    if (out === a) {
+        var a01 = a[1], a02 = a[2], a12 = a[5];
+        out[1] = a[3];
+        out[2] = a[6];
+        out[3] = a01;
+        out[5] = a[7];
+        out[6] = a02;
+        out[7] = a12;
+    } else {
+        out[0] = a[0];
+        out[1] = a[3];
+        out[2] = a[6];
+        out[3] = a[1];
+        out[4] = a[4];
+        out[5] = a[7];
+        out[6] = a[2];
+        out[7] = a[5];
+        out[8] = a[8];
+    }
+    
+    return out;
+};
+
+/**
+ * Inverts a mat3
+ *
+ * @param {mat3} out the receiving matrix
+ * @param {mat3} a the source matrix
+ * @returns {mat3} out
+ */
+mat3.invert = function(out, a) {
+    var a00 = a[0], a01 = a[1], a02 = a[2],
+        a10 = a[3], a11 = a[4], a12 = a[5],
+        a20 = a[6], a21 = a[7], a22 = a[8],
+
+        b01 = a22 * a11 - a12 * a21,
+        b11 = -a22 * a10 + a12 * a20,
+        b21 = a21 * a10 - a11 * a20,
+
+        // Calculate the determinant
+        det = a00 * b01 + a01 * b11 + a02 * b21;
+
+    if (!det) { 
+        return null; 
+    }
+    det = 1.0 / det;
+
+    out[0] = b01 * det;
+    out[1] = (-a22 * a01 + a02 * a21) * det;
+    out[2] = (a12 * a01 - a02 * a11) * det;
+    out[3] = b11 * det;
+    out[4] = (a22 * a00 - a02 * a20) * det;
+    out[5] = (-a12 * a00 + a02 * a10) * det;
+    out[6] = b21 * det;
+    out[7] = (-a21 * a00 + a01 * a20) * det;
+    out[8] = (a11 * a00 - a01 * a10) * det;
+    return out;
+};
+
+/**
+ * Caclulates the adjugate of a mat3
+ *
+ * @param {mat3} out the receiving matrix
+ * @param {mat3} a the source matrix
+ * @returns {mat3} out
+ */
+mat3.adjoint = function(out, a) {
+    var a00 = a[0], a01 = a[1], a02 = a[2],
+        a10 = a[3], a11 = a[4], a12 = a[5],
+        a20 = a[6], a21 = a[7], a22 = a[8];
+
+    out[0] = (a11 * a22 - a12 * a21);
+    out[1] = (a02 * a21 - a01 * a22);
+    out[2] = (a01 * a12 - a02 * a11);
+    out[3] = (a12 * a20 - a10 * a22);
+    out[4] = (a00 * a22 - a02 * a20);
+    out[5] = (a02 * a10 - a00 * a12);
+    out[6] = (a10 * a21 - a11 * a20);
+    out[7] = (a01 * a20 - a00 * a21);
+    out[8] = (a00 * a11 - a01 * a10);
+    return out;
+};
+
+/**
+ * Calculates the determinant of a mat3
+ *
+ * @param {mat3} a the source matrix
+ * @returns {Number} determinant of a
+ */
+mat3.determinant = function (a) {
+    var a00 = a[0], a01 = a[1], a02 = a[2],
+        a10 = a[3], a11 = a[4], a12 = a[5],
+        a20 = a[6], a21 = a[7], a22 = a[8];
+
+    return a00 * (a22 * a11 - a12 * a21) + a01 * (-a22 * a10 + a12 * a20) + a02 * (a21 * a10 - a11 * a20);
+};
+
+/**
+ * Multiplies two mat3's
+ *
+ * @param {mat3} out the receiving matrix
+ * @param {mat3} a the first operand
+ * @param {mat3} b the second operand
+ * @returns {mat3} out
+ */
+mat3.mul = mat3.multiply = function (out, a, b) {
+    var a00 = a[0], a01 = a[1], a02 = a[2],
+        a10 = a[3], a11 = a[4], a12 = a[5],
+        a20 = a[6], a21 = a[7], a22 = a[8],
+
+        b00 = b[0], b01 = b[1], b02 = b[2],
+        b10 = b[3], b11 = b[4], b12 = b[5],
+        b20 = b[6], b21 = b[7], b22 = b[8];
+
+    out[0] = b00 * a00 + b01 * a10 + b02 * a20;
+    out[1] = b00 * a01 + b01 * a11 + b02 * a21;
+    out[2] = b00 * a02 + b01 * a12 + b02 * a22;
+
+    out[3] = b10 * a00 + b11 * a10 + b12 * a20;
+    out[4] = b10 * a01 + b11 * a11 + b12 * a21;
+    out[5] = b10 * a02 + b11 * a12 + b12 * a22;
+
+    out[6] = b20 * a00 + b21 * a10 + b22 * a20;
+    out[7] = b20 * a01 + b21 * a11 + b22 * a21;
+    out[8] = b20 * a02 + b21 * a12 + b22 * a22;
+    return out;
+};
+
+/**
+ * Returns a string representation of a mat3
+ *
+ * @param {mat3} mat matrix to represent as a string
+ * @returns {String} string representation of the matrix
+ */
+mat3.str = function (a) {
+    return 'mat3(' + a[0] + ', ' + a[1] + ', ' + a[2] + ', ' + 
+                    a[3] + ', ' + a[4] + ', ' + a[5] + ', ' + 
+                    a[6] + ', ' + a[7] + ', ' + a[8] + ')';
+};
+
+if(typeof(exports) !== 'undefined') {
+    exports.mat3 = mat3;
+}
+;
+/* Copyright (c) 2012, Brandon Jones, Colin MacKenzie IV. All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
+
+  * Redistributions of source code must retain the above copyright notice, this
+    list of conditions and the following disclaimer.
+  * Redistributions in binary form must reproduce the above copyright notice,
+    this list of conditions and the following disclaimer in the documentation 
+    and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. */
+
+/**
+ * @class 4x4 Matrix
+ * @name mat4
+ */
+
+var mat4 = {};
+
+var mat4Identity = new Float32Array([
+    1, 0, 0, 0,
+    0, 1, 0, 0,
+    0, 0, 1, 0,
+    0, 0, 0, 1
+]);
+
+if(!GLMAT_EPSILON) {
+    var GLMAT_EPSILON = 0.000001;
+}
+
+/**
+ * Creates a new identity mat4
+ *
+ * @returns {mat4} a new 4x4 matrix
+ */
+mat4.create = function() {
+    return new Float32Array(mat4Identity);
+};
+
+/**
+ * Creates a new mat4 initialized with values from an existing matrix
+ *
+ * @param {mat4} a matrix to clone
+ * @returns {mat4} a new 4x4 matrix
+ */
+mat4.clone = function(a) {
+    var out = new Float32Array(16);
+    out[0] = a[0];
+    out[1] = a[1];
+    out[2] = a[2];
+    out[3] = a[3];
+    out[4] = a[4];
+    out[5] = a[5];
+    out[6] = a[6];
+    out[7] = a[7];
+    out[8] = a[8];
+    out[9] = a[9];
+    out[10] = a[10];
+    out[11] = a[11];
+    out[12] = a[12];
+    out[13] = a[13];
+    out[14] = a[14];
+    out[15] = a[15];
+    return out;
+};
+
+/**
+ * Copy the values from one mat4 to another
+ *
+ * @param {mat4} out the receiving matrix
+ * @param {mat4} a the source matrix
+ * @returns {mat4} out
+ */
+mat4.copy = function(out, a) {
+    out[0] = a[0];
+    out[1] = a[1];
+    out[2] = a[2];
+    out[3] = a[3];
+    out[4] = a[4];
+    out[5] = a[5];
+    out[6] = a[6];
+    out[7] = a[7];
+    out[8] = a[8];
+    out[9] = a[9];
+    out[10] = a[10];
+    out[11] = a[11];
+    out[12] = a[12];
+    out[13] = a[13];
+    out[14] = a[14];
+    out[15] = a[15];
+    return out;
+};
+
+/**
+ * Set a mat4 to the identity matrix
+ *
+ * @param {mat4} out the receiving matrix
+ * @returns {mat4} out
+ */
+mat4.identity = function(out) {
+    out[0] = 1;
+    out[1] = 0;
+    out[2] = 0;
+    out[3] = 0;
+    out[4] = 0;
+    out[5] = 1;
+    out[6] = 0;
+    out[7] = 0;
+    out[8] = 0;
+    out[9] = 0;
+    out[10] = 1;
+    out[11] = 0;
+    out[12] = 0;
+    out[13] = 0;
+    out[14] = 0;
+    out[15] = 1;
+    return out;
+};
+
+/**
+ * Transpose the values of a mat4
+ *
+ * @param {mat4} out the receiving matrix
+ * @param {mat4} a the source matrix
+ * @returns {mat4} out
+ */
+mat4.transpose = function(out, a) {
+    // If we are transposing ourselves we can skip a few steps but have to cache some values
+    if (out === a) {
+        var a01 = a[1], a02 = a[2], a03 = a[3],
+            a12 = a[6], a13 = a[7],
+            a23 = a[11];
+
+        out[1] = a[4];
+        out[2] = a[8];
+        out[3] = a[12];
+        out[4] = a01;
+        out[6] = a[9];
+        out[7] = a[13];
+        out[8] = a02;
+        out[9] = a12;
+        out[11] = a[14];
+        out[12] = a03;
+        out[13] = a13;
+        out[14] = a23;
+    } else {
+        out[0] = a[0];
+        out[1] = a[4];
+        out[2] = a[8];
+        out[3] = a[12];
+        out[4] = a[1];
+        out[5] = a[5];
+        out[6] = a[9];
+        out[7] = a[13];
+        out[8] = a[2];
+        out[9] = a[6];
+        out[10] = a[10];
+        out[11] = a[14];
+        out[12] = a[3];
+        out[13] = a[7];
+        out[14] = a[11];
+        out[15] = a[15];
+    }
+    
+    return out;
+};
+
+/**
+ * Inverts a mat4
+ *
+ * @param {mat4} out the receiving matrix
+ * @param {mat4} a the source matrix
+ * @returns {mat4} out
+ */
+mat4.invert = function(out, a) {
+    var a00 = a[0], a01 = a[1], a02 = a[2], a03 = a[3],
+        a10 = a[4], a11 = a[5], a12 = a[6], a13 = a[7],
+        a20 = a[8], a21 = a[9], a22 = a[10], a23 = a[11],
+        a30 = a[12], a31 = a[13], a32 = a[14], a33 = a[15],
+
+        b00 = a00 * a11 - a01 * a10,
+        b01 = a00 * a12 - a02 * a10,
+        b02 = a00 * a13 - a03 * a10,
+        b03 = a01 * a12 - a02 * a11,
+        b04 = a01 * a13 - a03 * a11,
+        b05 = a02 * a13 - a03 * a12,
+        b06 = a20 * a31 - a21 * a30,
+        b07 = a20 * a32 - a22 * a30,
+        b08 = a20 * a33 - a23 * a30,
+        b09 = a21 * a32 - a22 * a31,
+        b10 = a21 * a33 - a23 * a31,
+        b11 = a22 * a33 - a23 * a32,
+
+        // Calculate the determinant
+        det = b00 * b11 - b01 * b10 + b02 * b09 + b03 * b08 - b04 * b07 + b05 * b06;
+
+    if (!det) { 
+        return null; 
+    }
+    det = 1.0 / det;
+
+    out[0] = (a11 * b11 - a12 * b10 + a13 * b09) * det;
+    out[1] = (a02 * b10 - a01 * b11 - a03 * b09) * det;
+    out[2] = (a31 * b05 - a32 * b04 + a33 * b03) * det;
+    out[3] = (a22 * b04 - a21 * b05 - a23 * b03) * det;
+    out[4] = (a12 * b08 - a10 * b11 - a13 * b07) * det;
+    out[5] = (a00 * b11 - a02 * b08 + a03 * b07) * det;
+    out[6] = (a32 * b02 - a30 * b05 - a33 * b01) * det;
+    out[7] = (a20 * b05 - a22 * b02 + a23 * b01) * det;
+    out[8] = (a10 * b10 - a11 * b08 + a13 * b06) * det;
+    out[9] = (a01 * b08 - a00 * b10 - a03 * b06) * det;
+    out[10] = (a30 * b04 - a31 * b02 + a33 * b00) * det;
+    out[11] = (a21 * b02 - a20 * b04 - a23 * b00) * det;
+    out[12] = (a11 * b07 - a10 * b09 - a12 * b06) * det;
+    out[13] = (a00 * b09 - a01 * b07 + a02 * b06) * det;
+    out[14] = (a31 * b01 - a30 * b03 - a32 * b00) * det;
+    out[15] = (a20 * b03 - a21 * b01 + a22 * b00) * det;
+
+    return out;
+};
+
+/**
+ * Caclulates the adjugate of a mat4
+ *
+ * @param {mat4} out the receiving matrix
+ * @param {mat4} a the source matrix
+ * @returns {mat4} out
+ */
+mat4.adjoint = function(out, a) {
+    var a00 = a[0], a01 = a[1], a02 = a[2], a03 = a[3],
+        a10 = a[4], a11 = a[5], a12 = a[6], a13 = a[7],
+        a20 = a[8], a21 = a[9], a22 = a[10], a23 = a[11],
+        a30 = a[12], a31 = a[13], a32 = a[14], a33 = a[15];
+
+    out[0]  =  (a11 * (a22 * a33 - a23 * a32) - a21 * (a12 * a33 - a13 * a32) + a31 * (a12 * a23 - a13 * a22));
+    out[1]  = -(a01 * (a22 * a33 - a23 * a32) - a21 * (a02 * a33 - a03 * a32) + a31 * (a02 * a23 - a03 * a22));
+    out[2]  =  (a01 * (a12 * a33 - a13 * a32) - a11 * (a02 * a33 - a03 * a32) + a31 * (a02 * a13 - a03 * a12));
+    out[3]  = -(a01 * (a12 * a23 - a13 * a22) - a11 * (a02 * a23 - a03 * a22) + a21 * (a02 * a13 - a03 * a12));
+    out[4]  = -(a10 * (a22 * a33 - a23 * a32) - a20 * (a12 * a33 - a13 * a32) + a30 * (a12 * a23 - a13 * a22));
+    out[5]  =  (a00 * (a22 * a33 - a23 * a32) - a20 * (a02 * a33 - a03 * a32) + a30 * (a02 * a23 - a03 * a22));
+    out[6]  = -(a00 * (a12 * a33 - a13 * a32) - a10 * (a02 * a33 - a03 * a32) + a30 * (a02 * a13 - a03 * a12));
+    out[7]  =  (a00 * (a12 * a23 - a13 * a22) - a10 * (a02 * a23 - a03 * a22) + a20 * (a02 * a13 - a03 * a12));
+    out[8]  =  (a10 * (a21 * a33 - a23 * a31) - a20 * (a11 * a33 - a13 * a31) + a30 * (a11 * a23 - a13 * a21));
+    out[9]  = -(a00 * (a21 * a33 - a23 * a31) - a20 * (a01 * a33 - a03 * a31) + a30 * (a01 * a23 - a03 * a21));
+    out[10] =  (a00 * (a11 * a33 - a13 * a31) - a10 * (a01 * a33 - a03 * a31) + a30 * (a01 * a13 - a03 * a11));
+    out[11] = -(a00 * (a11 * a23 - a13 * a21) - a10 * (a01 * a23 - a03 * a21) + a20 * (a01 * a13 - a03 * a11));
+    out[12] = -(a10 * (a21 * a32 - a22 * a31) - a20 * (a11 * a32 - a12 * a31) + a30 * (a11 * a22 - a12 * a21));
+    out[13] =  (a00 * (a21 * a32 - a22 * a31) - a20 * (a01 * a32 - a02 * a31) + a30 * (a01 * a22 - a02 * a21));
+    out[14] = -(a00 * (a11 * a32 - a12 * a31) - a10 * (a01 * a32 - a02 * a31) + a30 * (a01 * a12 - a02 * a11));
+    out[15] =  (a00 * (a11 * a22 - a12 * a21) - a10 * (a01 * a22 - a02 * a21) + a20 * (a01 * a12 - a02 * a11));
+    return out;
+};
+
+/**
+ * Calculates the determinant of a mat4
+ *
+ * @param {mat4} a the source matrix
+ * @returns {Number} determinant of a
+ */
+mat4.determinant = function (a) {
+    var a00 = a[0], a01 = a[1], a02 = a[2], a03 = a[3],
+        a10 = a[4], a11 = a[5], a12 = a[6], a13 = a[7],
+        a20 = a[8], a21 = a[9], a22 = a[10], a23 = a[11],
+        a30 = a[12], a31 = a[13], a32 = a[14], a33 = a[15],
+
+        b00 = a00 * a11 - a01 * a10,
+        b01 = a00 * a12 - a02 * a10,
+        b02 = a00 * a13 - a03 * a10,
+        b03 = a01 * a12 - a02 * a11,
+        b04 = a01 * a13 - a03 * a11,
+        b05 = a02 * a13 - a03 * a12,
+        b06 = a20 * a31 - a21 * a30,
+        b07 = a20 * a32 - a22 * a30,
+        b08 = a20 * a33 - a23 * a30,
+        b09 = a21 * a32 - a22 * a31,
+        b10 = a21 * a33 - a23 * a31,
+        b11 = a22 * a33 - a23 * a32;
+
+    // Calculate the determinant
+    return b00 * b11 - b01 * b10 + b02 * b09 + b03 * b08 - b04 * b07 + b05 * b06;
+};
+
+/**
+ * Multiplies two mat4's
+ *
+ * @param {mat4} out the receiving matrix
+ * @param {mat4} a the first operand
+ * @param {mat4} b the second operand
+ * @returns {mat4} out
+ */
+mat4.mul = mat4.multiply = function (out, a, b) {
+    var a00 = a[0], a01 = a[1], a02 = a[2], a03 = a[3],
+        a10 = a[4], a11 = a[5], a12 = a[6], a13 = a[7],
+        a20 = a[8], a21 = a[9], a22 = a[10], a23 = a[11],
+        a30 = a[12], a31 = a[13], a32 = a[14], a33 = a[15];
+
+    // Cache only the current line of the second matrix
+    var b0  = b[0], b1 = b[1], b2 = b[2], b3 = b[3];  
+    out[0] = b0*a00 + b1*a10 + b2*a20 + b3*a30;
+    out[1] = b0*a01 + b1*a11 + b2*a21 + b3*a31;
+    out[2] = b0*a02 + b1*a12 + b2*a22 + b3*a32;
+    out[3] = b0*a03 + b1*a13 + b2*a23 + b3*a33;
+
+    b0 = b[4]; b1 = b[5]; b2 = b[6]; b3 = b[7];
+    out[4] = b0*a00 + b1*a10 + b2*a20 + b3*a30;
+    out[5] = b0*a01 + b1*a11 + b2*a21 + b3*a31;
+    out[6] = b0*a02 + b1*a12 + b2*a22 + b3*a32;
+    out[7] = b0*a03 + b1*a13 + b2*a23 + b3*a33;
+
+    b0 = b[8]; b1 = b[9]; b2 = b[10]; b3 = b[11];
+    out[8] = b0*a00 + b1*a10 + b2*a20 + b3*a30;
+    out[9] = b0*a01 + b1*a11 + b2*a21 + b3*a31;
+    out[10] = b0*a02 + b1*a12 + b2*a22 + b3*a32;
+    out[11] = b0*a03 + b1*a13 + b2*a23 + b3*a33;
+
+    b0 = b[12]; b1 = b[13]; b2 = b[14]; b3 = b[15];
+    out[12] = b0*a00 + b1*a10 + b2*a20 + b3*a30;
+    out[13] = b0*a01 + b1*a11 + b2*a21 + b3*a31;
+    out[14] = b0*a02 + b1*a12 + b2*a22 + b3*a32;
+    out[15] = b0*a03 + b1*a13 + b2*a23 + b3*a33;
+    return out;
+};
+
+/**
+ * Translate a mat4 by the given vector
+ *
+ * @param {mat4} out the receiving matrix
+ * @param {mat4} a the matrix to translate
+ * @param {vec3} v vector to translate by
+ * @returns {mat4} out
+ */
+mat4.translate = function (out, a, v) {
+    var x = v[0], y = v[1], z = v[2],
+        a00, a01, a02, a03,
+        a10, a11, a12, a13,
+        a20, a21, a22, a23;
+
+    if (a === out) {
+        out[12] = a[0] * x + a[4] * y + a[8] * z + a[12];
+        out[13] = a[1] * x + a[5] * y + a[9] * z + a[13];
+        out[14] = a[2] * x + a[6] * y + a[10] * z + a[14];
+        out[15] = a[3] * x + a[7] * y + a[11] * z + a[15];
+    } else {
+        a00 = a[0]; a01 = a[1]; a02 = a[2]; a03 = a[3];
+        a10 = a[4]; a11 = a[5]; a12 = a[6]; a13 = a[7];
+        a20 = a[8]; a21 = a[9]; a22 = a[10]; a23 = a[11];
+
+        out[0] = a00; out[1] = a01; out[2] = a02; out[3] = a03;
+        out[4] = a10; out[5] = a11; out[6] = a12; out[7] = a13;
+        out[8] = a20; out[9] = a21; out[10] = a22; out[11] = a23;
+
+        out[12] = a00 * x + a10 * y + a20 * z + a[12];
+        out[13] = a01 * x + a11 * y + a21 * z + a[13];
+        out[14] = a02 * x + a12 * y + a22 * z + a[14];
+        out[15] = a03 * x + a13 * y + a23 * z + a[15];
+    }
+
+    return out;
+};
+
+/**
+ * Scales the mat4 by the dimensions in the given vec3
+ *
+ * @param {mat4} out the receiving matrix
+ * @param {mat4} a the matrix to scale
+ * @param {vec3} v the vec3 to scale the matrix by
+ * @returns {mat4} out
+ **/
+mat4.scale = function(out, a, v) {
+    var x = v[0], y = v[1], z = v[2];
+
+    out[0] = a[0] * x;
+    out[1] = a[1] * x;
+    out[2] = a[2] * x;
+    out[3] = a[3] * x;
+    out[4] = a[4] * y;
+    out[5] = a[5] * y;
+    out[6] = a[6] * y;
+    out[7] = a[7] * y;
+    out[8] = a[8] * z;
+    out[9] = a[9] * z;
+    out[10] = a[10] * z;
+    out[11] = a[11] * z;
+    out[12] = a[12];
+    out[13] = a[13];
+    out[14] = a[14];
+    out[15] = a[15];
+    return out;
+};
+
+/**
+ * Rotates a mat4 by the given angle
+ *
+ * @param {mat4} out the receiving matrix
+ * @param {mat4} a the matrix to rotate
+ * @param {Number} rad the angle to rotate the matrix by
+ * @param {vec3} axis the axis to rotate around
+ * @returns {mat4} out
+ */
+mat4.rotate = function (out, a, rad, axis) {
+    var x = axis[0], y = axis[1], z = axis[2],
+        len = Math.sqrt(x * x + y * y + z * z),
+        s, c, t,
+        a00, a01, a02, a03,
+        a10, a11, a12, a13,
+        a20, a21, a22, a23,
+        b00, b01, b02,
+        b10, b11, b12,
+        b20, b21, b22;
+
+    if (Math.abs(len) < GLMAT_EPSILON) { return null; }
+    
+    len = 1 / len;
+    x *= len;
+    y *= len;
+    z *= len;
+
+    s = Math.sin(rad);
+    c = Math.cos(rad);
+    t = 1 - c;
+
+    a00 = a[0]; a01 = a[1]; a02 = a[2]; a03 = a[3];
+    a10 = a[4]; a11 = a[5]; a12 = a[6]; a13 = a[7];
+    a20 = a[8]; a21 = a[9]; a22 = a[10]; a23 = a[11];
+
+    // Construct the elements of the rotation matrix
+    b00 = x * x * t + c; b01 = y * x * t + z * s; b02 = z * x * t - y * s;
+    b10 = x * y * t - z * s; b11 = y * y * t + c; b12 = z * y * t + x * s;
+    b20 = x * z * t + y * s; b21 = y * z * t - x * s; b22 = z * z * t + c;
+
+    // Perform rotation-specific matrix multiplication
+    out[0] = a00 * b00 + a10 * b01 + a20 * b02;
+    out[1] = a01 * b00 + a11 * b01 + a21 * b02;
+    out[2] = a02 * b00 + a12 * b01 + a22 * b02;
+    out[3] = a03 * b00 + a13 * b01 + a23 * b02;
+    out[4] = a00 * b10 + a10 * b11 + a20 * b12;
+    out[5] = a01 * b10 + a11 * b11 + a21 * b12;
+    out[6] = a02 * b10 + a12 * b11 + a22 * b12;
+    out[7] = a03 * b10 + a13 * b11 + a23 * b12;
+    out[8] = a00 * b20 + a10 * b21 + a20 * b22;
+    out[9] = a01 * b20 + a11 * b21 + a21 * b22;
+    out[10] = a02 * b20 + a12 * b21 + a22 * b22;
+    out[11] = a03 * b20 + a13 * b21 + a23 * b22;
+
+    if (a !== out) { // If the source and destination differ, copy the unchanged last row
+        out[12] = a[12];
+        out[13] = a[13];
+        out[14] = a[14];
+        out[15] = a[15];
+    }
+    return out;
+};
+
+/**
+ * Rotates a matrix by the given angle around the X axis
+ *
+ * @param {mat4} out the receiving matrix
+ * @param {mat4} a the matrix to rotate
+ * @param {Number} rad the angle to rotate the matrix by
+ * @returns {mat4} out
+ */
+mat4.rotateX = function (out, a, rad) {
+    var s = Math.sin(rad),
+        c = Math.cos(rad),
+        a10 = a[4],
+        a11 = a[5],
+        a12 = a[6],
+        a13 = a[7],
+        a20 = a[8],
+        a21 = a[9],
+        a22 = a[10],
+        a23 = a[11];
+
+    if (a !== out) { // If the source and destination differ, copy the unchanged rows
+        out[0]  = a[0];
+        out[1]  = a[1];
+        out[2]  = a[2];
+        out[3]  = a[3];
+        out[12] = a[12];
+        out[13] = a[13];
+        out[14] = a[14];
+        out[15] = a[15];
+    }
+
+    // Perform axis-specific matrix multiplication
+    out[4] = a10 * c + a20 * s;
+    out[5] = a11 * c + a21 * s;
+    out[6] = a12 * c + a22 * s;
+    out[7] = a13 * c + a23 * s;
+    out[8] = a20 * c - a10 * s;
+    out[9] = a21 * c - a11 * s;
+    out[10] = a22 * c - a12 * s;
+    out[11] = a23 * c - a13 * s;
+    return out;
+};
+
+/**
+ * Rotates a matrix by the given angle around the Y axis
+ *
+ * @param {mat4} out the receiving matrix
+ * @param {mat4} a the matrix to rotate
+ * @param {Number} rad the angle to rotate the matrix by
+ * @returns {mat4} out
+ */
+mat4.rotateY = function (out, a, rad) {
+    var s = Math.sin(rad),
+        c = Math.cos(rad),
+        a00 = a[0],
+        a01 = a[1],
+        a02 = a[2],
+        a03 = a[3],
+        a20 = a[8],
+        a21 = a[9],
+        a22 = a[10],
+        a23 = a[11];
+
+    if (a !== out) { // If the source and destination differ, copy the unchanged rows
+        out[4]  = a[4];
+        out[5]  = a[5];
+        out[6]  = a[6];
+        out[7]  = a[7];
+        out[12] = a[12];
+        out[13] = a[13];
+        out[14] = a[14];
+        out[15] = a[15];
+    }
+
+    // Perform axis-specific matrix multiplication
+    out[0] = a00 * c - a20 * s;
+    out[1] = a01 * c - a21 * s;
+    out[2] = a02 * c - a22 * s;
+    out[3] = a03 * c - a23 * s;
+    out[8] = a00 * s + a20 * c;
+    out[9] = a01 * s + a21 * c;
+    out[10] = a02 * s + a22 * c;
+    out[11] = a03 * s + a23 * c;
+    return out;
+};
+
+/**
+ * Rotates a matrix by the given angle around the Z axis
+ *
+ * @param {mat4} out the receiving matrix
+ * @param {mat4} a the matrix to rotate
+ * @param {Number} rad the angle to rotate the matrix by
+ * @returns {mat4} out
+ */
+mat4.rotateZ = function (out, a, rad) {
+    var s = Math.sin(rad),
+        c = Math.cos(rad),
+        a00 = a[0],
+        a01 = a[1],
+        a02 = a[2],
+        a03 = a[3],
+        a10 = a[4],
+        a11 = a[5],
+        a12 = a[6],
+        a13 = a[7];
+
+    if (a !== out) { // If the source and destination differ, copy the unchanged last row
+        out[8]  = a[8];
+        out[9]  = a[9];
+        out[10] = a[10];
+        out[11] = a[11];
+        out[12] = a[12];
+        out[13] = a[13];
+        out[14] = a[14];
+        out[15] = a[15];
+    }
+
+    // Perform axis-specific matrix multiplication
+    out[0] = a00 * c + a10 * s;
+    out[1] = a01 * c + a11 * s;
+    out[2] = a02 * c + a12 * s;
+    out[3] = a03 * c + a13 * s;
+    out[4] = a10 * c - a00 * s;
+    out[5] = a11 * c - a01 * s;
+    out[6] = a12 * c - a02 * s;
+    out[7] = a13 * c - a03 * s;
+    return out;
+};
+
+/**
+ * Creates a matrix from a quaternion rotation and vector translation
+ * This is equivalent to (but much faster than):
+ *
+ *     mat4.identity(dest);
+ *     mat4.translate(dest, vec);
+ *     var quatMat = mat4.create();
+ *     quat4.toMat4(quat, quatMat);
+ *     mat4.multiply(dest, quatMat);
+ *
+ * @param {mat4} out mat4 receiving operation result
+ * @param {quat4} q Rotation quaternion
+ * @param {vec3} v Translation vector
+ * @returns {mat4} out
+ */
+mat4.fromRotationTranslation = function (out, q, v) {
+    // Quaternion math
+    var x = q[0], y = q[1], z = q[2], w = q[3],
+        x2 = x + x,
+        y2 = y + y,
+        z2 = z + z,
+
+        xx = x * x2,
+        xy = x * y2,
+        xz = x * z2,
+        yy = y * y2,
+        yz = y * z2,
+        zz = z * z2,
+        wx = w * x2,
+        wy = w * y2,
+        wz = w * z2;
+
+    out[0] = 1 - (yy + zz);
+    out[1] = xy + wz;
+    out[2] = xz - wy;
+    out[3] = 0;
+    out[4] = xy - wz;
+    out[5] = 1 - (xx + zz);
+    out[6] = yz + wx;
+    out[7] = 0;
+    out[8] = xz + wy;
+    out[9] = yz - wx;
+    out[10] = 1 - (xx + yy);
+    out[11] = 0;
+    out[12] = v[0];
+    out[13] = v[1];
+    out[14] = v[2];
+    out[15] = 1;
+    
+    return out;
+};
+
+/**
+ * Generates a frustum matrix with the given bounds
+ *
+ * @param {mat4} out mat4 frustum matrix will be written into
+ * @param {Number} left Left bound of the frustum
+ * @param {Number} right Right bound of the frustum
+ * @param {Number} bottom Bottom bound of the frustum
+ * @param {Number} top Top bound of the frustum
+ * @param {Number} near Near bound of the frustum
+ * @param {Number} far Far bound of the frustum
+ * @returns {mat4} out
+ */
+mat4.frustum = function (out, left, right, bottom, top, near, far) {
+    var rl = 1 / (right - left),
+        tb = 1 / (top - bottom),
+        nf = 1 / (near - far);
+    out[0] = (near * 2) * rl;
+    out[1] = 0;
+    out[2] = 0;
+    out[3] = 0;
+    out[4] = 0;
+    out[5] = (near * 2) * tb;
+    out[6] = 0;
+    out[7] = 0;
+    out[8] = (right + left) * rl;
+    out[9] = (top + bottom) * tb;
+    out[10] = (far + near) * nf;
+    out[11] = -1;
+    out[12] = 0;
+    out[13] = 0;
+    out[14] = (far * near * 2) * nf;
+    out[15] = 0;
+    return out;
+};
+
+/**
+ * Generates a perspective projection matrix with the given bounds
+ *
+ * @param {mat4} out mat4 frustum matrix will be written into
+ * @param {number} fovy Vertical field of view in radians
+ * @param {number} aspect Aspect ratio. typically viewport width/height
+ * @param {number} near Near bound of the frustum
+ * @param {number} far Far bound of the frustum
+ * @returns {mat4} out
+ */
+mat4.perspective = function (out, fovy, aspect, near, far) {
+    var f = 1.0 / Math.tan(fovy / 2),
+        nf = 1 / (near - far);
+    out[0] = f / aspect;
+    out[1] = 0;
+    out[2] = 0;
+    out[3] = 0;
+    out[4] = 0;
+    out[5] = f;
+    out[6] = 0;
+    out[7] = 0;
+    out[8] = 0;
+    out[9] = 0;
+    out[10] = (far + near) * nf;
+    out[11] = -1;
+    out[12] = 0;
+    out[13] = 0;
+    out[14] = (2 * far * near) * nf;
+    out[15] = 0;
+    return out;
+};
+
+/**
+ * Generates a orthogonal projection matrix with the given bounds
+ *
+ * @param {mat4} out mat4 frustum matrix will be written into
+ * @param {number} left Left bound of the frustum
+ * @param {number} right Right bound of the frustum
+ * @param {number} bottom Bottom bound of the frustum
+ * @param {number} top Top bound of the frustum
+ * @param {number} near Near bound of the frustum
+ * @param {number} far Far bound of the frustum
+ * @returns {mat4} out
+ */
+mat4.ortho = function (out, left, right, bottom, top, near, far) {
+    var lr = 1 / (left - right),
+        bt = 1 / (bottom - top),
+        nf = 1 / (near - far);
+    out[0] = -2 * lr;
+    out[1] = 0;
+    out[2] = 0;
+    out[3] = 0;
+    out[4] = 0;
+    out[5] = -2 * bt;
+    out[6] = 0;
+    out[7] = 0;
+    out[8] = 0;
+    out[9] = 0;
+    out[10] = 2 * nf;
+    out[11] = 0;
+    out[12] = (left + right) * lr;
+    out[13] = (top + bottom) * bt;
+    out[14] = (far + near) * nf;
+    out[15] = 1;
+    return out;
+};
+
+/**
+ * Generates a look-at matrix with the given eye position, focal point, and up axis
+ *
+ * @param {mat4} out mat4 frustum matrix will be written into
+ * @param {vec3} eye Position of the viewer
+ * @param {vec3} center Point the viewer is looking at
+ * @param {vec3} up vec3 pointing up
+ * @returns {mat4} out
+ */
+mat4.lookAt = function (out, eye, center, up) {
+    var x0, x1, x2, y0, y1, y2, z0, z1, z2, len,
+        eyex = eye[0],
+        eyey = eye[1],
+        eyez = eye[2],
+        upx = up[0],
+        upy = up[1],
+        upz = up[2],
+        centerx = center[0],
+        centery = center[1],
+        centerz = center[2];
+
+    if (Math.abs(eyex - centerx) < GLMAT_EPSILON &&
+        Math.abs(eyey - centery) < GLMAT_EPSILON &&
+        Math.abs(eyez - centerz) < GLMAT_EPSILON) {
+        return mat4.identity(out);
+    }
+
+    z0 = eyex - centerx;
+    z1 = eyey - centery;
+    z2 = eyez - centerz;
+
+    len = 1 / Math.sqrt(z0 * z0 + z1 * z1 + z2 * z2);
+    z0 *= len;
+    z1 *= len;
+    z2 *= len;
+
+    x0 = upy * z2 - upz * z1;
+    x1 = upz * z0 - upx * z2;
+    x2 = upx * z1 - upy * z0;
+    len = Math.sqrt(x0 * x0 + x1 * x1 + x2 * x2);
+    if (!len) {
+        x0 = 0;
+        x1 = 0;
+        x2 = 0;
+    } else {
+        len = 1 / len;
+        x0 *= len;
+        x1 *= len;
+        x2 *= len;
+    }
+
+    y0 = z1 * x2 - z2 * x1;
+    y1 = z2 * x0 - z0 * x2;
+    y2 = z0 * x1 - z1 * x0;
+
+    len = Math.sqrt(y0 * y0 + y1 * y1 + y2 * y2);
+    if (!len) {
+        y0 = 0;
+        y1 = 0;
+        y2 = 0;
+    } else {
+        len = 1 / len;
+        y0 *= len;
+        y1 *= len;
+        y2 *= len;
+    }
+
+    out[0] = x0;
+    out[1] = y0;
+    out[2] = z0;
+    out[3] = 0;
+    out[4] = x1;
+    out[5] = y1;
+    out[6] = z1;
+    out[7] = 0;
+    out[8] = x2;
+    out[9] = y2;
+    out[10] = z2;
+    out[11] = 0;
+    out[12] = -(x0 * eyex + x1 * eyey + x2 * eyez);
+    out[13] = -(y0 * eyex + y1 * eyey + y2 * eyez);
+    out[14] = -(z0 * eyex + z1 * eyey + z2 * eyez);
+    out[15] = 1;
+
+    return out;
+};
+
+/**
+ * Returns a string representation of a mat4
+ *
+ * @param {mat4} mat matrix to represent as a string
+ * @returns {String} string representation of the matrix
+ */
+mat4.str = function (a) {
+    return 'mat4(' + a[0] + ', ' + a[1] + ', ' + a[2] + ', ' + a[3] + ', ' +
+                    a[4] + ', ' + a[5] + ', ' + a[6] + ', ' + a[7] + ', ' +
+                    a[8] + ', ' + a[9] + ', ' + a[10] + ', ' + a[11] + ', ' + 
+                    a[12] + ', ' + a[13] + ', ' + a[14] + ', ' + a[15] + ')';
+};
+
+if(typeof(exports) !== 'undefined') {
+    exports.mat4 = mat4;
+}
+;
+/* Copyright (c) 2012, Brandon Jones, Colin MacKenzie IV. All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
+
+  * Redistributions of source code must retain the above copyright notice, this
+    list of conditions and the following disclaimer.
+  * Redistributions in binary form must reproduce the above copyright notice,
+    this list of conditions and the following disclaimer in the documentation 
+    and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. */
+
+/**
+ * @class Quaternion
+ * @name quat
+ */
+
+var quat = {};
+
+var quatIdentity = new Float32Array([0, 0, 0, 1]);
+
+if(!GLMAT_EPSILON) {
+    var GLMAT_EPSILON = 0.000001;
+}
+
+/**
+ * Creates a new identity quat
+ *
+ * @returns {quat} a new quaternion
+ */
+quat.create = function() {
+    return new Float32Array(quatIdentity);
+};
+
+/**
+ * Creates a new quat initialized with values from an existing quaternion
+ *
+ * @param {quat} a quaternion to clone
+ * @returns {quat} a new quaternion
+ */
+quat.clone = vec4.clone;
+
+/**
+ * Creates a new quat initialized with the given values
+ *
+ * @param {Number} x X component
+ * @param {Number} y Y component
+ * @param {Number} z Z component
+ * @param {Number} w W component
+ * @returns {quat} a new quaternion
+ */
+quat.fromValues = vec4.fromValues;
+
+/**
+ * Copy the values from one quat to another
+ *
+ * @param {quat} out the receiving quaternion
+ * @param {quat} a the source quaternion
+ * @returns {quat} out
+ */
+quat.copy = vec4.copy;
+
+/**
+ * Set the components of a quat to the given values
+ *
+ * @param {quat} out the receiving quaternion
+ * @param {Number} x X component
+ * @param {Number} y Y component
+ * @param {Number} z Z component
+ * @param {Number} w W component
+ * @returns {quat} out
+ */
+quat.set = vec4.set;
+
+/**
+ * Set a quat to the identity quaternion
+ *
+ * @param {quat} out the receiving quaternion
+ * @returns {quat} out
+ */
+quat.identity = function(out) {
+    out[0] = 0;
+    out[1] = 0;
+    out[2] = 0;
+    out[3] = 1;
+    return out;
+};
+
+/**
+ * Sets a quat from the given angle and rotation axis,
+ * then returns it.
+ *
+ * @param {quat} out the receiving quaternion
+ * @param {vec3} axis the axis around which to rotate
+ * @param {Number} rad the angle in radians
+ * @returns {quat} out
+ **/
+quat.setAxisAngle = function(out, axis, rad) {
+    rad = rad * 0.5;
+    var s = Math.sin(rad);
+    out[0] = s * axis[0];
+    out[1] = s * axis[1];
+    out[2] = s * axis[2];
+    out[3] = Math.cos(rad);
+    return out;
+};
+
+/**
+ * Adds two quat's
+ *
+ * @param {quat} out the receiving quaternion
+ * @param {quat} a the first operand
+ * @param {quat} b the second operand
+ * @returns {quat} out
+ */
+quat.add = vec4.add;
+
+/**
+ * Multiplies two quat's
+ *
+ * @param {quat} out the receiving quaternion
+ * @param {quat} a the first operand
+ * @param {quat} b the second operand
+ * @returns {quat} out
+ */
+quat.mul = quat.multiply = function(out, a, b) {
+    var ax = a[0], ay = a[1], az = a[2], aw = a[3],
+        bx = b[0], by = b[1], bz = b[2], bw = b[3];
+
+    out[0] = ax * bw + aw * bx + ay * bz - az * by;
+    out[1] = ay * bw + aw * by + az * bx - ax * bz;
+    out[2] = az * bw + aw * bz + ax * by - ay * bx;
+    out[3] = aw * bw - ax * bx - ay * by - az * bz;
+    return out;
+};
+
+/**
+ * Scales a quat by a scalar number
+ *
+ * @param {quat} out the receiving vector
+ * @param {quat} a the vector to scale
+ * @param {quat} b amount to scale the vector by
+ * @returns {quat} out
+ */
+quat.scale = vec4.scale;
+
+/**
+ * Rotates a quaternion by the given angle around the X axis
+ *
+ * @param {quat} out quat receiving operation result
+ * @param {quat} a quat to rotate
+ * @param {number} rad angle (in radians) to rotate
+ * @returns {quat} out
+ */
+quat.rotateX = function (out, a, rad) {
+    rad *= 0.5; 
+
+    var ax = a[0], ay = a[1], az = a[2], aw = a[3],
+        bx = Math.sin(rad), bw = Math.cos(rad);
+
+    out[0] = ax * bw + aw * bx;
+    out[1] = ay * bw + az * bx;
+    out[2] = az * bw - ay * bx;
+    out[3] = aw * bw - ax * bx;
+    return out;
+};
+
+/**
+ * Rotates a quaternion by the given angle around the X axis
+ *
+ * @param {quat} out quat receiving operation result
+ * @param {quat} a quat to rotate
+ * @param {number} rad angle (in radians) to rotate
+ * @returns {quat} out
+ */
+quat.rotateY = function (out, a, rad) {
+    rad *= 0.5; 
+
+    var ax = a[0], ay = a[1], az = a[2], aw = a[3],
+        by = Math.sin(rad), bw = Math.cos(rad);
+
+    out[0] = ax * bw - az * by;
+    out[1] = ay * bw + aw * by;
+    out[2] = az * bw + ax * by;
+    out[3] = aw * bw - ay * by;
+    return out;
+};
+
+/**
+ * Rotates a quaternion by the given angle around the X axis
+ *
+ * @param {quat} out quat receiving operation result
+ * @param {quat} a quat to rotate
+ * @param {number} rad angle (in radians) to rotate
+ * @returns {quat} out
+ */
+quat.rotateZ = function (out, a, rad) {
+    rad *= 0.5; 
+
+    var ax = a[0], ay = a[1], az = a[2], aw = a[3],
+        bz = Math.sin(rad), bw = Math.cos(rad);
+
+    out[0] = ax * bw + ay * bz;
+    out[1] = ay * bw - ax * bz;
+    out[2] = az * bw + aw * bz;
+    out[3] = aw * bw - az * bz;
+    return out;
+};
+
+/**
+ * Calculates the W component of a quat from the X, Y, and Z components.
+ * Assumes that quaternion is 1 unit in length.
+ * Any existing W component will be ignored.
+ *
+ * @param {quat} out the receiving quaternion
+ * @param {quat} a quat to calculate W component of
+ * @returns {quat} out
+ */
+quat.calculateW = function (out, a) {
+    var x = a[0], y = a[1], z = a[2];
+
+    out[0] = x;
+    out[1] = y;
+    out[2] = z;
+    out[3] = -Math.sqrt(Math.abs(1.0 - x * x - y * y - z * z));
+    return out;
+};
+
+/**
+ * Caclulates the dot product of two quat's
+ *
+ * @param {quat} a the first operand
+ * @param {quat} b the second operand
+ * @returns {Number} dot product of a and b
+ */
+quat.dot = vec4.dot;
+
+/**
+ * Performs a linear interpolation between two quat's
+ *
+ * @param {quat} out the receiving quaternion
+ * @param {quat} a the first operand
+ * @param {quat} b the second operand
+ * @param {Number} t interpolation amount between the two inputs
+ * @returns {quat} out
+ */
+quat.lerp = vec4.lerp;
+
+/**
+ * Performs a spherical linear interpolation between two quat
+ *
+ * @param {quat} out the receiving quaternion
+ * @param {quat} a the first operand
+ * @param {quat} b the second operand
+ * @param {Number} t interpolation amount between the two inputs
+ * @returns {quat} out
+ */
+quat.slerp = function (out, a, b, t) {
+    var ax = a[0], ay = a[1], az = a[2], aw = a[3],
+        bx = b[0], by = b[1], bz = b[2], bw = a[3];
+
+    var cosHalfTheta = ax * bx + ay * by + az * bz + aw * bw,
+        halfTheta,
+        sinHalfTheta,
+        ratioA,
+        ratioB;
+
+    if (Math.abs(cosHalfTheta) >= 1.0) {
+        if (out !== a) {
+            out[0] = ax;
+            out[1] = ay;
+            out[2] = az;
+            out[3] = aw;
+        }
+        return out;
+    }
+
+    halfTheta = Math.acos(cosHalfTheta);
+    sinHalfTheta = Math.sqrt(1.0 - cosHalfTheta * cosHalfTheta);
+
+    if (Math.abs(sinHalfTheta) < 0.001) {
+        out[0] = (ax * 0.5 + bx * 0.5);
+        out[1] = (ay * 0.5 + by * 0.5);
+        out[2] = (az * 0.5 + bz * 0.5);
+        out[3] = (aw * 0.5 + bw * 0.5);
+        return out;
+    }
+
+    ratioA = Math.sin((1 - t) * halfTheta) / sinHalfTheta;
+    ratioB = Math.sin(t * halfTheta) / sinHalfTheta;
+
+    out[0] = (ax * ratioA + bx * ratioB);
+    out[1] = (ay * ratioA + by * ratioB);
+    out[2] = (az * ratioA + bz * ratioB);
+    out[3] = (aw * ratioA + bw * ratioB);
+
+    return out;
+};
+
+/**
+ * Calculates the inverse of a quat
+ *
+ * @param {quat} out the receiving quaternion
+ * @param {quat} a quat to calculate inverse of
+ * @returns {quat} out
+ */
+quat.invert = function(out, a) {
+    var a0 = a[0], a1 = a[1], a2 = a[2], a3 = a[3],
+        dot = a0*a0 + a1*a1 + a2*a2 + a3*a3,
+        invDot = dot ? 1.0/dot : 0;
+    
+    // TODO: Would be faster to return [0,0,0,0] immediately if dot == 0
+
+    out[0] = -a0*invDot;
+    out[1] = -a1*invDot;
+    out[2] = -a2*invDot;
+    out[3] = a3*invDot;
+    return out;
+};
+
+/**
+ * Calculates the conjugate of a quat
+ * If the quaternion is normalized, this function is faster than quat.inverse and produces the same result.
+ *
+ * @param {quat} out the receiving quaternion
+ * @param {quat} a quat to calculate conjugate of
+ * @returns {quat} out
+ */
+quat.conjugate = function (out, a) {
+    out[0] = -a[0];
+    out[1] = -a[1];
+    out[2] = -a[2];
+    out[3] = a[3];
+    return out;
+};
+
+/**
+ * Caclulates the length of a quat
+ *
+ * @param {quat} a vector to calculate length of
+ * @returns {Number} length of a
+ */
+quat.len = quat.length = vec4.length;
+
+/**
+ * Caclulates the squared length of a quat
+ *
+ * @param {quat} a vector to calculate squared length of
+ * @returns {Number} squared length of a
+ */
+quat.sqrLen = quat.squaredLength = vec4.squaredLength;
+
+/**
+ * Normalize a quat
+ *
+ * @param {quat} out the receiving quaternion
+ * @param {quat} a quaternion to normalize
+ * @returns {quat} out
+ */
+quat.normalize = vec4.normalize;
+
+/**
+ * Returns a string representation of a quatenion
+ *
+ * @param {quat} vec vector to represent as a string
+ * @returns {String} string representation of the vector
+ */
+quat.str = function (a) {
+    return 'quat(' + a[0] + ', ' + a[1] + ', ' + a[2] + ', ' + a[3] + ')';
+};
+
+if(typeof(exports) !== 'undefined') {
+    exports.quat = quat;
+}
+;
+
+
+
+
+
+
+
+
+
+
+  })(shim.exports);
+})();
+
+},{}],45:[function(require,module,exports){
+module.exports = inherits
 
 function inherits (c, p, proto) {
   proto = proto || {}
@@ -1588,648 +10400,1137 @@ function inherits (c, p, proto) {
 //inherits(Child, Parent)
 //new Child
 
-});
+},{}],46:[function(require,module,exports){
+var lock = require('pointer-lock')
+  , drag = require('drag-stream')
+  , full = require('fullscreen')
 
-require.define("/node_modules/voxel/meshers/culled.js",function(require,module,exports,__dirname,__filename,process,global){//Naive meshing (with face culling)
-function CulledMesh(volume, dims) {
-  //Precalculate direction vectors for convenience
-  var dir = new Array(3);
-  for(var i=0; i<3; ++i) {
-    dir[i] = [[0,0,0], [0,0,0]];
-    dir[i][0][(i+1)%3] = 1;
-    dir[i][1][(i+2)%3] = 1;
-  }
-  //March over the volume
-  var vertices = []
-    , faces = []
-    , x = [0,0,0]
-    , B = [[false,true]    //Incrementally update bounds (this is a bit ugly)
-          ,[false,true]
-          ,[false,true]]
-    , n = -dims[0]*dims[1];
-  for(           B[2]=[false,true],x[2]=-1; x[2]<dims[2]; B[2]=[true,(++x[2]<dims[2]-1)])
-  for(n-=dims[0],B[1]=[false,true],x[1]=-1; x[1]<dims[1]; B[1]=[true,(++x[1]<dims[1]-1)])
-  for(n-=1,      B[0]=[false,true],x[0]=-1; x[0]<dims[0]; B[0]=[true,(++x[0]<dims[0]-1)], ++n) {
-    //Read current voxel and 3 neighboring voxels using bounds check results
-    var p =   (B[0][0] && B[1][0] && B[2][0]) ? volume[n]                 : 0
-      , b = [ (B[0][1] && B[1][0] && B[2][0]) ? volume[n+1]               : 0
-            , (B[0][0] && B[1][1] && B[2][0]) ? volume[n+dims[0]]         : 0
-            , (B[0][0] && B[1][0] && B[2][1]) ? volume[n+dims[0]*dims[1]] : 0
-          ];
-    //Generate faces
-    for(var d=0; d<3; ++d)
-    if((!!p) !== (!!b[d])) {
-      var s = !p ? 1 : 0;
-      var t = [x[0],x[1],x[2]]
-        , u = dir[d][s]
-        , v = dir[d][s^1];
-      ++t[d];
-      
-      var vertex_count = vertices.length;
-      vertices.push([t[0],           t[1],           t[2]          ]);
-      vertices.push([t[0]+u[0],      t[1]+u[1],      t[2]+u[2]     ]);
-      vertices.push([t[0]+u[0]+v[0], t[1]+u[1]+v[1], t[2]+u[2]+v[2]]);
-      vertices.push([t[0]     +v[0], t[1]     +v[1], t[2]     +v[2]]);
-      faces.push([vertex_count, vertex_count+1, vertex_count+2, vertex_count+3, s ? b[d] : p]);
-    }
-  }
-  return { vertices:vertices, faces:faces };
-}
+var EE = require('events').EventEmitter
+  , Stream = require('stream').Stream
 
+module.exports = interact
 
-if(exports) {
-  exports.mesher = CulledMesh;
-}
+function interact(el, skiplock) {
+  var ee = new EE
+    , internal
 
-});
-
-require.define("/node_modules/voxel/meshers/greedy.js",function(require,module,exports,__dirname,__filename,process,global){var GreedyMesh = (function() {
-//Cache buffer internally
-var mask = new Int32Array(4096);
-
-return function(volume, dims) {
-  var vertices = [], faces = []
-    , dimsX = dims[0]
-    , dimsY = dims[1]
-    , dimsXY = dimsX * dimsY;
-
-  //Sweep over 3-axes
-  for(var d=0; d<3; ++d) {
-    var i, j, k, l, w, W, h, n, c
-      , u = (d+1)%3
-      , v = (d+2)%3
-      , x = [0,0,0]
-      , q = [0,0,0]
-      , du = [0,0,0]
-      , dv = [0,0,0]
-      , dimsD = dims[d]
-      , dimsU = dims[u]
-      , dimsV = dims[v]
-      , qdimsX, qdimsXY
-      , xd
-
-    if (mask.length < dimsU * dimsV) {
-      mask = new Int32Array(dimsU * dimsV);
-    }
-
-    q[d] =  1;
-    x[d] = -1;
-
-    qdimsX  = dimsX  * q[1]
-    qdimsXY = dimsXY * q[2]
-
-    // Compute mask
-    while (x[d] < dimsD) {
-      xd = x[d]
-      n = 0;
-
-      for(x[v] = 0; x[v] < dimsV; ++x[v]) {
-        for(x[u] = 0; x[u] < dimsU; ++x[u], ++n) {
-          var a = xd >= 0      && volume[x[0]      + dimsX * x[1]          + dimsXY * x[2]          ]
-            , b = xd < dimsD-1 && volume[x[0]+q[0] + dimsX * x[1] + qdimsX + dimsXY * x[2] + qdimsXY]
-          if (a ? b : !b) {
-            mask[n] = 0; continue;
-          }
-          mask[n] = a ? a : -b;
-        }
-      }
-
-      ++x[d];
-
-      // Generate mesh for mask using lexicographic ordering
-      n = 0;
-      for (j=0; j < dimsV; ++j) {
-        for (i=0; i < dimsU; ) {
-          c = mask[n];
-          if (!c) {
-            i++;  n++; continue;
-          }
-
-          //Compute width
-          w = 1;
-          while (c === mask[n+w] && i+w < dimsU) w++;
-
-          //Compute height (this is slightly awkward)
-          for (h=1; j+h < dimsV; ++h) {
-            k = 0;
-            while (k < w && c === mask[n+k+h*dimsU]) k++
-            if (k < w) break;
-          }
-
-          // Add quad
-          // The du/dv arrays are reused/reset
-          // for each iteration.
-          du[d] = 0; dv[d] = 0;
-          x[u]  = i;  x[v] = j;
-
-          if (c > 0) {
-            dv[v] = h; dv[u] = 0;
-            du[u] = w; du[v] = 0;
-          } else {
-            c = -c;
-            du[v] = h; du[u] = 0;
-            dv[u] = w; dv[v] = 0;
-          }
-          var vertex_count = vertices.length;
-          vertices.push([x[0],             x[1],             x[2]            ]);
-          vertices.push([x[0]+du[0],       x[1]+du[1],       x[2]+du[2]      ]);
-          vertices.push([x[0]+du[0]+dv[0], x[1]+du[1]+dv[1], x[2]+du[2]+dv[2]]);
-          vertices.push([x[0]      +dv[0], x[1]      +dv[1], x[2]      +dv[2]]);
-          faces.push([vertex_count, vertex_count+1, vertex_count+2, vertex_count+3, c]);
-
-          //Zero-out mask
-          W = n + w;
-          for(l=0; l<h; ++l) {
-            for(k=n; k<W; ++k) {
-              mask[k+l*dimsU] = 0;
-            }
-          }
-
-          //Increment counters and continue
-          i += w; n += w;
-        }
-      }
-    }
-  }
-  return { vertices:vertices, faces:faces };
-}
-})();
-
-if(exports) {
-  exports.mesher = GreedyMesh;
-}
-
-});
-
-require.define("/node_modules/voxel/meshers/monotone.js",function(require,module,exports,__dirname,__filename,process,global){"use strict";
-
-var MonotoneMesh = (function(){
-
-function MonotonePolygon(c, v, ul, ur) {
-  this.color  = c;
-  this.left   = [[ul, v]];
-  this.right  = [[ur, v]];
-};
-
-MonotonePolygon.prototype.close_off = function(v) {
-  this.left.push([ this.left[this.left.length-1][0], v ]);
-  this.right.push([ this.right[this.right.length-1][0], v ]);
-};
-
-MonotonePolygon.prototype.merge_run = function(v, u_l, u_r) {
-  var l = this.left[this.left.length-1][0]
-    , r = this.right[this.right.length-1][0]; 
-  if(l !== u_l) {
-    this.left.push([ l, v ]);
-    this.left.push([ u_l, v ]);
-  }
-  if(r !== u_r) {
-    this.right.push([ r, v ]);
-    this.right.push([ u_r, v ]);
-  }
-};
-
-
-return function(volume, dims) {
-  function f(i,j,k) {
-    return volume[i + dims[0] * (j + dims[1] * k)];
-  }
-  //Sweep over 3-axes
-  var vertices = [], faces = [];
-  for(var d=0; d<3; ++d) {
-    var i, j, k
-      , u = (d+1)%3   //u and v are orthogonal directions to d
-      , v = (d+2)%3
-      , x = new Int32Array(3)
-      , q = new Int32Array(3)
-      , runs = new Int32Array(2 * (dims[u]+1))
-      , frontier = new Int32Array(dims[u])  //Frontier is list of pointers to polygons
-      , next_frontier = new Int32Array(dims[u])
-      , left_index = new Int32Array(2 * dims[v])
-      , right_index = new Int32Array(2 * dims[v])
-      , stack = new Int32Array(24 * dims[v])
-      , delta = [[0,0], [0,0]];
-    //q points along d-direction
-    q[d] = 1;
-    //Initialize sentinel
-    for(x[d]=-1; x[d]<dims[d]; ) {
-      // --- Perform monotone polygon subdivision ---
-      var n = 0
-        , polygons = []
-        , nf = 0;
-      for(x[v]=0; x[v]<dims[v]; ++x[v]) {
-        //Make one pass over the u-scan line of the volume to run-length encode polygon
-        var nr = 0, p = 0, c = 0;
-        for(x[u]=0; x[u]<dims[u]; ++x[u], p = c) {
-          //Compute the type for this face
-          var a = (0    <= x[d]      ? f(x[0],      x[1],      x[2])      : 0)
-            , b = (x[d] <  dims[d]-1 ? f(x[0]+q[0], x[1]+q[1], x[2]+q[2]) : 0);
-          c = a;
-          if((!a) === (!b)) {
-            c = 0;
-          } else if(!a) {
-            c = -b;
-          }
-          //If cell type doesn't match, start a new run
-          if(p !== c) {
-            runs[nr++] = x[u];
-            runs[nr++] = c;
-          }
-        }
-        //Add sentinel run
-        runs[nr++] = dims[u];
-        runs[nr++] = 0;
-        //Update frontier by merging runs
-        var fp = 0;
-        for(var i=0, j=0; i<nf && j<nr-2; ) {
-          var p    = polygons[frontier[i]]
-            , p_l  = p.left[p.left.length-1][0]
-            , p_r  = p.right[p.right.length-1][0]
-            , p_c  = p.color
-            , r_l  = runs[j]    //Start of run
-            , r_r  = runs[j+2]  //End of run
-            , r_c  = runs[j+1]; //Color of run
-          //Check if we can merge run with polygon
-          if(r_r > p_l && p_r > r_l && r_c === p_c) {
-            //Merge run
-            p.merge_run(x[v], r_l, r_r);
-            //Insert polygon into frontier
-            next_frontier[fp++] = frontier[i];
-            ++i;
-            j += 2;
-          } else {
-            //Check if we need to advance the run pointer
-            if(r_r <= p_r) {
-              if(!!r_c) {
-                var n_poly = new MonotonePolygon(r_c, x[v], r_l, r_r);
-                next_frontier[fp++] = polygons.length;
-                polygons.push(n_poly);
-              }
-              j += 2;
-            }
-            //Check if we need to advance the frontier pointer
-            if(p_r <= r_r) {
-              p.close_off(x[v]);
-              ++i;
-            }
-          }
-        }
-        //Close off any residual polygons
-        for(; i<nf; ++i) {
-          polygons[frontier[i]].close_off(x[v]);
-        }
-        //Add any extra runs to frontier
-        for(; j<nr-2; j+=2) {
-          var r_l  = runs[j]
-            , r_r  = runs[j+2]
-            , r_c  = runs[j+1];
-          if(!!r_c) {
-            var n_poly = new MonotonePolygon(r_c, x[v], r_l, r_r);
-            next_frontier[fp++] = polygons.length;
-            polygons.push(n_poly);
-          }
-        }
-        //Swap frontiers
-        var tmp = next_frontier;
-        next_frontier = frontier;
-        frontier = tmp;
-        nf = fp;
-      }
-      //Close off frontier
-      for(var i=0; i<nf; ++i) {
-        var p = polygons[frontier[i]];
-        p.close_off(dims[v]);
-      }
-      // --- Monotone subdivision of polygon is complete at this point ---
-      
-      x[d]++;
-      
-      //Now we just need to triangulate each monotone polygon
-      for(var i=0; i<polygons.length; ++i) {
-        var p = polygons[i]
-          , c = p.color
-          , flipped = false;
-        if(c < 0) {
-          flipped = true;
-          c = -c;
-        }
-        for(var j=0; j<p.left.length; ++j) {
-          left_index[j] = vertices.length;
-          var y = [0.0,0.0,0.0]
-            , z = p.left[j];
-          y[d] = x[d];
-          y[u] = z[0];
-          y[v] = z[1];
-          vertices.push(y);
-        }
-        for(var j=0; j<p.right.length; ++j) {
-          right_index[j] = vertices.length;
-          var y = [0.0,0.0,0.0]
-            , z = p.right[j];
-          y[d] = x[d];
-          y[u] = z[0];
-          y[v] = z[1];
-          vertices.push(y);
-        }
-        //Triangulate the monotone polygon
-        var bottom = 0
-          , top = 0
-          , l_i = 1
-          , r_i = 1
-          , side = true;  //true = right, false = left
-        
-        stack[top++] = left_index[0];
-        stack[top++] = p.left[0][0];
-        stack[top++] = p.left[0][1];
-        
-        stack[top++] = right_index[0];
-        stack[top++] = p.right[0][0];
-        stack[top++] = p.right[0][1];
-        
-        while(l_i < p.left.length || r_i < p.right.length) {
-          //Compute next side
-          var n_side = false;
-          if(l_i === p.left.length) {
-            n_side = true;
-          } else if(r_i !== p.right.length) {
-            var l = p.left[l_i]
-              , r = p.right[r_i];
-            n_side = l[1] > r[1];
-          }
-          var idx = n_side ? right_index[r_i] : left_index[l_i]
-            , vert = n_side ? p.right[r_i] : p.left[l_i];
-          if(n_side !== side) {
-            //Opposite side
-            while(bottom+3 < top) {
-              if(flipped === n_side) {
-                faces.push([ stack[bottom], stack[bottom+3], idx, c]);
-              } else {
-                faces.push([ stack[bottom+3], stack[bottom], idx, c]);              
-              }
-              bottom += 3;
-            }
-          } else {
-            //Same side
-            while(bottom+3 < top) {
-              //Compute convexity
-              for(var j=0; j<2; ++j)
-              for(var k=0; k<2; ++k) {
-                delta[j][k] = stack[top-3*(j+1)+k+1] - vert[k];
-              }
-              var det = delta[0][0] * delta[1][1] - delta[1][0] * delta[0][1];
-              if(n_side === (det > 0)) {
-                break;
-              }
-              if(det !== 0) {
-                if(flipped === n_side) {
-                  faces.push([ stack[top-3], stack[top-6], idx, c ]);
-                } else {
-                  faces.push([ stack[top-6], stack[top-3], idx, c ]);
-                }
-              }
-              top -= 3;
-            }
-          }
-          //Push vertex
-          stack[top++] = idx;
-          stack[top++] = vert[0];
-          stack[top++] = vert[1];
-          //Update loop index
-          if(n_side) {
-            ++r_i;
-          } else {
-            ++l_i;
-          }
-          side = n_side;
-        }
-      }
-    }
-  }
-  return { vertices:vertices, faces:faces };
-}
-})();
-
-if(exports) {
-  exports.mesher = MonotoneMesh;
-}
-
-});
-
-require.define("/node_modules/voxel/meshers/stupid.js",function(require,module,exports,__dirname,__filename,process,global){//The stupidest possible way to generate a Minecraft mesh (I think)
-function StupidMesh(volume, dims) {
-  var vertices = [], faces = [], x = [0,0,0], n = 0;
-  for(x[2]=0; x[2]<dims[2]; ++x[2])
-  for(x[1]=0; x[1]<dims[1]; ++x[1])
-  for(x[0]=0; x[0]<dims[0]; ++x[0], ++n)
-  if(!!volume[n]) {
-    for(var d=0; d<3; ++d) {
-      var t = [x[0], x[1], x[2]]
-        , u = [0,0,0]
-        , v = [0,0,0];
-      u[(d+1)%3] = 1;
-      v[(d+2)%3] = 1;
-      for(var s=0; s<2; ++s) {
-        t[d] = x[d] + s;
-        var tmp = u;
-        u = v;
-        v = tmp;
-        var vertex_count = vertices.length;
-        vertices.push([t[0],           t[1],           t[2]          ]);
-        vertices.push([t[0]+u[0],      t[1]+u[1],      t[2]+u[2]     ]);
-        vertices.push([t[0]+u[0]+v[0], t[1]+u[1]+v[1], t[2]+u[2]+v[2]]);
-        vertices.push([t[0]     +v[0], t[1]     +v[1], t[2]     +v[2]]);
-        faces.push([vertex_count, vertex_count+1, vertex_count+2, vertex_count+3, volume[n]]);
-      }
-    }
-  }
-  return { vertices:vertices, faces:faces };
-}
-
-
-if(exports) {
-  exports.mesher = StupidMesh;
-}
-
-});
-
-require.define("/node_modules/voxel-mesh/package.json",function(require,module,exports,__dirname,__filename,process,global){module.exports = {"main":"index.js"}
-});
-
-require.define("/node_modules/voxel-mesh/index.js",function(require,module,exports,__dirname,__filename,process,global){var THREE = require('three')
-
-module.exports = function(data, mesher, scaleFactor, three) {
-  return new Mesh(data, mesher, scaleFactor, three)
-}
-
-module.exports.Mesh = Mesh
-
-function Mesh(data, mesher, scaleFactor, three) {
-  this.THREE = three || THREE
-  this.data = data
-  var geometry = this.geometry = new this.THREE.Geometry()
-  this.scale = scaleFactor || new this.THREE.Vector3(10, 10, 10)
-  
-  var result = mesher( data.voxels, data.dims )
-  this.meshed = result
-
-  geometry.vertices.length = 0
-  geometry.faces.length = 0
-
-  for (var i = 0; i < result.vertices.length; ++i) {
-    var q = result.vertices[i]
-    geometry.vertices.push(new this.THREE.Vector3(q[0], q[1], q[2]))
-  } 
-  
-  for (var i = 0; i < result.faces.length; ++i) {
-    geometry.faceVertexUvs[0].push(this.faceVertexUv(i))
-    
-    var q = result.faces[i]
-    if (q.length === 5) {
-      var f = new this.THREE.Face4(q[0], q[1], q[2], q[3])
-      f.color = new this.THREE.Color(q[4])
-      geometry.faces.push(f)
-    } else if (q.length == 4) {
-      var f = new this.THREE.Face3(q[0], q[1], q[2])
-      f.color = new this.THREE.Color(q[3])
-      geometry.faces.push(f)
-    }
-  }
-  
-  geometry.computeFaceNormals()
-
-  // compute vertex colors for ambient occlusion
-  var light = new THREE.Color(0xffffff)
-  var shadow = new THREE.Color(0x505050)
-  for (var i = 0; i < geometry.faces.length; ++i) {
-    var face = geometry.faces[i]
-    // facing up
-    if (face.normal.y === 1)       face.vertexColors = [light, light, light, light]
-    // facing down
-    else if (face.normal.y === -1) face.vertexColors = [shadow, shadow, shadow, shadow]
-    // facing right
-    else if (face.normal.x === 1)  face.vertexColors = [shadow, light, light, shadow]
-    // facing left
-    else if (face.normal.x === -1) face.vertexColors = [shadow, shadow, light, light]
-    // facing backward
-    else if (face.normal.z === 1)  face.vertexColors = [shadow, shadow, light, light]
-    // facing forward
-    else                           face.vertexColors = [shadow, light, light, shadow]
-  }
-
-  geometry.verticesNeedUpdate = true
-  geometry.elementsNeedUpdate = true
-  geometry.normalsNeedUpdate = true
-
-  geometry.computeBoundingBox()
-  geometry.computeBoundingSphere()
-
-}
-
-Mesh.prototype.createWireMesh = function(hexColor) {    
-  var wireMaterial = new this.THREE.MeshBasicMaterial({
-    color : hexColor || 0xffffff,
-    wireframe : true
-  })
-  wireMesh = new THREE.Mesh(this.geometry, wireMaterial)
-  wireMesh.scale = this.scale
-  wireMesh.doubleSided = true
-  this.wireMesh = wireMesh
-  return wireMesh
-}
-
-Mesh.prototype.createSurfaceMesh = function(material) {
-  material = material || new this.THREE.MeshNormalMaterial()
-  var surfaceMesh  = new this.THREE.Mesh( this.geometry, material )
-  surfaceMesh.scale = this.scale
-  surfaceMesh.doubleSided = false
-  this.surfaceMesh = surfaceMesh
-  return surfaceMesh
-}
-
-Mesh.prototype.addToScene = function(scene) {
-  if (this.wireMesh) scene.add( this.wireMesh )
-  if (this.surfaceMesh) scene.add( this.surfaceMesh )
-}
-
-Mesh.prototype.setPosition = function(x, y, z) {
-  if (this.wireMesh) this.wireMesh.position = new this.THREE.Vector3(x, y, z)
-  if (this.surfaceMesh) this.surfaceMesh.position = new this.THREE.Vector3(x, y, z)
-}
-
-Mesh.prototype.faceVertexUv = function(i) {
-  var vs = [
-    this.meshed.vertices[i*4+0],
-    this.meshed.vertices[i*4+1],
-    this.meshed.vertices[i*4+2],
-    this.meshed.vertices[i*4+3]
-  ]
-  var spans = {
-    x0: vs[0][0] - vs[1][0],
-    x1: vs[1][0] - vs[2][0],
-    y0: vs[0][1] - vs[1][1],
-    y1: vs[1][1] - vs[2][1],
-    z0: vs[0][2] - vs[1][2],
-    z1: vs[1][2] - vs[2][2]
-  }
-  var size = {
-    x: Math.max(Math.abs(spans.x0), Math.abs(spans.x1)),
-    y: Math.max(Math.abs(spans.y0), Math.abs(spans.y1)),
-    z: Math.max(Math.abs(spans.z0), Math.abs(spans.z1))
-  }
-  if (size.x === 0) {
-    if (spans.y0 > spans.y1) {
-      var width = size.y
-      var height = size.z
-    }
-    else {
-      var width = size.z
-      var height = size.y
-    }
-  }
-  if (size.y === 0) {
-    if (spans.x0 > spans.x1) {
-      var width = size.x
-      var height = size.z
-    }
-    else {
-      var width = size.z
-      var height = size.x
-    }
-  }
-  if (size.z === 0) {
-    if (spans.x0 > spans.x1) {
-      var width = size.x
-      var height = size.y
-    }
-    else {
-      var width = size.y
-      var height = size.x
-    }
-  }
-  if ((size.z === 0 && spans.x0 < spans.x1) || (size.x === 0 && spans.y0 > spans.y1)) {
-    return [
-      new this.THREE.Vector2(height, 0),
-      new this.THREE.Vector2(0, 0),
-      new this.THREE.Vector2(0, width),
-      new this.THREE.Vector2(height, width)
-    ]
+  if(!lock.available() || skiplock) {
+    internal = usedrag(el)
   } else {
-    return [
-      new this.THREE.Vector2(0, 0),
-      new this.THREE.Vector2(0, height),
-      new this.THREE.Vector2(width, height),
-      new this.THREE.Vector2(width, 0)
-    ]
+    internal = uselock(el, politelydeclined)
+  }
+
+  ee.release = function() { internal.release && internal.release() }
+  ee.request = function() { internal.request && internal.request() }
+  ee.destroy = function() { internal.destroy && internal.destroy() }
+  ee.pointerAvailable = function() { return lock.available() }
+  ee.fullscreenAvailable = function() { return full.available() }
+
+  forward()
+
+  return ee
+
+  function politelydeclined() {
+    ee.emit('opt-out')
+    internal.destroy()
+    internal = usedrag(el)
+    forward()
+  }
+
+  function forward() {
+    internal.on('attain', function(stream) {
+      ee.emit('attain', stream)
+    })
+
+    internal.on('release', function() {
+      ee.emit('release')
+    })
   }
 }
-;
 
-});
+function uselock(el, declined) {
+  var pointer = lock(el)
+    , fs = full(el)
 
-require.define("/node_modules/three/package.json",function(require,module,exports,__dirname,__filename,process,global){module.exports = {"main":"build/three.js"}
-});
+  pointer.on('needs-fullscreen', function() {
+    fs.once('attain', function() {
+      pointer.request()
+    })
+    fs.request()
+  })
 
-require.define("/node_modules/three/build/three.js",function(require,module,exports,__dirname,__filename,process,global){(function (global, factory) {
+  pointer.on('error', declined)
+
+  return pointer
+}
+
+function usedrag(el) {
+  var ee = new EE
+    , d = drag(el)
+    , stream
+
+  d.paused = true
+
+  d.on('resume', function() {
+    stream = new Stream
+    stream.readable = true
+    stream.initial = null
+  })
+
+  d.on('data', function(datum) {
+    if(!stream) {
+      stream = new Stream
+      stream.readable = true
+      stream.initial = null
+    }
+
+    if(!stream.initial) {
+      stream.initial = {
+        x: datum.dx
+      , y: datum.dy
+      , t: datum.dt
+      }
+      return ee.emit('attain', stream)
+    }
+
+    if(stream.paused) {
+      ee.emit('release')
+      stream.emit('end')
+      stream.readable = false
+      stream.emit('close')
+      stream = null
+    }
+
+    stream.emit('data', datum)
+  })
+
+  return ee
+}
+
+},{"drag-stream":39,"events":5,"fullscreen":43,"pointer-lock":50,"stream":28}],47:[function(require,module,exports){
+var ever = require('ever')
+  , vkey = require('vkey')
+  , max = Math.max
+
+module.exports = function(el, bindings, state) {
+  if(bindings === undefined || !el.ownerDocument) {
+    state = bindings
+    bindings = el
+    el = this.document.body
+  }
+
+  var ee = ever(el)
+    , measured = {}
+    , enabled = true
+
+  state = state || {}
+
+  // always initialize the state.
+  for(var key in bindings) {
+    if(bindings[key] === 'enabled' ||
+       bindings[key] === 'enable' ||
+       bindings[key] === 'disable' ||
+       bindings[key] === 'destroy') {
+      throw new Error(bindings[key]+' is reserved')
+    }
+    state[bindings[key]] = 0
+    measured[key] = 1
+  }
+
+  ee.on('keyup', wrapped(onoff(kb, false)))
+  ee.on('keydown', wrapped(onoff(kb, true)))
+  ee.on('mouseup', wrapped(onoff(mouse, false)))
+  ee.on('mousedown', wrapped(onoff(mouse, true)))
+
+  state.enabled = function() {
+    return enabled
+  }
+
+  state.enable = enable_disable(true)
+  state.disable = enable_disable(false)
+  state.destroy = function() {
+    ee.removeAllListeners()
+  } 
+  return state
+
+  function clear() {
+    // always initialize the state.
+    for(var key in bindings) {
+      state[bindings[key]] = 0
+      measured[key] = 1
+    }
+  }
+
+  function enable_disable(on_or_off) {
+    return function() {
+      clear()
+      enabled = on_or_off
+      return this
+    }
+  }
+
+  function wrapped(fn) {
+    return function(ev) {
+      if(enabled) {
+        ev.preventDefault()
+        fn(ev)
+      } else {
+        return
+      }
+    }
+  }
+
+  function onoff(find, on_or_off) {
+    return function(ev) {
+      var key = find(ev)
+        , binding = bindings[key]
+
+      if(binding) {
+        state[binding] += on_or_off ? max(measured[key]--, 0) : -(measured[key] = 1)
+
+        if(!on_or_off && state[binding] < 0) {
+          state[binding] = 0
+        }
+      }
+    }
+  }
+
+  function mouse(ev) {
+    return '<mouse '+ev.which+'>'
+  }
+
+  function kb(ev) {
+    return vkey[ev.keyCode] || ev.char
+  }
+}
+
+},{"ever":40,"vkey":57}],48:[function(require,module,exports){
+var THREE
+
+module.exports = function(three, image, sizeRatio) {
+  return new Skin(three, image, sizeRatio)
+}
+
+function Skin(three, image, opts) {
+  if (opts) opts.image = opts.image || image
+  else opts = { image: image }
+  if (typeof image === 'object' && !(image instanceof HTMLElement)) opts = image
+  THREE = three // hack until three.js fixes multiple instantiation
+  this.sizeRatio = opts.sizeRatio || 8
+  this.scale = opts.scale || new three.Vector3(1, 1, 1)
+  this.fallbackImage = opts.fallbackImage || 'skin.png'
+  this.createCanvases()
+  this.charMaterial = this.getMaterial(this.skin, false)
+	this.charMaterialTrans = this.getMaterial(this.skin, true)
+  if (typeof opts.image === "string") this.fetchImage(opts.image)
+  if (opts.image instanceof HTMLElement) this.setImage(opts.image)
+  this.mesh = this.createPlayerObject()
+}
+
+Skin.prototype.createCanvases = function() {
+  this.skinBig = document.createElement('canvas')
+  this.skinBigContext = this.skinBig.getContext('2d')
+  this.skinBig.width = 64 * this.sizeRatio
+  this.skinBig.height = 32 * this.sizeRatio
+  
+  this.skin = document.createElement('canvas')
+  this.skinContext = this.skin.getContext('2d')
+  this.skin.width = 64
+  this.skin.height = 32
+}
+
+Skin.prototype.fetchImage = function(imageURL) {
+  var self = this
+  this.image = new Image()
+  this.image.crossOrigin = 'anonymous'
+  this.image.src = imageURL
+  this.image.onload = function() {
+    self.setImage(self.image)
+  }
+}
+
+Skin.prototype.setImage = function (skin) {
+  this.image = skin
+  this.skinContext.clearRect(0, 0, 64, 32);
+  
+  this.skinContext.drawImage(skin, 0, 0);
+  
+  var imgdata = this.skinContext.getImageData(0, 0, 64, 32);
+  var pixels = imgdata.data;
+
+  this.skinBigContext.clearRect(0, 0, this.skinBig.width, this.skinBig.height);
+  this.skinBigContext.save();
+  
+  var isOnecolor = true;
+  
+  var colorCheckAgainst = [40, 0];
+  var colorIndex = (colorCheckAgainst[0]+colorCheckAgainst[1]*64)*4;
+  
+  var isPixelDifferent = function (x, y) {
+    if(pixels[(x+y*64)*4+0] !== pixels[colorIndex+0] || pixels[(x+y*64)*4+1] !== pixels[colorIndex+1] || pixels[(x+y*64)*4+2] !== pixels[colorIndex+2] || pixels[(x+y*64)*4+3] !== pixels[colorIndex+3]) {
+      return true;
+    }
+    return false;
+  };
+  
+  // Check if helmet/hat is a solid color
+  // Bottom row
+  for(var i=32; i < 64; i+=1) {
+    for(var j=8; j < 16; j+=1) {
+      if(isPixelDifferent(i, j)) {
+        isOnecolor = false;
+        break;
+      }
+    }
+    if(!isOnecolor) {
+      break;
+    }
+  }
+  if(!isOnecolor) {
+    // Top row
+    for(var i=40; i < 56; i+=1) {
+      for(var j=0; j < 8; j+=1) {
+        if(isPixelDifferent(i, j)) {
+          isOnecolor = false;
+          break;
+        }
+      }
+      if(!isOnecolor) {
+        break;
+      }
+      
+    }
+  }
+  
+  for(var i=0; i < 64; i+=1) {
+    for(var j=0; j < 32; j+=1) {
+      if(isOnecolor && ((i >= 32 && i < 64 && j >= 8 && j < 16) || (i >= 40 && i < 56 && j >= 0 && j < 8))) {
+        pixels[(i+j*64)*4+3] = 0
+      }
+      this.skinBigContext.fillStyle = 'rgba('+pixels[(i+j*64)*4+0]+', '+pixels[(i+j*64)*4+1]+', '+pixels[(i+j*64)*4+2]+', '+pixels[(i+j*64)*4+3]/255+')';
+      this.skinBigContext.fillRect(i * this.sizeRatio, j * this.sizeRatio, this.sizeRatio, this.sizeRatio);
+    }
+  }
+  
+  this.skinBigContext.restore();
+  
+  this.skinContext.putImageData(imgdata, 0, 0);
+  
+  this.charMaterial.map.needsUpdate = true;
+  this.charMaterialTrans.map.needsUpdate = true;
+  
+};
+
+Skin.prototype.getMaterial = function(img, transparent) {
+  var texture    = new THREE.Texture(img);
+  texture.magFilter  = THREE.NearestFilter;
+  texture.minFilter  = THREE.NearestFilter;
+  texture.format    = transparent ? THREE.RGBAFormat : THREE.RGBFormat;
+  texture.needsUpdate  = true;
+  var material  = new THREE.MeshBasicMaterial({
+    map    : texture,
+    transparent  : transparent ? true : false
+  });
+  return material;
+}
+
+Skin.prototype.UVMap = function(mesh, face, x, y, w, h, rotateBy) {
+  if (!rotateBy) rotateBy = 0;
+  var uvs = mesh.geometry.faceVertexUvs[0][face];
+  var tileU = x;
+  var tileV = y;
+  var tileUvWidth = 1/64;
+  var tileUvHeight = 1/32;
+  uvs[ (0 + rotateBy) % 4 ].x = (tileU * tileUvWidth)
+  uvs[ (0 + rotateBy) % 4 ].y = 1 - (tileV * tileUvHeight)
+  uvs[ (1 + rotateBy) % 4 ].x = (tileU * tileUvWidth)
+  uvs[ (1 + rotateBy) % 4 ].y = 1 - (tileV * tileUvHeight + h * tileUvHeight)
+  uvs[ (2 + rotateBy) % 4 ].x = (tileU * tileUvWidth + w * tileUvWidth)
+  uvs[ (2 + rotateBy) % 4 ].y = 1 - (tileV * tileUvHeight + h * tileUvHeight)
+  uvs[ (3 + rotateBy) % 4 ].x = (tileU * tileUvWidth + w * tileUvWidth)
+  uvs[ (3 + rotateBy) % 4 ].y = 1 - (tileV * tileUvHeight)
+}
+
+Skin.prototype.cubeFromPlanes = function (size, mat) {
+  var cube = new THREE.Object3D();
+  var meshes = [];
+  for(var i=0; i < 6; i++) {
+    var mesh = new THREE.Mesh(new THREE.PlaneGeometry(size, size), mat);
+    mesh.doubleSided = true;
+    cube.add(mesh);
+    meshes.push(mesh);
+  }
+  // Front
+  meshes[0].rotation.x = Math.PI/2;
+  meshes[0].rotation.z = -Math.PI/2;
+  meshes[0].position.x = size/2;
+  
+  // Back
+  meshes[1].rotation.x = Math.PI/2;
+  meshes[1].rotation.z = Math.PI/2;
+  meshes[1].position.x = -size/2;
+  
+  // Top
+  meshes[2].position.y = size/2;
+  
+  // Bottom
+  meshes[3].rotation.y = Math.PI;
+  meshes[3].rotation.z = Math.PI;
+  meshes[3].position.y = -size/2;
+  
+  // Left
+  meshes[4].rotation.x = Math.PI/2;
+  meshes[4].position.z = size/2;
+  
+  // Right
+  meshes[5].rotation.x = -Math.PI/2;
+  meshes[5].rotation.y = Math.PI;
+  meshes[5].position.z = -size/2;
+  
+  return cube;
+}
+
+//exporting these meshes for manipulation:
+//leftLeg
+//rightLeg
+//leftArm
+//rightArm
+//body
+//head
+
+Skin.prototype.createPlayerObject = function(scene) {
+  var headgroup = new THREE.Object3D();
+  var upperbody = this.upperbody = new THREE.Object3D();
+  
+  // Left leg
+  var leftleggeo = new THREE.CubeGeometry(4, 12, 4);
+  for(var i=0; i < 8; i+=1) {
+    leftleggeo.vertices[i].y -= 6;
+  }
+  var leftleg = this.leftLeg = new THREE.Mesh(leftleggeo, this.charMaterial);
+  leftleg.position.z = -2;
+  leftleg.position.y = -6;
+  this.UVMap(leftleg, 0, 8, 20, -4, 12);
+  this.UVMap(leftleg, 1, 16, 20, -4, 12);
+  this.UVMap(leftleg, 2, 4, 16, 4, 4, 3);
+  this.UVMap(leftleg, 3, 8, 20, 4, -4, 1);
+  this.UVMap(leftleg, 4, 12, 20, -4, 12);
+  this.UVMap(leftleg, 5, 4, 20, -4, 12);
+
+  // Right leg
+  var rightleggeo = new THREE.CubeGeometry(4, 12, 4);
+  for(var i=0; i < 8; i+=1) {
+    rightleggeo.vertices[i].y -= 6;
+  }
+  var rightleg = this.rightLeg =new THREE.Mesh(rightleggeo, this.charMaterial);
+  rightleg.position.z = 2;
+  rightleg.position.y = -6;
+  this.UVMap(rightleg, 0, 4, 20, 4, 12);
+  this.UVMap(rightleg, 1, 12, 20, 4, 12);
+  this.UVMap(rightleg, 2, 8, 16, -4, 4, 3);
+  this.UVMap(rightleg, 3, 12, 20, -4, -4, 1);
+  this.UVMap(rightleg, 4, 0, 20, 4, 12);
+  this.UVMap(rightleg, 5, 8, 20, 4, 12);
+  
+  // Body
+  var bodygeo = new THREE.CubeGeometry(4, 12, 8);
+  var bodymesh = this.body = new THREE.Mesh(bodygeo, this.charMaterial);
+  this.UVMap(bodymesh, 0, 20, 20, 8, 12);
+  this.UVMap(bodymesh, 1, 32, 20, 8, 12);
+  this.UVMap(bodymesh, 2, 20, 16, 8, 4, 1);
+  this.UVMap(bodymesh, 3, 28, 16, 8, 4, 3);
+  this.UVMap(bodymesh, 4, 16, 20, 4, 12);
+  this.UVMap(bodymesh, 5, 28, 20, 4, 12);
+  upperbody.add(bodymesh);
+  
+  
+  // Left arm
+  var leftarmgeo = new THREE.CubeGeometry(4, 12, 4);
+  for(var i=0; i < 8; i+=1) {
+    leftarmgeo.vertices[i].y -= 4;
+  }
+  var leftarm = this.leftArm = new THREE.Mesh(leftarmgeo, this.charMaterial);
+  leftarm.position.z = -6;
+  leftarm.position.y = 4;
+  leftarm.rotation.x = Math.PI/32;
+  this.UVMap(leftarm, 0, 48, 20, -4, 12);
+  this.UVMap(leftarm, 1, 56, 20, -4, 12);
+  this.UVMap(leftarm, 2, 48, 16, -4, 4, 1);
+  this.UVMap(leftarm, 3, 52, 16, -4, 4, 3);
+  this.UVMap(leftarm, 4, 52, 20, -4, 12);
+  this.UVMap(leftarm, 5, 44, 20, -4, 12);
+  upperbody.add(leftarm);
+  
+  // Right arm
+  var rightarmgeo = new THREE.CubeGeometry(4, 12, 4);
+  for(var i=0; i < 8; i+=1) {
+    rightarmgeo.vertices[i].y -= 4;
+  }
+  var rightarm =this.rightArm = new THREE.Mesh(rightarmgeo, this.charMaterial);
+  rightarm.position.z = 6;
+  rightarm.position.y = 4;
+  rightarm.rotation.x = -Math.PI/32;
+  this.UVMap(rightarm, 0, 44, 20, 4, 12);
+  this.UVMap(rightarm, 1, 52, 20, 4, 12);
+  this.UVMap(rightarm, 2, 44, 16, 4, 4, 1);
+  this.UVMap(rightarm, 3, 48, 16, 4, 4, 3);
+  this.UVMap(rightarm, 4, 40, 20, 4, 12);
+  this.UVMap(rightarm, 5, 48, 20, 4, 12);
+  upperbody.add(rightarm);
+  
+  //Head
+  var headgeo = new THREE.CubeGeometry(8, 8, 8);
+  var headmesh = this.head = new THREE.Mesh(headgeo, this.charMaterial);
+  headmesh.position.y = 2;
+  this.UVMap(headmesh, 0, 8, 8, 8, 8);
+  this.UVMap(headmesh, 1, 24, 8, 8, 8);
+  
+  this.UVMap(headmesh, 2, 8, 0, 8, 8, 1);
+  this.UVMap(headmesh, 3, 16, 0, 8, 8, 3);
+  
+  this.UVMap(headmesh, 4, 0, 8, 8, 8);
+  this.UVMap(headmesh, 5, 16, 8, 8, 8);
+
+  var unrotatedHeadMesh = new THREE.Object3D();
+  unrotatedHeadMesh.rotation.y = Math.PI / 2;
+  unrotatedHeadMesh.add(headmesh);
+
+  headgroup.add(unrotatedHeadMesh);
+
+  var helmet = this.cubeFromPlanes(9, this.charMaterialTrans);
+  helmet.position.y = 2;
+  this.UVMap(helmet.children[0], 0, 32+8, 8, 8, 8);
+  this.UVMap(helmet.children[1], 0, 32+24, 8, 8, 8);
+  this.UVMap(helmet.children[2], 0, 32+8, 0, 8, 8, 1);
+  this.UVMap(helmet.children[3], 0, 32+16, 0, 8, 8, 3);
+  this.UVMap(helmet.children[4], 0, 32+0, 8, 8, 8);
+  this.UVMap(helmet.children[5], 0, 32+16, 8, 8, 8);
+  
+  headgroup.add(helmet);
+  
+  var ears = new THREE.Object3D();
+  
+  var eargeo = new THREE.CubeGeometry(1, (9/8)*6, (9/8)*6);
+  var leftear = new THREE.Mesh(eargeo, this.charMaterial);
+  var rightear = new THREE.Mesh(eargeo, this.charMaterial);
+  
+  leftear.position.y = 2+(9/8)*5;
+  rightear.position.y = 2+(9/8)*5;
+  leftear.position.z = -(9/8)*5;
+  rightear.position.z = (9/8)*5;
+  
+  // Right ear share same geometry, same uv-maps
+  
+  this.UVMap(leftear, 0, 25, 1, 6, 6); // Front side
+  this.UVMap(leftear, 1, 32, 1, 6, 6); // Back side
+  
+  this.UVMap(leftear, 2, 25, 0, 6, 1, 1); // Top edge
+  this.UVMap(leftear, 3, 31, 0, 6, 1, 1); // Bottom edge
+  
+  this.UVMap(leftear, 4, 24, 1, 1, 6); // Left edge
+  this.UVMap(leftear, 5, 31, 1, 1, 6); // Right edge
+  
+  ears.add(leftear);
+  ears.add(rightear);
+  
+  leftear.visible = rightear.visible = false;
+  
+  headgroup.add(ears);
+  headgroup.position.y = 8;
+  
+  var playerModel = this.playerModel = new THREE.Object3D();
+  
+  playerModel.add(leftleg);
+  playerModel.add(rightleg);
+  
+  playerModel.add(upperbody);
+  
+  var playerRotation = new THREE.Object3D();
+  playerRotation.rotation.y = Math.PI / 2
+  playerRotation.position.y = 12
+  playerRotation.add(playerModel)
+
+  var rotatedHead = new THREE.Object3D();
+  rotatedHead.rotation.y = -Math.PI/2;
+  rotatedHead.add(headgroup);
+
+  playerModel.add(rotatedHead);
+  playerModel.position.y = 6;
+  
+  var playerGroup = new THREE.Object3D();
+  playerGroup.cameraInside = new THREE.Object3D()
+  playerGroup.cameraOutside = new THREE.Object3D()
+
+  playerGroup.cameraInside.position.x = 0;
+  playerGroup.cameraInside.position.y = 2;
+  playerGroup.cameraInside.position.z = 0; 
+
+  playerGroup.head = headgroup
+  headgroup.add(playerGroup.cameraInside)
+  playerGroup.cameraInside.add(playerGroup.cameraOutside)
+
+  playerGroup.cameraOutside.position.z = 100
+
+  
+  playerGroup.add(playerRotation);
+  playerGroup.scale = this.scale
+  return playerGroup
+}
+},{}],49:[function(require,module,exports){
+module.exports = pin
+
+var pins = {}
+  , stack_holder = {}
+  , pin_holder
+
+function make_pin_for(name, obj) {
+  var container = document.createElement('div')
+    , header = document.createElement('h4')
+    , body = document.createElement('pre')
+
+  container.style.background = 'white'
+  container.style.marginBottom = '4px'
+  container.appendChild(header)
+  container.appendChild(body)
+  header.textContents = header.innerText = obj && obj.repr ? obj.repr() : name
+  body.style.padding = '8px'
+
+
+  if(!pin_holder) {
+    pin_holder = document.createElement('div')
+    pin_holder.style.position = 'absolute'
+    pin_holder.style.top =
+    pin_holder.style.right = '4px'
+
+    document.body.appendChild(pin_holder)
+  }
+
+  pin_holder.appendChild(container)
+
+  return (pins[name] = pins[name] || []).push({body: body, last: -Infinity, for_object: obj}), pins[name]
+}
+
+function update_pin(item, into, retain, depth) {
+  if(!retain) into.innerHTML = ''
+  if(depth > 1) return
+  depth = depth || 0
+
+  switch(typeof item) {
+    case 'number': into.innerText += item.toFixed(3); break
+    case 'string': into.innerText += '"'+item+'"'; break
+    case 'undefined':
+    case 'object':
+      if(item) {
+        for(var key in item) if(item.hasOwnProperty(key)) {
+          into.innerText += key +':'
+          update_pin(item[key], into, true, depth+1)
+          into.innerText += '\n'
+        } 
+        break
+      }
+    case 'boolean': into.innerText += ''+item; break
+  }  
+}
+
+function pin(item, every, obj, name) {
+  if(!name) Error.captureStackTrace(stack_holder)
+  var location = name || stack_holder.stack.split('\n').slice(2)[0].replace(/^\s+at /g, '')
+    , target = pins[location] || make_pin_for(location, obj)
+    , now = Date.now()
+    , every = every || 0
+
+  if(arguments.length < 3) target = target[0]
+  else {
+    for(var i = 0, len = target.length; i < len; ++i) {
+    if(target[i].for_object === obj) {
+      target = target[i]
+      break   
+    }
+  }
+    if(i === len) {
+      pins[location].push(target = make_pin_for(location, obj))
+    }
+  }
+
+  if(now - target.last > every) {
+    update_pin(item, target.body)
+    target.last = now 
+  }
+}
+
+},{}],50:[function(require,module,exports){
+module.exports = pointer
+
+pointer.available = available
+
+var EE = require('events').EventEmitter
+  , Stream = require('stream').Stream
+
+function available() {
+  return !!shim(document.body)
+}
+
+function pointer(el) {
+  var ael = el.addEventListener || el.attachEvent
+    , rel = el.removeEventListener || el.detachEvent
+    , doc = el.ownerDocument
+    , body = doc.body
+    , rpl = shim(el) 
+    , out = {dx: 0, dy: 0, dt: 0}
+    , ee = new EE
+    , stream = null
+    , lastPageX, lastPageY
+    , needsFullscreen = false
+    , mouseDownMS
+
+  ael.call(el, 'mousedown', onmousedown, false)
+  ael.call(el, 'mouseup', onmouseup, false)
+  ael.call(body, 'mousemove', onmove, false)
+
+  var vendors = ['', 'webkit', 'moz', 'ms', 'o']
+
+  for(var i = 0, len = vendors.length; i < len; ++i) {
+    ael.call(doc, vendors[i]+'pointerlockchange', onpointerlockchange)
+    ael.call(doc, vendors[i]+'pointerlockerror', onpointerlockerror)
+  }
+
+  ee.release = release
+  ee.target = pointerlockelement
+  ee.request = onmousedown
+  ee.destroy = function() {
+    rel.call(el, 'mouseup', onmouseup, false)
+    rel.call(el, 'mousedown', onmousedown, false)
+    rel.call(el, 'mousemove', onmove, false)
+  }
+
+  if(!shim) {
+    setTimeout(function() {
+      ee.emit('error', new Error('pointer lock is not supported'))
+    }, 0)
+  }
+  return ee
+
+  function onmousedown(ev) {
+    if(pointerlockelement()) {
+      return
+    }
+    mouseDownMS = +new Date
+    rpl.call(el)
+  }
+
+  function onmouseup(ev) {
+    if(!needsFullscreen) {
+      return
+    }
+
+    ee.emit('needs-fullscreen')
+    needsFullscreen = false
+  }
+
+  function onpointerlockchange(ev) {
+    if(!pointerlockelement()) {
+      if(stream) release()
+      return
+    }
+
+    stream = new Stream
+    stream.readable = true
+    stream.initial = {x: lastPageX, y: lastPageY, t: Date.now()}
+
+    ee.emit('attain', stream)
+  }
+
+  function onpointerlockerror(ev) {
+    var dt = +(new Date) - mouseDownMS
+    if(dt < 100) {
+      // we errored immediately, we need to do fullscreen first.
+      needsFullscreen = true
+      return
+    }
+
+    if(stream) {
+      stream.emit('error', ev)
+      stream = null
+    }
+  }
+
+  function release() {
+    ee.emit('release')
+
+    if(stream) {
+      stream.emit('end')
+      stream.readable = false
+      stream.emit('close')
+      stream = null
+    }
+
+    var pel = pointerlockelement()
+    if(!pel) {
+      return
+    }
+
+    (doc.exitPointerLock ||
+    doc.mozExitPointerLock ||
+    doc.webkitExitPointerLock ||
+    doc.msExitPointerLock ||
+    doc.oExitPointerLock).call(doc)
+  }
+
+  function onmove(ev) {
+    lastPageX = ev.pageX
+    lastPageY = ev.pageY
+
+    if(!stream) return
+
+    // we're reusing a single object
+    // because I'd like to avoid piling up
+    // a ton of objects for the garbage
+    // collector.
+    out.dx =
+      ev.movementX || ev.webkitMovementX ||
+      ev.mozMovementX || ev.msMovementX ||
+      ev.oMovementX || 0
+
+    out.dy = 
+      ev.movementY || ev.webkitMovementY ||
+      ev.mozMovementY || ev.msMovementY ||
+      ev.oMovementY || 0
+
+    out.dt = Date.now() - stream.initial.t
+
+    ee.emit('data', out)
+    stream.emit('data', out)
+  }
+
+  function pointerlockelement() {
+    return 0 ||
+      doc.pointerLockElement ||
+      doc.mozPointerLockElement ||
+      doc.webkitPointerLockElement ||
+      doc.msPointerLockElement ||
+      doc.oPointerLockElement ||
+      null
+  }
+}
+
+function shim(el) {
+  return el.requestPointerLock ||
+    el.webkitRequestPointerLock ||
+    el.mozRequestPointerLock ||
+    el.msRequestPointerLock ||
+    el.oRequestPointerLock ||
+    null
+}
+
+},{"events":5,"stream":28}],51:[function(require,module,exports){
+(function (setImmediate){
+module.exports = raf
+
+var EE = require('events').EventEmitter
+  , global = typeof window === 'undefined' ? this : window
+
+var _raf =
+  global.requestAnimationFrame ||
+  global.webkitRequestAnimationFrame ||
+  global.mozRequestAnimationFrame ||
+  global.msRequestAnimationFrame ||
+  global.oRequestAnimationFrame ||
+  (global.setImmediate ? function(fn, el) {
+    setImmediate(fn)
+  } :
+  function(fn, el) {
+    setTimeout(fn, 0)
+  })
+
+function raf(el) {
+  var now = raf.now()
+    , ee = new EE
+
+  ee.pause = function() { ee.paused = true }
+  ee.resume = function() { ee.paused = false }
+
+  _raf(iter, el)
+
+  return ee
+
+  function iter(timestamp) {
+    var _now = raf.now()
+      , dt = _now - now
+    
+    now = _now
+
+    ee.emit('data', dt)
+
+    if(!ee.paused) {
+      _raf(iter, el)
+    }
+  }
+}
+
+raf.polyfill = _raf
+raf.now = function() { return Date.now() }
+
+}).call(this,require("timers").setImmediate)
+},{"events":5,"timers":29}],52:[function(require,module,exports){
+module.exports = SpatialEventEmitter
+
+var slice = [].slice
+  , Tree = require('./tree')
+  , aabb = require('aabb-3d')
+
+function SpatialEventEmitter() {
+  this.root = null
+  this.infinites = {}
+}
+
+var cons = SpatialEventEmitter
+  , proto = cons.prototype
+
+proto.size = 16
+
+proto.addListener = 
+proto.addEventListener = 
+proto.on = function(event, bbox, listener) {
+  if(!finite(bbox)) {
+    (this.infinites[event] = this.infinites[event] || []).push({
+      bbox: bbox
+    , func: listener
+    })
+    return this
+  }
+
+  (this.root = this.root || this.create_root(bbox))
+    .add(event, bbox, listener)
+
+  return this
+}
+
+proto.once = function(event, bbox, listener) {
+  var self = this
+
+  self.on(event, bbox, function once() {
+    listener.apply(null, arguments)
+    self.remove(event, once)
+  })
+
+  return self
+}
+
+proto.removeListener =
+proto.removeEventListener =
+proto.remove = function(event, listener) {
+  if(this.root) {
+    this.root.remove(event, listener)
+  }
+
+  if(!this.infinites[event]) {
+    return this
+  }
+
+  for(var i = 0, len = this.infinites[event].length; i < len; ++i) {
+    if(this.infinites[event][i].func === listener) {
+      break
+    }
+  }
+
+  if(i !== len) {
+    this.infinites[event].splice(i, 1)
+  }
+
+  return this
+}
+
+proto.emit = function(event, bbox/*, ...args */) {
+  var args = slice.call(arguments, 2)
+
+  // support point emitting
+  if('0' in bbox) {
+    bbox = aabb(bbox, [0, 0, 0]) 
+  }
+
+  if(this.root) {
+    this.root.send(event, bbox, args)
+  }
+
+  if(!this.infinites[event]) {
+    return this
+  }
+
+  var list = this.infinites[event].slice()
+  for(var i = 0, len = list.length; i < len; ++i) {
+    if(list[i].bbox.intersects(bbox)) {
+      list[i].func.apply(null, args) 
+    }
+  }
+
+  return this
+}
+
+proto.rootSize = function(size) {
+  proto.size = size
+}
+
+proto.create_root = function(bbox) {
+  var self = this
+    , size = self.size
+    , base = [
+        Math.floor(bbox.x0() / size) * size
+      , Math.floor(bbox.y0() / size) * size
+      , Math.floor(bbox.z0() / size) * size
+      ]
+    , tree_bbox = new bbox.constructor(base, [size, size, size])
+
+  function OurTree(size, bbox) {
+    Tree.call(this, size, bbox, null)
+  }
+
+  OurTree.prototype = Object.create(Tree.prototype)
+  OurTree.prototype.constructor = OurTree
+  OurTree.prototype.grow = function(new_root) {
+    self.root = new_root
+  }
+  OurTree.prototype.min_size = size
+
+  return new OurTree(size, tree_bbox) 
+}
+
+function finite(bbox) {
+  return isFinite(bbox.x0()) &&
+         isFinite(bbox.x1()) &&
+         isFinite(bbox.y0()) &&
+         isFinite(bbox.y1()) &&
+         isFinite(bbox.z0()) &&
+         isFinite(bbox.z1())
+}
+
+},{"./tree":53,"aabb-3d":32}],53:[function(require,module,exports){
+module.exports = Tree
+
+var aabb = require('aabb-3d')
+
+function Tree(size, bbox, parent) {
+  this.listeners = {}
+  this.size = size
+  this.bbox = bbox
+  this.parent = parent
+  this.children = []
+}
+
+var cons = Tree
+  , proto = cons.prototype
+
+proto.add = function(event, bbox, listener) {
+  if(!this.parent && !this.contains(bbox)) {
+    return this.expand(bbox).add(event, bbox, listener)
+  }
+
+  for(var i = 0, len = this.children.length; i < len; ++i) {
+    if(this.children[i].contains(bbox)) {
+      return this.children[i].add(event, bbox, listener)
+    }
+  }
+
+  var size = this.size / 2
+
+  if(size > this.min_size && bbox.vec[0] < size && bbox.vec[1] < size && bbox.vec[2] < size) {
+    // if it fits into a child node, make that childnode
+    if(Math.floor(bbox.x0() / size) === Math.floor(bbox.x1() / size) &&
+       Math.floor(bbox.y0() / size) === Math.floor(bbox.y1() / size) &&
+       Math.floor(bbox.z0() / size) === Math.floor(bbox.z1() / size)) {
+      var inst = new this.constructor(
+          size
+        , aabb([
+              Math.floor(bbox.x0() / size) * size
+            , Math.floor(bbox.y0() / size) * size
+            , Math.floor(bbox.z0() / size) * size
+            ]
+          , [size, size, size]
+          )
+        , this
+      )
+      this.children.push(inst)
+      return inst.add(event, bbox, listener)
+    }
+  }
+
+  (this.listeners[event] = this.listeners[event] || [])
+    .push({bbox: bbox, func: listener})
+}
+
+proto.contains = function(bbox) {
+  return bbox.x0() >= this.bbox.x0() &&
+         bbox.y0() >= this.bbox.y0() &&
+         bbox.z0() >= this.bbox.z0() &&
+         bbox.x1() <= this.bbox.x1() &&
+         bbox.y1() <= this.bbox.y1() &&
+         bbox.z1() <= this.bbox.z1()
+}
+
+proto.expand = function(bbox) {
+  var size = this.size
+    , new_size = size * 2
+    , expanded = this.bbox.expand(bbox)
+    , new_i = Math.floor(bbox.x0() / size)
+    , new_j = Math.floor(bbox.y0() / size)
+    , new_k = Math.floor(bbox.z0() / size)
+    , cur_i = Math.floor(this.bbox.x0() / size)
+    , cur_j = Math.floor(this.bbox.y0() / size)
+    , cur_k = Math.floor(this.bbox.z0() / size)
+    , new_base = [
+        new_i - cur_i >= 0 ? cur_i : cur_i - 1
+      , new_j - cur_j >= 0 ? cur_j : cur_j - 1
+      , new_k - cur_k >= 0 ? cur_k : cur_k - 1
+      ].map(function(ii) { return ii * size })
+    , new_bbox = aabb(new_base, [new_size, new_size, new_size])
+    , new_root = new this.constructor(new_size, new_bbox)
+    , self = this
+
+  this.parent = new_root
+  this.grow(this.parent)
+
+  new_root.children.push(self)
+
+  return new_root
+}
+
+proto.remove = function(event, listener) {
+  var list = this.listeners[event]
+  if(list) {
+    for(var i = 0, len = list.length; i < len; ++i) {
+      if(list[i].func === listener)
+        break
+    }
+
+    if(i !== len) {
+      list.splice(i, 1)
+    }
+  }
+  for(var i = 0, len = this.children.length; i < len; ++i) {
+    this.children[i].remove(event, listener)
+  }
+}
+
+proto.send = function(event, bbox, args) {
+  for(var i = 0, len = this.children.length; i < len; ++i) {
+    if(bbox.intersects(this.children[i].bbox)) {
+      this.children[i].send(event, bbox, args)
+    }
+  }
+
+  var list = this.listeners[event]
+  if(!list) {
+    return
+  }
+
+  for(var i = 0, len = list.length; i < len; ++i) {
+    if(list[i].bbox.intersects(bbox)) {
+      list[i].func.apply(null, args)
+    }
+  }
+}
+
+},{"aabb-3d":32}],54:[function(require,module,exports){
+(function (global, factory) {
 	typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports) :
 	typeof define === 'function' && define.amd ? define(['exports'], factory) :
 	(global = global || self, factory(global.THREE = {}));
@@ -51853,629 +61154,110 @@ require.define("/node_modules/three/build/three.js",function(require,module,expo
 
 }));
 
-});
+},{}],55:[function(require,module,exports){
+(function (process){
+var Stream = require('stream')
 
-require.define("/node_modules/voxel-raycast/package.json",function(require,module,exports,__dirname,__filename,process,global){module.exports = {"main":"raycast.js"}
-});
+// through
+//
+// a stream that does nothing but re-emit the input.
+// useful for aggregating a series of changing but not ending streams into one stream)
 
-require.define("/node_modules/voxel-raycast/raycast.js",function(require,module,exports,__dirname,__filename,process,global){"use strict"
 
-function traceRay_impl(
-  voxels,
-  px, py, pz,
-  dx, dy, dz,
-  max_d,
-  hit_pos,
-  hit_norm,
-  EPSILON) {
-  var t = 0.0
-    , nx=0, ny=0, nz=0
-    , ix, iy, iz
-    , fx, fy, fz
-    , ox, oy, oz
-    , ex, ey, ez
-    , b, step, min_step
-    , floor = Math.floor
-  //Step block-by-block along ray
-  while(t <= max_d) {
-    ox = px + t * dx
-    oy = py + t * dy
-    oz = pz + t * dz
-    ix = floor(ox)|0
-    iy = floor(oy)|0
-    iz = floor(oz)|0
-    fx = ox - ix
-    fy = oy - iy
-    fz = oz - iz
-    b = voxels.getBlock(ix, iy, iz)
-    if(b) {
-      if(hit_pos) {
-        //Clamp to face on hit
-        hit_pos[0] = fx < EPSILON ? +ix : (fx > 1.0-EPSILON ? ix+1.0-EPSILON : ox)
-        hit_pos[1] = fy < EPSILON ? +iy : (fy > 1.0-EPSILON ? iy+1.0-EPSILON : oy)
-        hit_pos[2] = fz < EPSILON ? +iz : (fz > 1.0-EPSILON ? iz+1.0-EPSILON : oz)
-      }
-      if(hit_norm) {
-        hit_norm[0] = nx
-        hit_norm[1] = ny
-        hit_norm[2] = nz
-      }
-      return b
-    }
-    //Check edge cases
-    min_step = +(EPSILON * (1.0 + t))
-    if(t > min_step) {
-      ex = nx < 0 ? fx <= min_step : fx >= 1.0 - min_step
-      ey = ny < 0 ? fy <= min_step : fy >= 1.0 - min_step
-      ez = nz < 0 ? fz <= min_step : fz >= 1.0 - min_step
-      if(ex && ey && ez) {
-        b = voxels.getBlock(ix+nx, iy+ny, iz) ||
-            voxels.getBlock(ix, iy+ny, iz+nz) ||
-            voxels.getBlock(ix+nx, iy, iz+nz)
-        if(b) {
-          if(hit_pos) {
-            hit_pos[0] = nx < 0 ? ix-EPSILON : ix + 1.0-EPSILON
-            hit_pos[1] = ny < 0 ? iy-EPSILON : iy + 1.0-EPSILON
-            hit_pos[2] = nz < 0 ? iz-EPSILON : iz + 1.0-EPSILON
-          }
-          if(hit_norm) {
-            hit_norm[0] = nx
-            hit_norm[1] = ny
-            hit_norm[2] = nz
-          }
-          return b
-        }
-      }
-      if(ex && (ey || ez)) {
-        b = voxels.getBlock(ix+nx, iy, iz)
-        if(b) {
-          if(hit_pos) {
-            hit_pos[0] = nx < 0 ? ix-EPSILON : ix + 1.0-EPSILON
-            hit_pos[1] = fy < EPSILON ? +iy : oy
-            hit_pos[2] = fz < EPSILON ? +iz : oz
-          }
-          if(hit_norm) {
-            hit_norm[0] = nx
-            hit_norm[1] = ny
-            hit_norm[2] = nz
-          }
-          return b
-        }
-      }
-      if(ey && (ex || ez)) {
-        b = voxels.getBlock(ix, iy+ny, iz)
-        if(b) {
-          if(hit_pos) {
-            hit_pos[0] = fx < EPSILON ? +ix : ox
-            hit_pos[1] = ny < 0 ? iy-EPSILON : iy + 1.0-EPSILON
-            hit_pos[2] = fz < EPSILON ? +iz : oz
-          }
-          if(hit_norm) {
-            hit_norm[0] = nx
-            hit_norm[1] = ny
-            hit_norm[2] = nz
-          }
-          return b
-        }
-      }
-      if(ez && (ex || ey)) {
-        b = voxels.getBlock(ix, iy, iz+nz)
-        if(b) {
-          if(hit_pos) {
-            hit_pos[0] = fx < EPSILON ? +ix : ox
-            hit_pos[1] = fy < EPSILON ? +iy : oy
-            hit_pos[2] = nz < 0 ? iz-EPSILON : iz + 1.0-EPSILON
-          }
-          if(hit_norm) {
-            hit_norm[0] = nx
-            hit_norm[1] = ny
-            hit_norm[2] = nz
-          }
-          return b
-        }
-      }
-    }
-    //Walk to next face of cube along ray
-    nx = ny = nz = 0
-    step = 2.0
-    if(dx < -EPSILON) {
-      var s = -fx/dx
-      nx = 1
-      step = s
-    }
-    if(dx > EPSILON) {
-      var s = (1.0-fx)/dx
-      nx = -1
-      step = s
-    }
-    if(dy < -EPSILON) {
-      var s = -fy/dy
-      if(s < step-min_step) {
-        nx = 0
-        ny = 1
-        step = s
-      } else if(s < step+min_step) {
-        ny = 1
-      }
-    }
-    if(dy > EPSILON) {
-      var s = (1.0-fy)/dy
-      if(s < step-min_step) {
-        nx = 0
-        ny = -1
-        step = s
-      } else if(s < step+min_step) {
-        ny = -1
-      }
-    }
-    if(dz < -EPSILON) {
-      var s = -fz/dz
-      if(s < step-min_step) {
-        nx = ny = 0
-        nz = 1
-        step = s
-      } else if(s < step+min_step) {
-        nz = 1
-      }
-    }
-    if(dz > EPSILON) {
-      var s = (1.0-fz)/dz
-      if(s < step-min_step) {
-        nx = ny = 0
-        nz = -1
-        step = s
-      } else if(s < step+min_step) {
-        nz = -1
-      }
-    }
-    if(step > max_d - t) {
-      step = max_d - t - min_step
-    }
-    if(step < min_step) {
-      step = min_step
-    }
-    t += step
+
+exports = module.exports = through
+through.through = through
+
+//create a readable writable stream.
+
+function through (write, end) {
+  write = write || function (data) { this.emit('data', data) }
+  end = end || function () { this.emit('end') }
+
+  var ended = false, destroyed = false
+  var stream = new Stream(), buffer = []
+  stream.buffer = buffer
+  stream.readable = stream.writable = true
+  stream.paused = false
+  stream.write = function (data) {
+    write.call(this, data)
+    return !stream.paused
   }
-  if(hit_pos) {
-    hit_pos[0] = ox;
-    hit_pos[1] = oy;
-    hit_pos[2] = oz;
+
+  function drain() {
+    while(buffer.length && !stream.paused) {
+      var data = buffer.shift()
+      if(null === data)
+        return stream.emit('end')
+      else
+        stream.emit('data', data)
+    }
   }
-  if(hit_norm) {
-    hit_norm[0] = hit_norm[1] = hit_norm[2] = 0;
+
+  stream.queue = function (data) {
+    buffer.push(data)
+    drain()
   }
-  return 0
+
+  //this will be registered as the first 'end' listener
+  //must call destroy next tick, to make sure we're after any
+  //stream piped from here.
+  //this is only a problem if end is not emitted synchronously.
+  //a nicer way to do this is to make sure this is the last listener for 'end'
+
+  stream.on('end', function () {
+    stream.readable = false
+    if(!stream.writable)
+      process.nextTick(function () {
+        stream.destroy()
+      })
+  })
+
+  function _end () {
+    stream.writable = false
+    end.call(stream)
+    if(!stream.readable)
+      stream.destroy()
+  }
+
+  stream.end = function (data) {
+    if(ended) return
+    ended = true
+    if(arguments.length) stream.write(data)
+    _end() // will emit or queue
+  }
+
+  stream.destroy = function () {
+    if(destroyed) return
+    destroyed = true
+    ended = true
+    buffer.length = 0
+    stream.writable = stream.readable = false
+    stream.emit('close')
+  }
+
+  stream.pause = function () {
+    if(stream.paused) return
+    stream.paused = true
+    stream.emit('pause')
+  }
+  stream.resume = function () {
+    if(stream.paused) {
+      stream.paused = false
+    }
+    drain()
+    //may have become paused again,
+    //as drain emits 'data'.
+    if(!stream.paused)
+      stream.emit('drain')
+  }
+  return stream
 }
 
-function traceRay(voxels, origin, direction, max_d, hit_pos, hit_norm, EPSILON) {
-  var px = +origin[0]
-    , py = +origin[1]
-    , pz = +origin[2]
-    , dx = +direction[0]
-    , dy = +direction[1]
-    , dz = +direction[2]
-    , ds = Math.sqrt(dx*dx + dy*dy + dz*dz)
-  if(typeof(EPSILON) === "undefined") {
-    EPSILON = 1e-8
-  }
-  if(ds < EPSILON) {
-    if(hit_pos) {
-      hit_pos[0] = hit_pos[1] = hit_pos[2]
-    }
-    if(hit_norm) {
-      hit_norm[0] = hit_norm[1] = hit_norm[2]
-    }
-    return 0;
-  }
-  dx /= ds
-  dy /= ds
-  dz /= ds
-  if(typeof(max_d) === "undefined") {
-    max_d = 64.0
-  } else {
-    max_d = +max_d
-  }
-  return traceRay_impl(voxels, px, py, pz, dx, dy, dz, max_d, hit_pos, hit_norm, EPSILON)
-}
 
-module.exports = traceRay
-});
-
-require.define("/node_modules/voxel-texture/package.json",function(require,module,exports,__dirname,__filename,process,global){module.exports = {}
-});
-
-require.define("/node_modules/voxel-texture/index.js",function(require,module,exports,__dirname,__filename,process,global){var tic = require('tic')();
-var createAtlas = require('atlaspack');
-
-function Texture(opts) {
-  if (!(this instanceof Texture)) return new Texture(opts || {});
-  var self = this;
-  this.game = opts.game; delete opts.game;
-  this.THREE = this.game.THREE;
-  this.materials = [];
-  this.texturePath = opts.texturePath || '/textures/';
-  this.loading = 0;
-
-  var useFlatColors = opts.materialFlatColor === true;
-  delete opts.materialFlatColor;
-
-  this.options = defaults(opts || {}, {
-    crossOrigin: 'Anonymous',
-    materialParams: defaults(opts.materialParams || {}, {
-      ambient: 0xbbbbbb
-    }),
-    materialType: this.THREE.MeshLambertMaterial,
-    applyTextureParams: function(map) {
-      map.magFilter = self.THREE.NearestFilter;
-      map.minFilter = self.THREE.LinearMipMapLinearFilter;
-    }
-  });
-
-  // create a canvas for the texture atlas
-  this.canvas = (typeof document !== 'undefined') ? document.createElement('canvas') : {};
-  this.canvas.width = opts.atlasWidth || 512;
-  this.canvas.height = opts.atlasHeight || 512;
-
-  // create core atlas and texture
-  this.atlas = createAtlas(this.canvas);
-  this.atlas.tilepad = true;
-  this._atlasuv = false;
-  this._atlaskey = false;
-  this.texture = new this.THREE.Texture(this.canvas);
-  this.options.applyTextureParams(this.texture);
-
-  if (useFlatColors) {
-    // If were using simple colors
-    this.material = new this.THREE.MeshBasicMaterial({
-      vertexColors: this.THREE.VertexColors
-    });
-  } else {
-    // load a first material for easy application to meshes
-    this.material = new this.options.materialType(this.options.materialParams);
-    this.material.map = this.texture;
-    this.material.transparent = true;
-  }
-
-  // a place for meshes to wait while textures are loading
-  this._meshQueue = [];
-}
-module.exports = Texture;
-
-Texture.prototype.load = function(names, done) {
-  var self = this;
-  if (!Array.isArray(names)) names = [names];
-  done = done || function() {};
-  this.loading++;
-
-  var materialSlice = names.map(self._expandName);
-  self.materials = self.materials.concat(materialSlice);
-
-  // load onto the texture atlas
-  var load = Object.create(null);
-  materialSlice.forEach(function(mats) {
-    mats.forEach(function(mat) {
-      if (mat.slice(0, 1) === '#') return;
-      // todo: check if texture already exists
-      load[mat] = true;
-    });
-  });
-  if (Object.keys(load).length > 0) {
-    each(Object.keys(load), self.pack.bind(self), function() {
-      self._afterLoading();
-      done(materialSlice);
-    });
-  } else {
-    self._afterLoading();
-  }
-};
-
-Texture.prototype.pack = function(name, done) {
-  var self = this;
-  function pack(img) {
-    var node = self.atlas.pack(img);
-    if (node === false) {
-      self.atlas = self.atlas.expand(img);
-      self.atlas.tilepad = true;
-    }
-    done();
-  }
-  if (typeof name === 'string') {
-    var img = new Image();
-    img.id = name;
-    img.crossOrigin = self.options.crossOrigin;
-    img.src = self.texturePath + ext(name);
-    img.onload = function() {
-      pack(img);
-    };
-    img.onerror = function() {
-      console.error('Couldn\'t load URL [' + img.src + ']');
-      done();
-    };
-  } else {
-    pack(name);
-  }
-  return self;
-};
-
-Texture.prototype.find = function(name) {
-  var self = this;
-  var type = 0;
-  self.materials.forEach(function(mats, i) {
-    mats.forEach(function(mat) {
-      if (mat === name) {
-        type = i + 1;
-        return false;
-      }
-    });
-    if (type !== 0) return false;
-  });
-  return type;
-};
-
-Texture.prototype._expandName = function(name) {
-  if (name === null) return Array(6);
-  if (name.top) return [name.back, name.front, name.top, name.bottom, name.left, name.right];
-  if (!Array.isArray(name)) name = [name];
-  // load the 0 texture to all
-  if (name.length === 1) name = [name[0],name[0],name[0],name[0],name[0],name[0]];
-  // 0 is top/bottom, 1 is sides
-  if (name.length === 2) name = [name[1],name[1],name[0],name[0],name[1],name[1]];
-  // 0 is top, 1 is bottom, 2 is sides
-  if (name.length === 3) name = [name[2],name[2],name[0],name[1],name[2],name[2]];
-  // 0 is top, 1 is bottom, 2 is front/back, 3 is left/right
-  if (name.length === 4) name = [name[2],name[2],name[0],name[1],name[3],name[3]];
-  return name;
-};
-
-Texture.prototype._afterLoading = function() {
-  var self = this;
-  function alldone() {
-    self.loading--;
-    self._atlasuv = self.atlas.uv(self.canvas.width, self.canvas.height);
-    self._atlaskey = Object.create(null);
-    self.atlas.index().forEach(function(key) {
-      self._atlaskey[key.name] = key;
-    });
-    self.texture.needsUpdate = true;
-    self.material.needsUpdate = true;
-    //window.open(self.canvas.toDataURL());
-    if (self._meshQueue.length > 0) {
-      self._meshQueue.forEach(function(queue, i) {
-        self.paint.apply(queue.self, queue.args);
-        delete self._meshQueue[i];
-      });
-    }
-  }
-  self._powerof2(function() {
-    setTimeout(alldone, 100);
-  });
-};
-
-// Ensure the texture stays at a power of 2 for mipmaps
-// this is cheating :D
-Texture.prototype._powerof2 = function(done) {
-  var w = this.canvas.width;
-  var h = this.canvas.height;
-  function pow2(x) {
-    x--;
-    x |= x >> 1;
-    x |= x >> 2;
-    x |= x >> 4;
-    x |= x >> 8;
-    x |= x >> 16;
-    x++;
-    return x;
-  }
-  if (h > w) w = h;
-  var old = this.canvas.getContext('2d').getImageData(0, 0, this.canvas.width, this.canvas.height);
-  this.canvas.width = this.canvas.height = pow2(w);
-  this.canvas.getContext('2d').putImageData(old, 0, 0);
-  done();
-};
-
-Texture.prototype.paint = function(mesh, materials) {
-  var self = this;
-
-  // if were loading put into queue
-  if (self.loading > 0) {
-    self._meshQueue.push({self: self, args: arguments});
-    return false;
-  }
-
-  var isVoxelMesh = (materials) ? false : true;
-  if (!isVoxelMesh) materials = self._expandName(materials);
-
-  mesh.geometry.faces.forEach(function(face, i) {
-    if (mesh.geometry.faceVertexUvs[0].length < 1) return;
-
-    if (isVoxelMesh) {
-      var index = Math.floor(face.color.b*255 + face.color.g*255*255 + face.color.r*255*255*255);
-      materials = self.materials[index - 1];
-      if (!materials) materials = self.materials[0];
-    }
-
-    // BACK, FRONT, TOP, BOTTOM, LEFT, RIGHT
-    var name = materials[0] || '';
-    if      (face.normal.z === 1)  name = materials[1] || '';
-    else if (face.normal.y === 1)  name = materials[2] || '';
-    else if (face.normal.y === -1) name = materials[3] || '';
-    else if (face.normal.x === -1) name = materials[4] || '';
-    else if (face.normal.x === 1)  name = materials[5] || '';
-
-    // if just a simple color
-    if (name.slice(0, 1) === '#') {
-      self.setColor(mesh.geometry.faces[i], name);
-      return;
-    }
-
-    var atlasuv = self._atlasuv[name];
-    if (!atlasuv) return;
-
-    // 0 -- 1
-    // |    |
-    // 3 -- 2
-    // faces on these meshes are flipped vertically, so we map in reverse
-    // TODO: tops need rotate
-    if (isVoxelMesh) {
-      if (face.normal.z === -1 || face.normal.x === 1) {
-        atlasuv = uvrot(atlasuv, 90);
-      }
-      atlasuv = uvinvert(atlasuv);
-    } else {
-      atlasuv = uvrot(atlasuv, -90);
-    }
-    for (var j = 0; j < 4; j++) {
-      mesh.geometry.faceVertexUvs[0][i][j].set(atlasuv[j][0], 1 - atlasuv[j][1]);
-    }
-  });
-
-  mesh.geometry.uvsNeedUpdate = true;
-};
-
-Texture.prototype.sprite = function(name, w, h, cb) {
-  var self = this;
-  if (typeof w === 'function') { cb = w; w = null; }
-  if (typeof h === 'function') { cb = h; h = null; }
-  w = w || 16; h = h || w;
-  self.loading++;
-  var img = new Image();
-  img.src = self.texturePath + ext(name);
-  img.onerror = cb;
-  img.onload = function() {
-    var canvases = [];
-    for (var x = 0; x < img.width; x += w) {
-      for (var y = 0; y < img.height; y += h) {
-        var canvas = document.createElement('canvas');
-        canvas.width = w; canvas.height = h;
-        canvas.name = name + '_' + x + '_' + y;
-        canvas.getContext('2d').drawImage(img, x, y, w, h, 0, 0, w, h);
-        canvases.push(canvas);
-      }
-    }
-    var textures = [];
-    each(canvases, function(canvas, next) {
-      var tex = new Image();
-      tex.name = canvas.name;
-      tex.src = canvas.toDataURL();
-      tex.onload = function() {
-        self.pack(tex, next);
-      };
-      tex.onerror = next;
-      textures.push([
-        tex.name, tex.name, tex.name,
-        tex.name, tex.name, tex.name
-      ]);
-    }, function() {
-      self._afterLoading();
-      delete canvases;
-      self.materials = self.materials.concat(textures);
-      cb(textures);
-    });
-  };
-  return self;
-};
-
-Texture.prototype.animate = function(mesh, names, delay) {
-  var self = this;
-  delay = delay || 1000;
-  if (!Array.isArray(names) || names.length < 2) return false;
-  var i = 0;
-  var mat = new this.options.materialType(this.options.materialParams);
-  mat.map = this.texture;
-  mat.transparent = true;
-  mat.needsUpdate = true;
-  tic.interval(function() {
-    self.paint(mesh, names[i % names.length]);
-    i++;
-  }, delay);
-  return mat;
-};
-
-Texture.prototype.tick = function(dt) {
-  tic.tick(dt);
-};
-
-Texture.prototype.setColor = function(face, color) {
-  var rgb = hex2rgb(color);
-  face.color.setRGB(rgb[0], rgb[1], rgb[2]);
-  var ld = this._lightDark(color);
-
-  // TODO: AO should be figured better than this
-  if (face.normal.y === 1)       face.vertexColors = [ld[0], ld[0], ld[0], ld[0]];
-  else if (face.normal.y === -1) face.vertexColors = [ld[1], ld[1], ld[1], ld[1]];
-  else if (face.normal.x === 1)  face.vertexColors = [ld[1], ld[0], ld[0], ld[1]];
-  else if (face.normal.x === -1) face.vertexColors = [ld[1], ld[1], ld[0], ld[0]];
-  else if (face.normal.z === 1)  face.vertexColors = [ld[1], ld[1], ld[0], ld[0]];
-  else                           face.vertexColors = [ld[1], ld[0], ld[0], ld[1]];
-};
-
-Texture.prototype._lightDark = memoize(function(color) {
-  var light = new this.THREE.Color(color);
-  var hsl = light.getHSL();
-  var dark = light.clone();
-  dark.setHSL(hsl.h, hsl.s, hsl.l - 0.1);
-  return [light, dark];
-});
-
-function uvrot(coords, deg) {
-  if (deg === 0) return coords;
-  var c = [];
-  var i = (4 - Math.ceil(deg / 90)) % 4;
-  for (var j = 0; j < 4; j++) {
-    c.push(coords[i]);
-    if (i === 3) i = 0; else i++;
-  }
-  return c;
-}
-
-function uvinvert(coords) {
-  var c = coords.slice(0);
-  return [c[3], c[2], c[1], c[0]];
-}
-
-function ext(name) {
-  return (String(name).indexOf('.') !== -1) ? name : name + '.png';
-}
-
-function defaults(obj) {
-  [].slice.call(arguments, 1).forEach(function(from) {
-    if (from) for (var k in from) if (obj[k] == null) obj[k] = from[k];
-  });
-  return obj;
-}
-
-function each(arr, it, done) {
-  var count = 0;
-  arr.forEach(function(a) {
-    it(a, function() {
-      count++;
-      if (count >= arr.length) done();
-    });
-  });
-}
-
-function hex2rgb(hex) {
-  if (hex[0] === '#') hex = hex.substr(1);
-  return [parseInt(hex.substr(0,2), 16)/255, parseInt(hex.substr(2,2), 16)/255, parseInt(hex.substr(4,2), 16)/255];
-}
-
-function memoize(func) {
-  function memoized() {
-    var cache = memoized.cache, key = arguments[0];
-    return hasOwnProperty.call(cache, key)
-      ? cache[key]
-      : (cache[key] = func.apply(this, arguments));
-  }
-  memoized.cache = {};
-  return memoized;
-}
-
-});
-
-require.define("/node_modules/tic/package.json",function(require,module,exports,__dirname,__filename,process,global){module.exports = {}
-});
-
-require.define("/node_modules/tic/index.js",function(require,module,exports,__dirname,__filename,process,global){/*
+}).call(this,require('_process'))
+},{"_process":12,"stream":28}],56:[function(require,module,exports){
+/*
  * tic
  * https://github.com/shama/tic
  *
@@ -52521,276 +61303,147 @@ Tic.prototype.tick = function(dt) {
   });
 };
 
-});
+},{}],57:[function(require,module,exports){
+'use strict'
 
-require.define("/node_modules/atlaspack/package.json",function(require,module,exports,__dirname,__filename,process,global){module.exports = {}
-});
+var ua = typeof window !== 'undefined' ? window.navigator.userAgent : ''
+  , isOSX = /OS X/.test(ua)
+  , isOpera = /Opera/.test(ua)
+  , maybeFirefox = !/like Gecko/.test(ua) && !isOpera
 
-require.define("/node_modules/atlaspack/index.js",function(require,module,exports,__dirname,__filename,process,global){!function(e){if("object"==typeof exports&&"undefined"!=typeof module)module.exports=e();else if("function"==typeof define&&define.amd)define([],e);else{var f;"undefined"!=typeof window?f=window:"undefined"!=typeof global?f=global:"undefined"!=typeof self&&(f=self),f.atlaspack=e()}}(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);throw new Error("Cannot find module '"+o+"'")}var f=n[o]={exports:{}};t[o][0].call(f.exports,function(e){var n=t[o][1][e];return s(n?n:e)},f,f.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
-/*
- * atlaspack
- * https://github.com/shama/atlaspack
- *
- * Copyright (c) 2014 Kyle Robinson Young
- * Licensed under the MIT license.
- *
- * Based on Nick Welch's binpack: https://github.com/mackstann/binpack
- */
+var i, output = module.exports = {
+  0:  isOSX ? '<menu>' : '<UNK>'
+, 1:  '<mouse 1>'
+, 2:  '<mouse 2>'
+, 3:  '<break>'
+, 4:  '<mouse 3>'
+, 5:  '<mouse 4>'
+, 6:  '<mouse 5>'
+, 8:  '<backspace>'
+, 9:  '<tab>'
+, 12: '<clear>'
+, 13: '<enter>'
+, 16: '<shift>'
+, 17: '<control>'
+, 18: '<alt>'
+, 19: '<pause>'
+, 20: '<caps-lock>'
+, 21: '<ime-hangul>'
+, 23: '<ime-junja>'
+, 24: '<ime-final>'
+, 25: '<ime-kanji>'
+, 27: '<escape>'
+, 28: '<ime-convert>'
+, 29: '<ime-nonconvert>'
+, 30: '<ime-accept>'
+, 31: '<ime-mode-change>'
+, 32: '<space>'
+, 33: '<page-up>'
+, 34: '<page-down>'
+, 35: '<end>'
+, 36: '<home>'
+, 37: '<left>'
+, 38: '<up>'
+, 39: '<right>'
+, 40: '<down>'
+, 41: '<select>'
+, 42: '<print>'
+, 43: '<execute>'
+, 44: '<snapshot>'
+, 45: '<insert>'
+, 46: '<delete>'
+, 47: '<help>'
+, 91: '<meta>'  // meta-left -- no one handles left and right properly, so we coerce into one.
+, 92: '<meta>'  // meta-right
+, 93: isOSX ? '<meta>' : '<menu>'      // chrome,opera,safari all report this for meta-right (osx mbp).
+, 95: '<sleep>'
+, 106: '<num-*>'
+, 107: '<num-+>'
+, 108: '<num-enter>'
+, 109: '<num-->'
+, 110: '<num-.>'
+, 111: '<num-/>'
+, 144: '<num-lock>'
+, 145: '<scroll-lock>'
+, 160: '<shift-left>'
+, 161: '<shift-right>'
+, 162: '<control-left>'
+, 163: '<control-right>'
+, 164: '<alt-left>'
+, 165: '<alt-right>'
+, 166: '<browser-back>'
+, 167: '<browser-forward>'
+, 168: '<browser-refresh>'
+, 169: '<browser-stop>'
+, 170: '<browser-search>'
+, 171: '<browser-favorites>'
+, 172: '<browser-home>'
 
-function Rect(x, y, w, h) {
-  this.x = x; this.y = y;
-  this.w = w; this.h = h;
+  // ff/osx reports '<volume-mute>' for '-'
+, 173: isOSX && maybeFirefox ? '-' : '<volume-mute>'
+, 174: '<volume-down>'
+, 175: '<volume-up>'
+, 176: '<next-track>'
+, 177: '<prev-track>'
+, 178: '<stop>'
+, 179: '<play-pause>'
+, 180: '<launch-mail>'
+, 181: '<launch-media-select>'
+, 182: '<launch-app 1>'
+, 183: '<launch-app 2>'
+, 186: ';'
+, 187: '='
+, 188: ','
+, 189: '-'
+, 190: '.'
+, 191: '/'
+, 192: '`'
+, 219: '['
+, 220: '\\'
+, 221: ']'
+, 222: "'"
+, 223: '<meta>'
+, 224: '<meta>'       // firefox reports meta here.
+, 226: '<alt-gr>'
+, 229: '<ime-process>'
+, 231: isOpera ? '`' : '<unicode>'
+, 246: '<attention>'
+, 247: '<crsel>'
+, 248: '<exsel>'
+, 249: '<erase-eof>'
+, 250: '<play>'
+, 251: '<zoom>'
+, 252: '<no-name>'
+, 253: '<pa-1>'
+, 254: '<clear>'
 }
 
-Rect.prototype.fitsIn = function(outer) {
-  return outer.w >= this.w && outer.h >= this.h;
-};
-
-Rect.prototype.sameSizeAs = function(other) {
-  return this.w === other.w && this.h === other.h;
-};
-
-function Atlas(x, y, w, h) {
-  if (arguments.length === 1) {
-    this.canvas = x;
-    x = y = 0;
-    w = this.canvas.width;
-    h = this.canvas.height;
-  }
-  if (arguments.length === 2) {
-    w = x; h = y; x = y = 0;
-  }
-  this.left = this.right = null;
-  this.rect = new Rect(x, y, w, h);
-  this.filled = false;
-  this.tilepad = false;
-  this._cache = [];
-  this._uvcache = Object.create(null);
+for(i = 58; i < 65; ++i) {
+  output[i] = String.fromCharCode(i)
 }
-module.exports = function() {
-  if (arguments.length === 1) { return new Atlas(arguments[0]); }
-  if (arguments.length === 2) { return new Atlas(arguments[0], arguments[1]); }
-  return new Atlas(arguments[0], arguments[1], arguments[2], arguments[3]);
-};
-module.exports.Atlas = Atlas;
-module.exports.Rect = Rect;
 
-// pack image/rect to the atlas
-Atlas.prototype.pack = function(rect) {
-  this._cache = [];
-  this._uvcache = Object.create(null);
-  rect = this._toRect(rect);
+// 0-9
+for(i = 48; i < 58; ++i) {
+  output[i] = (i - 48)+''
+}
 
-  if (this.img && this.tilepad) {
-    rect = this._tilepad(rect);
-  }
+// A-Z
+for(i = 65; i < 91; ++i) {
+  output[i] = String.fromCharCode(i)
+}
 
-  if (this.left !== null) {
-    return this._ontoCanvas(this.left.pack(rect) || this.right.pack(rect));
-  }
-  // if atlas filled or wont fit
-  if (this.filled || !rect.fitsIn(this.rect)) {
-    return false;
-  }
-  // if this atlas has been filled
-  if (rect.sameSizeAs(this.rect)) {
-    this.filled = true;
-    return this._ontoCanvas(this);
-  }
-  if ((this.rect.w - rect.w) > (this.rect.h - rect.h)) {
-    this.left = new Atlas(this.rect.x, this.rect.y, rect.w, this.rect.h);
-    this.right = new Atlas(this.rect.x + rect.w, this.rect.y, this.rect.w - rect.w, this.rect.h);
-  } else {
-    this.left = new Atlas(this.rect.x, this.rect.y, this.rect.w, rect.h);
-    this.right = new Atlas(this.rect.x, this.rect.y + rect.h, this.rect.w, this.rect.h - rect.h);
-  }
-  return this._ontoCanvas(this.left.pack(rect));
-};
+// num0-9
+for(i = 96; i < 106; ++i) {
+  output[i] = '<num-'+(i - 96)+'>'
+}
 
-Atlas.prototype.expand = function(rect) {
-  var self = this;
-  rect = this._toRect(rect);
+// F1-F24
+for(i = 112; i < 136; ++i) {
+  output[i] = 'F'+(i-111)
+}
 
-  if (this.img && this.tilepad) {
-    rect = this._tilepad(rect);
-  }
-
-  var atlas;
-  if (this.rect.w < this.rect.h) {
-    atlas = new Atlas(0, 0, this.rect.w + rect.w, this.rect.h);
-    atlas.right = new Atlas(this.rect.w, 0, rect.w, this.rect.h);
-    atlas.left = this;
-  } else {
-    atlas = new Atlas(0, 0, this.rect.w, this.rect.h + rect.h);
-    atlas.right = new Atlas(0, this.rect.h, this.rect.w, rect.h);
-    atlas.left = this;
-  }
-
-  ['canvas', 'context', 'img'].forEach(function(p) {
-    if (self[p]) {
-      atlas[p] = self[p];
-      self[p] = null;
-    }
-  });
-
-  // resize canvas
-  if (atlas.canvas) {
-    if (!atlas.context) {
-      atlas.context = atlas.canvas.getContext('2d');
-    }
-    var old = atlas.context.getImageData(0, 0, atlas.canvas.width, atlas.canvas.height);
-    atlas.canvas.width = atlas.rect.w;
-    atlas.canvas.height = atlas.rect.h;
-    atlas.context.putImageData(old, 0, 0);
-  }
-
-  return (atlas.pack(rect) === false) ? atlas.expand(rect) : atlas;
-};
-
-Atlas.prototype.index = function() {
-  var self = this;
-  if (self._cache.length > 0) {
-    return self._cache;
-  }
-  (function loop(atlas) {
-    if (atlas.left !== null) {
-      loop(atlas.left);
-      loop(atlas.right);
-    } else if (atlas.rect.name) {
-      self._cache.push(atlas.rect);
-    }
-  }(self));
-  return self._cache;
-};
-
-Atlas.prototype.uv = function(w, h) {
-  var self = this;
-  w = w || self.rect.w;
-  h = h || self.rect.h;
-  var isPad = this.tilepad;
-  (function loop(atlas) {
-    if (atlas.left !== null) {
-      loop(atlas.left);
-      loop(atlas.right);
-    } else if (typeof atlas.rect.name !== 'undefined') {
-      var p = (isPad) ? atlas.rect.w / 4 : 0;
-      self._uvcache[atlas.rect.name] = [
-        [atlas.rect.x + p, atlas.rect.y + p],
-        [(atlas.rect.x + p) + (atlas.rect.w - (p * 2)), atlas.rect.y + p],
-        [(atlas.rect.x + p) + (atlas.rect.w - (p * 2)), (atlas.rect.y + p) + (atlas.rect.h - (p * 2))],
-        [(atlas.rect.x + p), (atlas.rect.y + p) + (atlas.rect.h - (p * 2))],
-      ].map(function(uv) {
-        if (uv[0] !== 0) {
-          uv[0] = uv[0] / w;
-        }
-        if (uv[1] !== 0) {
-          uv[1] = uv[1] / h;
-        }
-        return uv;
-      });
-    }
-  }(self));
-  return self._uvcache;
-};
-
-Atlas.prototype.json = function(input) {
-  var self = this;
-  if (input) {
-    if (typeof input === 'string') input = JSON.parse(input);
-    return (function loop(obj) {
-      if (!obj || !obj.rect) return;
-      var atlas = new Atlas(obj.rect.x, obj.rect.y, obj.rect.w, obj.rect.h);
-      if (obj.left) atlas.left = loop(obj.left);
-      if (obj.right) atlas.right = loop(obj.right);
-      return atlas;
-    }(input));
-  } else {
-    return JSON.stringify(function loop(atlas) {
-      var obj = {
-        left: null, right: null,
-        rect: atlas.rect, filled: atlas.filled
-      };
-      if (atlas.left !== null) {
-        obj.left = loop(atlas.left);
-        obj.right = loop(atlas.right);
-      }
-      return obj;
-    }(self), null, 2);
-  }
-};
-
-// Pads the image by tiling itself around itself
-Atlas.prototype._tilepad = function(rect) {
-  var img = this.img;
-  if (!img) return rect;
-
-  var p = img.width / 2;
-
-  var canvas = document.createElement('canvas');
-  canvas.name = img.name || img.src;
-  canvas.id = img.id || '';
-  canvas.width = img.width + img.width;
-  canvas.height = img.height + img.height;
-  var ctx = canvas.getContext('2d');
-
-  var pattern = ctx.createPattern(img, 'repeat');
-  ctx.fillStyle = pattern;
-  ctx.translate(p, p);
-  ctx.fillRect(-p, -p, canvas.width + p, canvas.height + p);
-  ctx.translate(-p, -p);
-
-  this.img = canvas;
-
-  return new Rect(rect.x, rect.y, this.img.width, this.img.height);
-};
-
-// if has an image and canvas, draw to the canvas as we go
-Atlas.prototype._ontoCanvas = function(node) {
-  if (node && this.img && this.canvas) {
-    if (!this.context) {
-      this.context = this.canvas.getContext('2d');
-    }
-    this.context.clearRect(node.rect.x, node.rect.y, node.rect.w, node.rect.h);
-    this.context.drawImage(this.img, node.rect.x, node.rect.y, node.rect.w, node.rect.h);
-    node.rect.name = this.img.id || this.img.name || this.img.src || null;
-  }
-  return node;
-};
-
-// make sure we're always working with rects
-Atlas.prototype._toRect = function(rect) {
-  // if rect is an image
-  if (rect.nodeName && rect.nodeName === 'IMG') {
-    this.img = rect;
-    rect = new Rect(rect.x, rect.y, rect.width, rect.height);
-  }
-  // if rect is an object
-  if (!(rect instanceof Rect)) {
-    rect = new Rect(rect.x || 0, rect.y || 0, rect.w || rect.width, rect.h || rect.height);
-  }
-  return rect;
-};
-
-Atlas.prototype._debug = function() {
-  if (!this.canvas) { return; }
-  var context = this.canvas.getContext('2d');
-  this.index().forEach(function(rect) {
-    context.lineWidth = 1;
-    context.strokeStyle = 'red';
-    context.strokeRect(rect.x, rect.y, rect.w, rect.h);
-  });
-};
-
-},{}]},{},[1])
-(1)
-});;
-
-});
-
-require.define("/node_modules/voxel-control/package.json",function(require,module,exports,__dirname,__filename,process,global){module.exports = {"main":"index.js"}
-});
-
-require.define("/node_modules/voxel-control/index.js",function(require,module,exports,__dirname,__filename,process,global){module.exports = control
+},{}],58:[function(require,module,exports){
+module.exports = control
 
 var Stream = require('stream').Stream
 
@@ -53072,580 +61725,959 @@ function clamp(value, to) {
   return isFinite(to) ? max(min(value, to), -to) : value
 }
 
-});
-
-require.define("stream",function(require,module,exports,__dirname,__filename,process,global){var events = require('events');
-var util = require('util');
-
-function Stream() {
-  events.EventEmitter.call(this);
-}
-util.inherits(Stream, events.EventEmitter);
-module.exports = Stream;
-// Backwards-compat with node 0.4.x
-Stream.Stream = Stream;
-
-Stream.prototype.pipe = function(dest, options) {
-  var source = this;
-
-  function ondata(chunk) {
-    if (dest.writable) {
-      if (false === dest.write(chunk) && source.pause) {
-        source.pause();
-      }
-    }
-  }
-
-  source.on('data', ondata);
-
-  function ondrain() {
-    if (source.readable && source.resume) {
-      source.resume();
-    }
-  }
-
-  dest.on('drain', ondrain);
-
-  // If the 'end' option is not supplied, dest.end() will be called when
-  // source gets the 'end' or 'close' events.  Only dest.end() once, and
-  // only when all sources have ended.
-  if (!dest._isStdio && (!options || options.end !== false)) {
-    dest._pipeCount = dest._pipeCount || 0;
-    dest._pipeCount++;
-
-    source.on('end', onend);
-    source.on('close', onclose);
-  }
-
-  var didOnEnd = false;
-  function onend() {
-    if (didOnEnd) return;
-    didOnEnd = true;
-
-    dest._pipeCount--;
-
-    // remove the listeners
-    cleanup();
-
-    if (dest._pipeCount > 0) {
-      // waiting for other incoming streams to end.
-      return;
-    }
-
-    dest.end();
-  }
-
-
-  function onclose() {
-    if (didOnEnd) return;
-    didOnEnd = true;
-
-    dest._pipeCount--;
-
-    // remove the listeners
-    cleanup();
-
-    if (dest._pipeCount > 0) {
-      // waiting for other incoming streams to end.
-      return;
-    }
-
-    dest.destroy();
-  }
-
-  // don't leave dangling pipes when there are errors.
-  function onerror(er) {
-    cleanup();
-    if (this.listeners('error').length === 0) {
-      throw er; // Unhandled stream error in pipe.
-    }
-  }
-
-  source.on('error', onerror);
-  dest.on('error', onerror);
-
-  // remove all the event listeners that were added.
-  function cleanup() {
-    source.removeListener('data', ondata);
-    dest.removeListener('drain', ondrain);
-
-    source.removeListener('end', onend);
-    source.removeListener('close', onclose);
-
-    source.removeListener('error', onerror);
-    dest.removeListener('error', onerror);
-
-    source.removeListener('end', cleanup);
-    source.removeListener('close', cleanup);
-
-    dest.removeListener('end', cleanup);
-    dest.removeListener('close', cleanup);
-  }
-
-  source.on('end', cleanup);
-  source.on('close', cleanup);
-
-  dest.on('end', cleanup);
-  dest.on('close', cleanup);
-
-  dest.emit('pipe', source);
-
-  // Allow for unix-like usage: A.pipe(B).pipe(C)
-  return dest;
-};
-
-});
-
-require.define("util",function(require,module,exports,__dirname,__filename,process,global){var events = require('events');
-
-exports.isArray = isArray;
-exports.isDate = function(obj){return Object.prototype.toString.call(obj) === '[object Date]'};
-exports.isRegExp = function(obj){return Object.prototype.toString.call(obj) === '[object RegExp]'};
-
-
-exports.print = function () {};
-exports.puts = function () {};
-exports.debug = function() {};
-
-exports.inspect = function(obj, showHidden, depth, colors) {
-  var seen = [];
-
-  var stylize = function(str, styleType) {
-    // http://en.wikipedia.org/wiki/ANSI_escape_code#graphics
-    var styles =
-        { 'bold' : [1, 22],
-          'italic' : [3, 23],
-          'underline' : [4, 24],
-          'inverse' : [7, 27],
-          'white' : [37, 39],
-          'grey' : [90, 39],
-          'black' : [30, 39],
-          'blue' : [34, 39],
-          'cyan' : [36, 39],
-          'green' : [32, 39],
-          'magenta' : [35, 39],
-          'red' : [31, 39],
-          'yellow' : [33, 39] };
-
-    var style =
-        { 'special': 'cyan',
-          'number': 'blue',
-          'boolean': 'yellow',
-          'undefined': 'grey',
-          'null': 'bold',
-          'string': 'green',
-          'date': 'magenta',
-          // "name": intentionally not styling
-          'regexp': 'red' }[styleType];
-
-    if (style) {
-      return '\033[' + styles[style][0] + 'm' + str +
-             '\033[' + styles[style][1] + 'm';
-    } else {
-      return str;
-    }
-  };
-  if (! colors) {
-    stylize = function(str, styleType) { return str; };
-  }
-
-  function format(value, recurseTimes) {
-    // Provide a hook for user-specified inspect functions.
-    // Check that value is an object with an inspect function on it
-    if (value && typeof value.inspect === 'function' &&
-        // Filter out the util module, it's inspect function is special
-        value !== exports &&
-        // Also filter out any prototype objects using the circular check.
-        !(value.constructor && value.constructor.prototype === value)) {
-      return value.inspect(recurseTimes);
-    }
-
-    // Primitive types cannot have properties
-    switch (typeof value) {
-      case 'undefined':
-        return stylize('undefined', 'undefined');
-
-      case 'string':
-        var simple = '\'' + JSON.stringify(value).replace(/^"|"$/g, '')
-                                                 .replace(/'/g, "\\'")
-                                                 .replace(/\\"/g, '"') + '\'';
-        return stylize(simple, 'string');
-
-      case 'number':
-        return stylize('' + value, 'number');
-
-      case 'boolean':
-        return stylize('' + value, 'boolean');
-    }
-    // For some reason typeof null is "object", so special case here.
-    if (value === null) {
-      return stylize('null', 'null');
-    }
-
-    // Look up the keys of the object.
-    var visible_keys = Object_keys(value);
-    var keys = showHidden ? Object_getOwnPropertyNames(value) : visible_keys;
-
-    // Functions without properties can be shortcutted.
-    if (typeof value === 'function' && keys.length === 0) {
-      if (isRegExp(value)) {
-        return stylize('' + value, 'regexp');
-      } else {
-        var name = value.name ? ': ' + value.name : '';
-        return stylize('[Function' + name + ']', 'special');
-      }
-    }
-
-    // Dates without properties can be shortcutted
-    if (isDate(value) && keys.length === 0) {
-      return stylize(value.toUTCString(), 'date');
-    }
-
-    var base, type, braces;
-    // Determine the object type
-    if (isArray(value)) {
-      type = 'Array';
-      braces = ['[', ']'];
-    } else {
-      type = 'Object';
-      braces = ['{', '}'];
-    }
-
-    // Make functions say that they are functions
-    if (typeof value === 'function') {
-      var n = value.name ? ': ' + value.name : '';
-      base = (isRegExp(value)) ? ' ' + value : ' [Function' + n + ']';
-    } else {
-      base = '';
-    }
-
-    // Make dates with properties first say the date
-    if (isDate(value)) {
-      base = ' ' + value.toUTCString();
-    }
-
-    if (keys.length === 0) {
-      return braces[0] + base + braces[1];
-    }
-
-    if (recurseTimes < 0) {
-      if (isRegExp(value)) {
-        return stylize('' + value, 'regexp');
-      } else {
-        return stylize('[Object]', 'special');
-      }
-    }
-
-    seen.push(value);
-
-    var output = keys.map(function(key) {
-      var name, str;
-      if (value.__lookupGetter__) {
-        if (value.__lookupGetter__(key)) {
-          if (value.__lookupSetter__(key)) {
-            str = stylize('[Getter/Setter]', 'special');
-          } else {
-            str = stylize('[Getter]', 'special');
-          }
-        } else {
-          if (value.__lookupSetter__(key)) {
-            str = stylize('[Setter]', 'special');
-          }
-        }
-      }
-      if (visible_keys.indexOf(key) < 0) {
-        name = '[' + key + ']';
-      }
-      if (!str) {
-        if (seen.indexOf(value[key]) < 0) {
-          if (recurseTimes === null) {
-            str = format(value[key]);
-          } else {
-            str = format(value[key], recurseTimes - 1);
-          }
-          if (str.indexOf('\n') > -1) {
-            if (isArray(value)) {
-              str = str.split('\n').map(function(line) {
-                return '  ' + line;
-              }).join('\n').substr(2);
-            } else {
-              str = '\n' + str.split('\n').map(function(line) {
-                return '   ' + line;
-              }).join('\n');
-            }
-          }
-        } else {
-          str = stylize('[Circular]', 'special');
-        }
-      }
-      if (typeof name === 'undefined') {
-        if (type === 'Array' && key.match(/^\d+$/)) {
-          return str;
-        }
-        name = JSON.stringify('' + key);
-        if (name.match(/^"([a-zA-Z_][a-zA-Z_0-9]*)"$/)) {
-          name = name.substr(1, name.length - 2);
-          name = stylize(name, 'name');
-        } else {
-          name = name.replace(/'/g, "\\'")
-                     .replace(/\\"/g, '"')
-                     .replace(/(^"|"$)/g, "'");
-          name = stylize(name, 'string');
-        }
-      }
-
-      return name + ': ' + str;
-    });
-
-    seen.pop();
-
-    var numLinesEst = 0;
-    var length = output.reduce(function(prev, cur) {
-      numLinesEst++;
-      if (cur.indexOf('\n') >= 0) numLinesEst++;
-      return prev + cur.length + 1;
-    }, 0);
-
-    if (length > 50) {
-      output = braces[0] +
-               (base === '' ? '' : base + '\n ') +
-               ' ' +
-               output.join(',\n  ') +
-               ' ' +
-               braces[1];
-
-    } else {
-      output = braces[0] + base + ' ' + output.join(', ') + ' ' + braces[1];
-    }
-
-    return output;
-  }
-  return format(obj, (typeof depth === 'undefined' ? 2 : depth));
-};
-
-
-function isArray(ar) {
-  return ar instanceof Array ||
-         Array.isArray(ar) ||
-         (ar && ar !== Object.prototype && isArray(ar.__proto__));
-}
-
-
-function isRegExp(re) {
-  return re instanceof RegExp ||
-    (typeof re === 'object' && Object.prototype.toString.call(re) === '[object RegExp]');
-}
-
-
-function isDate(d) {
-  if (d instanceof Date) return true;
-  if (typeof d !== 'object') return false;
-  var properties = Date.prototype && Object_getOwnPropertyNames(Date.prototype);
-  var proto = d.__proto__ && Object_getOwnPropertyNames(d.__proto__);
-  return JSON.stringify(proto) === JSON.stringify(properties);
-}
-
-function pad(n) {
-  return n < 10 ? '0' + n.toString(10) : n.toString(10);
-}
-
-var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep',
-              'Oct', 'Nov', 'Dec'];
-
-// 26 Feb 16:19:34
-function timestamp() {
-  var d = new Date();
-  var time = [pad(d.getHours()),
-              pad(d.getMinutes()),
-              pad(d.getSeconds())].join(':');
-  return [d.getDate(), months[d.getMonth()], time].join(' ');
-}
-
-exports.log = function (msg) {};
-
-exports.pump = null;
-
-var Object_keys = Object.keys || function (obj) {
-    var res = [];
-    for (var key in obj) res.push(key);
-    return res;
-};
-
-var Object_getOwnPropertyNames = Object.getOwnPropertyNames || function (obj) {
-    var res = [];
-    for (var key in obj) {
-        if (Object.hasOwnProperty.call(obj, key)) res.push(key);
-    }
-    return res;
-};
-
-var Object_create = Object.create || function (prototype, properties) {
-    // from es5-shim
-    var object;
-    if (prototype === null) {
-        object = { '__proto__' : null };
-    }
-    else {
-        if (typeof prototype !== 'object') {
-            throw new TypeError(
-                'typeof prototype[' + (typeof prototype) + '] != \'object\''
-            );
-        }
-        var Type = function () {};
-        Type.prototype = prototype;
-        object = new Type();
-        object.__proto__ = prototype;
-    }
-    if (typeof properties !== 'undefined' && Object.defineProperties) {
-        Object.defineProperties(object, properties);
-    }
-    return object;
-};
-
-exports.inherits = function(ctor, superCtor) {
-  ctor.super_ = superCtor;
-  ctor.prototype = Object_create(superCtor.prototype, {
-    constructor: {
-      value: ctor,
-      enumerable: false,
-      writable: true,
-      configurable: true
-    }
-  });
-};
-
-var formatRegExp = /%[sdj%]/g;
-exports.format = function(f) {
-  if (typeof f !== 'string') {
-    var objects = [];
-    for (var i = 0; i < arguments.length; i++) {
-      objects.push(exports.inspect(arguments[i]));
-    }
-    return objects.join(' ');
-  }
-
-  var i = 1;
-  var args = arguments;
-  var len = args.length;
-  var str = String(f).replace(formatRegExp, function(x) {
-    if (x === '%%') return '%';
-    if (i >= len) return x;
-    switch (x) {
-      case '%s': return String(args[i++]);
-      case '%d': return Number(args[i++]);
-      case '%j': return JSON.stringify(args[i++]);
-      default:
-        return x;
-    }
-  });
-  for(var x = args[i]; i < len; x = args[++i]){
-    if (x === null || typeof x !== 'object') {
-      str += ' ' + x;
-    } else {
-      str += ' ' + exports.inspect(x);
-    }
-  }
-  return str;
-};
-
-});
-
-require.define("/node_modules/voxel-view/package.json",function(require,module,exports,__dirname,__filename,process,global){module.exports = {"main":"index.js"}
-});
-
-require.define("/node_modules/voxel-view/index.js",function(require,module,exports,__dirname,__filename,process,global){var THREE, temporaryPosition, temporaryVector
-
-module.exports = function(three, opts) {
-  temporaryPosition = new three.Vector3
-  temporaryVector = new three.Vector3
+},{"stream":28}],59:[function(require,module,exports){
+(function (process){
+var voxel = require('voxel')
+var voxelMesh = require('voxel-mesh')
+var ray = require('voxel-raycast')
+var texture = require('voxel-texture')
+var control = require('voxel-control')
+var voxelView = require('voxel-view')
+var THREE = require('three')
+var Stats = require('./lib/stats')
+var Detector = require('./lib/detector')
+var inherits = require('inherits')
+var path = require('path')
+var EventEmitter = require('events').EventEmitter
+if (process.browser) var interact = require('interact')
+var requestAnimationFrame = require('raf')
+var collisions = require('collide-3d-tilemap')
+var aabb = require('aabb-3d')
+var glMatrix = require('gl-matrix')
+var vector = glMatrix.vec3
+var SpatialEventEmitter = require('spatial-events')
+var regionChange = require('voxel-region-change')
+var kb = require('kb-controls')
+var physical = require('voxel-physical')
+var pin = require('pin-it')
+var tic = require('tic')()
+
+module.exports = Game
+
+function Game(opts) {
+  if (!(this instanceof Game)) return new Game(opts)
+  var self = this
+  if (!opts) opts = {}
+  if (process.browser && this.notCapable(opts)) return
   
-  return new View(three, opts)
-}
+  // is this a client or a headless server
+  this.isClient = Boolean( (typeof opts.isClient !== 'undefined') ? opts.isClient : process.browser )
 
-function View(three, opts) {
-  THREE = three // three.js doesn't support multiple instances on a single page
-  this.fov = opts.fov || 60
-  this.width = opts.width || 512
-  this.height = opts.height || 512
-  this.aspectRatio = opts.aspectRatio || this.width/this.height
-  this.nearPlane = opts.nearPlane || 1
-  this.farPlane = opts.farPlane || 10000
+  if (!('generateChunks' in opts)) opts.generateChunks = true
+  this.generateChunks = opts.generateChunks
+  this.setConfigurablePositions(opts)
+  this.configureChunkLoading(opts)
+  this.setDimensions(opts)
+  this.THREE = THREE
+  this.vector = vector
+  this.glMatrix = glMatrix
+  this.arrayType = opts.arrayType || Uint8Array
+  this.cubeSize = 1 // backwards compat
+  this.chunkSize = opts.chunkSize || 32
+  
+  // chunkDistance and removeDistance should not be set to the same thing
+  // as it causes lag when you go back and forth on a chunk boundary
+  this.chunkDistance = opts.chunkDistance || 2
+  this.removeDistance = opts.removeDistance || this.chunkDistance + 1
+  
   this.skyColor = opts.skyColor || 0xBFD1E5
-  this.ortho = opts.ortho
-  this.camera = this.ortho?(new THREE.OrthographicCamera(this.width/-2, this.width/2, this.height/2, this.height/-2, this.nearPlane, this.farPlane)):(new THREE.PerspectiveCamera(this.fov, this.aspectRatio, this.nearPlane, this.farPlane))
-  this.camera.lookAt(new THREE.Vector3(0, 0, 0))
-
-  if (!process.browser) return
-
-  this.createRenderer()
-  this.element = this.renderer.domElement
-}
-
-View.prototype.createRenderer = function() {
-  this.renderer = new THREE.WebGLRenderer({
-    antialias: true
+  this.antialias = opts.antialias
+  this.playerHeight = opts.playerHeight || 1.62
+  this.meshType = opts.meshType || 'surfaceMesh'
+  this.mesher = opts.mesher || voxel.meshers.culled
+  this.materialType = opts.materialType || THREE.MeshLambertMaterial
+  this.materialParams = opts.materialParams || {}
+  this.items = []
+  this.voxels = voxel(this)
+  this.scene = new THREE.Scene()
+  this.view = opts.view || new voxelView(THREE, {
+    width: this.width,
+    height: this.height,
+    skyColor: this.skyColor,
+    antialias: this.antialias
   })
-  this.renderer.setSize(this.width, this.height)
-  this.renderer.setClearColorHex(this.skyColor, 1.0)
-  this.renderer.clear()
+  this.view.bindToScene(this.scene)
+  this.camera = this.view.getCamera()
+  if (!opts.lightsDisabled) this.addLights(this.scene)
+  
+  this.fogScale = opts.fogScale || 32
+  if (!opts.fogDisabled) this.scene.fog = new THREE.Fog( this.skyColor, 0.00025, this.worldWidth() * this.fogScale )
+  
+  this.collideVoxels = collisions(
+    this.getBlock.bind(this),
+    1,
+    [Infinity, Infinity, Infinity],
+    [-Infinity, -Infinity, -Infinity]
+  )
+  
+  this.timer = this.initializeTimer((opts.tickFPS || 16))
+  this.paused = false
+
+  this.spatial = new SpatialEventEmitter
+  this.region = regionChange(this.spatial, aabb([0, 0, 0], [1, 1, 1]), this.chunkSize)
+  this.voxelRegion = regionChange(this.spatial, 1)
+  this.chunkRegion = regionChange(this.spatial, this.chunkSize)
+  this.asyncChunkGeneration = false
+
+  // contains chunks that has had an update this tick. Will be generated right before redrawing the frame
+  this.chunksNeedsUpdate = {}
+  // contains new chunks yet to be generated. Handled by game.loadPendingChunks
+  this.pendingChunks = []
+
+  this.materials = texture({
+    game: this,
+    texturePath: opts.texturePath || './textures/',
+    materialType: opts.materialType || THREE.MeshLambertMaterial,
+    materialParams: opts.materialParams || {},
+    materialFlatColor: opts.materialFlatColor === true
+  })
+
+  this.materialNames = opts.materials || [['grass', 'dirt', 'grass_dirt'], 'brick', 'dirt']
+  
+  self.chunkRegion.on('change', function(newChunk) {
+    self.removeFarChunks()
+  })
+
+  if (this.isClient) this.materials.load(this.materialNames)
+
+  if (this.generateChunks) this.handleChunkGeneration()
+
+  // client side only after this point
+  if (!this.isClient) return
+  
+  this.paused = true
+  this.initializeRendering(opts)
+ 
+  this.showAllChunks()
+
+  setTimeout(function() {
+    self.asyncChunkGeneration = 'asyncChunkGeneration' in opts ? opts.asyncChunkGeneration : true
+  }, 2000)
+
+  this.initializeControls(opts)
 }
 
-View.prototype.bindToScene = function(scene) {
-  scene.add(this.camera)
+inherits(Game, EventEmitter)
+
+// # External API
+
+Game.prototype.voxelPosition = function(gamePosition) {
+  var _ = Math.floor
+  var p = gamePosition
+  var v = []
+  v[0] = _(p[0])
+  v[1] = _(p[1])
+  v[2] = _(p[2])
+  return v
 }
 
-View.prototype.getCamera = function() {
-  return this.camera
+Game.prototype.cameraPosition = function() {
+  return this.view.cameraPosition()
 }
 
-View.prototype.cameraPosition = function() {
-  temporaryPosition.multiplyScalar(0)
-  temporaryPosition.applyMatrix4(this.camera.matrixWorld)
-  return [temporaryPosition.x, temporaryPosition.y, temporaryPosition.z]
+Game.prototype.cameraVector = function() {
+  return this.view.cameraVector()
 }
 
-View.prototype.cameraVector = function() {
-  temporaryVector.multiplyScalar(0)
-  temporaryVector.z = -1
-  this.camera.matrixWorld.rotateAxis(temporaryVector)
-  return [temporaryVector.x, temporaryVector.y, temporaryVector.z]
+Game.prototype.makePhysical = function(target, envelope, blocksCreation) {
+  var vel = this.terminalVelocity
+  envelope = envelope || [2/3, 1.5, 2/3]
+  var obj = physical(target, this.potentialCollisionSet(), envelope, {x: vel[0], y: vel[1], z: vel[2]})
+  obj.blocksCreation = !!blocksCreation
+  return obj
 }
 
-View.prototype.resizeWindow = function(width, height) {
-  if (this.element.parentElement) {
-    width = width || this.element.parentElement.clientWidth
-    height = height || this.element.parentElement.clientHeight
+Game.prototype.addItem = function(item) {
+  if (!item.tick) {
+    var newItem = physical(
+      item.mesh,
+      this.potentialCollisionSet(),
+      [item.size, item.size, item.size]
+    )
+    
+    if (item.velocity) {
+      newItem.velocity.copy(item.velocity)
+      newItem.subjectTo(this.gravity)
+    }
+    
+    newItem.repr = function() { return 'debris' }
+    newItem.mesh = item.mesh
+    newItem.blocksCreation = item.blocksCreation
+    
+    item = newItem
+  }
+  
+  this.items.push(item)
+  if (item.mesh) this.scene.add(item.mesh)
+  return this.items[this.items.length - 1]
+}
+
+Game.prototype.removeItem = function(item) {
+  var ix = this.items.indexOf(item)
+  if (ix < 0) return
+  this.items.splice(ix, 1)
+  if (item.mesh) this.scene.remove(item.mesh)
+}
+
+// only intersects voxels, not items (for now)
+Game.prototype.raycast = // backwards compat
+Game.prototype.raycastVoxels = function(start, direction, maxDistance, epilson) {
+  if (!start) return this.raycastVoxels(this.cameraPosition(), this.cameraVector(), 10)
+  
+  var hitNormal = [0, 0, 0]
+  var hitPosition = [0, 0, 0]
+  var cp = start || this.cameraPosition()
+  var cv = direction || this.cameraVector()
+  var hitBlock = ray(this, cp, cv, maxDistance || 10.0, hitPosition, hitNormal, epilson || this.epilson)
+  if (hitBlock <= 0) return false
+  var adjacentPosition = [0, 0, 0]
+  var voxelPosition = this.voxelPosition(hitPosition)
+  vector.add(adjacentPosition, voxelPosition, hitNormal)
+  
+  return {
+    position: hitPosition,
+    voxel: voxelPosition,
+    direction: direction,
+    value: hitBlock,
+    normal: hitNormal,
+    adjacent: adjacentPosition
+  }
+}
+
+Game.prototype.canCreateBlock = function(pos) {
+  pos = this.parseVectorArguments(arguments)
+  var floored = pos.map(function(i) { return Math.floor(i) })
+  var bbox = aabb(floored, [1, 1, 1])
+  
+  for (var i = 0, len = this.items.length; i < len; ++i) {
+    var item = this.items[i]
+    var itemInTheWay = item.blocksCreation && item.aabb && bbox.intersects(item.aabb())
+    if (itemInTheWay) return false
   }
 
-  this.camera.aspect = this.aspectRatio = width/height
-  this.width = width
-  this.height = height
-
-  this.camera.updateProjectionMatrix()
-
-  this.renderer.setSize( width, height )
+  return true
 }
 
-View.prototype.render = function(scene) {
-  this.renderer.render(scene, this.camera)
+Game.prototype.createBlock = function(pos, val) {
+  if (typeof val === 'string') val = this.materials.find(val)
+  if (!this.canCreateBlock(pos)) return false
+  this.setBlock(pos, val)
+  return true
 }
 
-View.prototype.appendTo = function(element) {
-  if (typeof element === 'object') {
-    element.appendChild(this.element)
+Game.prototype.setBlock = function(pos, val) {
+  if (typeof val === 'string') val = this.materials.find(val)
+  var old = this.voxels.voxelAtPosition(pos, val)
+  var c = this.voxels.chunkAtPosition(pos)
+  var chunk = this.voxels.chunks[c.join('|')]
+  if (!chunk) return// todo - does self.emit('missingChunk', c.join('|')) make sense here?
+  this.addChunkToNextUpdate(chunk)
+  this.spatial.emit('change-block', pos, old, val)
+  this.emit('setBlock', pos, val, old)
+}
+
+Game.prototype.getBlock = function(pos) {
+  pos = this.parseVectorArguments(arguments)
+  return this.voxels.voxelAtPosition(pos)
+}
+
+Game.prototype.blockPosition = function(pos) {
+  pos = this.parseVectorArguments(arguments)
+  var ox = Math.floor(pos[0])
+  var oy = Math.floor(pos[1])
+  var oz = Math.floor(pos[2])
+  return [ox, oy, oz]
+}
+
+Game.prototype.blocks = function(low, high, iterator) {
+  var l = low, h = high
+  var d = [ h[0]-l[0], h[1]-l[1], h[2]-l[2] ]
+  if (!iterator) var voxels = new this.arrayType(d[0]*d[1]*d[2])
+  var i = 0
+  for(var z=l[2]; z<h[2]; ++z)
+  for(var y=l[1]; y<h[1]; ++y)
+  for(var x=l[0]; x<h[0]; ++x, ++i) {
+    if (iterator) iterator(x, y, z, i)
+    else voxels[i] = this.voxels.voxelAtPosition([x, y, z])
   }
-  else {
-    document.querySelector(element).appendChild(this.element)
+  if (!iterator) return {voxels: voxels, dims: d}
+}
+
+// backwards compat
+Game.prototype.createAdjacent = function(hit, val) {
+  this.createBlock(hit.adjacent, val)
+}
+
+Game.prototype.appendTo = function (element) {
+  this.view.appendTo(element)
+}
+
+// # Defaults/options parsing
+
+Game.prototype.gravity = [0, -0.0000036, 0]
+Game.prototype.friction = 0.3
+Game.prototype.epilson = 1e-8
+Game.prototype.terminalVelocity = [0.9, 0.1, 0.9]
+
+Game.prototype.defaultButtons = {
+  'W': 'forward'
+, 'A': 'left'
+, 'S': 'backward'
+, 'D': 'right'
+, '<up>': 'forward'
+, '<left>': 'left'
+, '<down>': 'backward'
+, '<right>': 'right'
+, '<mouse 1>': 'fire'
+, '<mouse 3>': 'firealt'
+, '<space>': 'jump'
+, '<shift>': 'crouch'
+, '<control>': 'alt'
+}
+
+// used in methods that have identity function(pos) {}
+Game.prototype.parseVectorArguments = function(args) {
+  if (!args) return false
+  if (args[0] instanceof Array) return args[0]
+  return [args[0], args[1], args[2]]
+}
+
+Game.prototype.setConfigurablePositions = function(opts) {
+  var sp = opts.startingPosition
+  this.startingPosition = sp || [35, 1024, 35]
+  var wo = opts.worldOrigin
+  this.worldOrigin = wo || [0, 0, 0]
+}
+
+Game.prototype.setDimensions = function(opts) {
+  if (opts.container) this.container = opts.container
+  if (opts.container && opts.container.clientHeight) {
+    this.height = opts.container.clientHeight
+  } else {
+    this.height = typeof window === "undefined" ? 1 : window.innerHeight
+  }
+  if (opts.container && opts.container.clientWidth) {
+    this.width = opts.container.clientWidth
+  } else {
+    this.width = typeof window === "undefined" ? 1 : window.innerWidth
+  }
+}
+
+Game.prototype.notCapable = function(opts) {
+  var self = this
+  if( !Detector().webgl ) {
+    this.view = {
+      appendTo: function(el) {
+        el.appendChild(self.notCapableMessage())
+      }
+    }
+    return true
+  }
+  return false
+}
+
+Game.prototype.notCapableMessage = function() {
+  var wrapper = document.createElement('div')
+  wrapper.className = "errorMessage"
+  var a = document.createElement('a')
+  a.title = "You need WebGL and Pointer Lock (Chrome 23/Firefox 14) to play this game. Click here for more information."
+  a.innerHTML = a.title
+  a.href = "http://get.webgl.org"
+  wrapper.appendChild(a)
+  return wrapper
+}
+
+Game.prototype.onWindowResize = function() {
+  var width = window.innerWidth
+  var height = window.innerHeight
+  if (this.container) {
+    width = this.container.clientWidth
+    height = this.container.clientHeight
+  }
+  this.view.resizeWindow(width, height)
+}
+
+// # Physics/collision related methods
+
+Game.prototype.control = function(target) {
+  this.controlling = target
+  return this.controls.target(target)
+}
+
+Game.prototype.potentialCollisionSet = function() {
+  return [{ collide: this.collideTerrain.bind(this) }]
+}
+
+/**
+ * Get the position of the player under control.
+ * If there is no player under control, return
+ * current position of the game's camera.
+ *
+ * @return {Array} an [x, y, z] tuple
+ */
+
+Game.prototype.playerPosition = function() {
+  var target = this.controls.target()
+  var position = target
+    ? target.avatar.position
+    : this.camera.localToWorld(this.camera.position.clone())
+  return [position.x, position.y, position.z]
+}
+
+Game.prototype.playerAABB = function(position) {
+  var pos = position || this.playerPosition()
+  var lower = []
+  var upper = [1/2, this.playerHeight, 1/2]
+  var playerBottom = [1/4, this.playerHeight, 1/4]
+  vector.subtract(lower, pos, playerBottom)
+  var bbox = aabb(lower, upper)
+  return bbox
+}
+
+Game.prototype.collideTerrain = function(other, bbox, vec, resting) {
+  var self = this
+  var axes = ['x', 'y', 'z']
+  var vec3 = [vec.x, vec.y, vec.z]
+  this.collideVoxels(bbox, vec3, function hit(axis, tile, coords, dir, edge) {
+    if (!tile) return
+    if (Math.abs(vec3[axis]) < Math.abs(edge)) return
+    vec3[axis] = vec[axes[axis]] = edge
+    other.acceleration[axes[axis]] = 0
+    resting[axes[axis]] = dir
+    other.friction[axes[(axis + 1) % 3]] = other.friction[axes[(axis + 2) % 3]] = axis === 1 ? self.friction  : 1
+    return true
+  })
+}
+
+// # Three.js specific methods
+
+Game.prototype.addStats = function() {
+  stats = new Stats()
+  stats.domElement.style.position  = 'absolute'
+  stats.domElement.style.bottom  = '0px'
+  document.body.appendChild( stats.domElement )
+}
+
+Game.prototype.addLights = function(scene) {
+  var ambientLight, directionalLight
+  ambientLight = new THREE.AmbientLight(0xcccccc)
+  scene.add(ambientLight)
+  var light	= new THREE.DirectionalLight( 0xffffff , 1)
+  light.position.set( 1, 1, 0.5 ).normalize()
+  scene.add( light )
+}
+
+// # Chunk related methods
+
+Game.prototype.configureChunkLoading = function(opts) {
+  var self = this
+  if (!opts.generateChunks) return
+  if (!opts.generate) {
+    this.generate = function(x,y,z) {
+      return x*x+y*y+z*z <= 15*15 ? 1 : 0 // sphere world
+    }
+  } else {
+    this.generate = opts.generate
+  }
+  if (opts.generateVoxelChunk) {
+    this.generateVoxelChunk = opts.generateVoxelChunk
+  } else {
+    this.generateVoxelChunk = function(low, high) {
+      return voxel.generate(low, high, self.generate, self)
+    }
+  }
+}
+
+Game.prototype.worldWidth = function() {
+  return this.chunkSize * 2 * this.chunkDistance
+}
+
+Game.prototype.chunkToWorld = function(pos) {
+  return [
+    pos[0] * this.chunkSize,
+    pos[1] * this.chunkSize,
+    pos[2] * this.chunkSize
+  ]
+}
+
+Game.prototype.removeFarChunks = function(playerPosition) {
+  var self = this
+  playerPosition = playerPosition || this.playerPosition()
+  var nearbyChunks = this.voxels.nearbyChunks(playerPosition, this.removeDistance).map(function(chunkPos) {
+    return chunkPos.join('|')
+  })
+  Object.keys(self.voxels.chunks).map(function(chunkIndex) {
+    if (nearbyChunks.indexOf(chunkIndex) > -1) return
+    var chunk = self.voxels.chunks[chunkIndex]
+    var mesh = self.voxels.meshes[chunkIndex]
+    var pendingIndex = self.pendingChunks.indexOf(chunkIndex)
+    if (pendingIndex !== -1) self.pendingChunks.splice(pendingIndex, 1)
+    if (!chunk) return
+    var chunkPosition = chunk.position
+    if (mesh) {
+      if (mesh.surfaceMesh) {
+        self.scene.remove(mesh.surfaceMesh)
+        mesh.surfaceMesh.geometry.dispose()
+      }
+      if (mesh.wireMesh) {
+        mesh.wireMesh.geometry.dispose()
+        self.scene.remove(mesh.wireMesh)
+      }
+      delete mesh.data
+      delete mesh.geometry
+      delete mesh.meshed
+      delete mesh.surfaceMesh
+      delete mesh.wireMesh
+    }
+    delete self.voxels.chunks[chunkIndex]
+    self.emit('removeChunk', chunkPosition)
+  })
+  self.voxels.requestMissingChunks(playerPosition)
+}
+
+Game.prototype.addChunkToNextUpdate = function(chunk) {
+  this.chunksNeedsUpdate[chunk.position.join('|')] = chunk
+}
+
+Game.prototype.updateDirtyChunks = function() {
+  var self = this
+  Object.keys(this.chunksNeedsUpdate).forEach(function showChunkAtIndex(chunkIndex) {
+    var chunk = self.chunksNeedsUpdate[chunkIndex]
+    self.emit('dirtyChunkUpdate', chunk)
+    self.showChunk(chunk)
+  })
+  this.chunksNeedsUpdate = {}
+}
+
+Game.prototype.loadPendingChunks = function(count) {
+  var pendingChunks = this.pendingChunks
+
+  if (!this.asyncChunkGeneration) {
+    count = pendingChunks.length
+  } else {
+    count = count || (pendingChunks.length * 0.1)
+    count = Math.max(1, Math.min(count, pendingChunks.length))
   }
 
-  this.resizeWindow(this.width,this.height)
+  for (var i = 0; i < count; i += 1) {
+    var chunkPos = pendingChunks[i].split('|')
+    var chunk = this.voxels.generateChunk(chunkPos[0]|0, chunkPos[1]|0, chunkPos[2]|0)
+
+    if (this.isClient) this.showChunk(chunk)
+  }
+
+  if (count) pendingChunks.splice(0, count)
 }
-});
 
-require.define("/node_modules/voxel-engine/node_modules/three/package.json",function(require,module,exports,__dirname,__filename,process,global){module.exports = {"main":"./three.js"}
-});
+Game.prototype.getChunkAtPosition = function(pos) {
+  var chunkID = this.voxels.chunkAtPosition(pos).join('|')
+  var chunk = this.voxels.chunks[chunkID]
+  return chunk
+}
 
-require.define("/node_modules/voxel-engine/node_modules/three/three.js",function(require,module,exports,__dirname,__filename,process,global){
+Game.prototype.showAllChunks = function() {
+  for (var chunkIndex in this.voxels.chunks) {
+    this.showChunk(this.voxels.chunks[chunkIndex])
+  }
+}
+
+Game.prototype.showChunk = function(chunk) {
+  var chunkIndex = chunk.position.join('|')
+  var bounds = this.voxels.getBounds.apply(this.voxels, chunk.position)
+  var scale = new THREE.Vector3(1, 1, 1)
+  var mesh = voxelMesh(chunk, this.mesher, scale, this.THREE)
+  this.voxels.chunks[chunkIndex] = chunk
+  if (this.voxels.meshes[chunkIndex]) {
+    if (this.voxels.meshes[chunkIndex].surfaceMesh) this.scene.remove(this.voxels.meshes[chunkIndex].surfaceMesh)
+    if (this.voxels.meshes[chunkIndex].wireMesh) this.scene.remove(this.voxels.meshes[chunkIndex].wireMesh)
+  }
+  this.voxels.meshes[chunkIndex] = mesh
+  if (this.isClient) {
+    if (this.meshType === 'wireMesh') mesh.createWireMesh()
+    else mesh.createSurfaceMesh(this.materials.material)
+    this.materials.paint(mesh)
+  }
+  mesh.setPosition(bounds[0][0], bounds[0][1], bounds[0][2])
+  mesh.addToScene(this.scene)
+  this.emit('renderChunk', chunk)
+  return mesh
+}
+
+// # Debugging methods
+
+Game.prototype.addMarker = function(position) {
+  var geometry = new THREE.SphereGeometry( 0.1, 10, 10 )
+  var material = new THREE.MeshPhongMaterial( { color: 0xffffff, shading: THREE.FlatShading } )
+  var mesh = new THREE.Mesh( geometry, material )
+  mesh.position.copy(position)
+  this.scene.add(mesh)
+}
+
+Game.prototype.addAABBMarker = function(aabb, color) {
+  var geometry = new THREE.CubeGeometry(aabb.width(), aabb.height(), aabb.depth())
+  var material = new THREE.MeshBasicMaterial({ color: color || 0xffffff, wireframe: true, transparent: true, opacity: 0.5, side: THREE.DoubleSide })
+  var mesh = new THREE.Mesh(geometry, material)
+  mesh.position.set(aabb.x0() + aabb.width() / 2, aabb.y0() + aabb.height() / 2, aabb.z0() + aabb.depth() / 2)
+  this.scene.add(mesh)
+  return mesh
+}
+
+Game.prototype.addVoxelMarker = function(x, y, z, color) {
+  var bbox = aabb([x, y, z], [1, 1, 1])
+  return this.addAABBMarker(bbox, color)
+}
+
+Game.prototype.pin = pin
+
+// # Misc internal methods
+
+Game.prototype.onControlChange = function(gained, stream) {
+  this.paused = false
+
+  if (!gained && !this.optout) {
+    this.buttons.disable()
+    return
+  }
+
+  this.buttons.enable()
+  stream.pipe(this.controls.createWriteRotationStream())
+}
+
+Game.prototype.onControlOptOut = function() {
+  this.optout = true
+}
+
+Game.prototype.onFire = function(state) {
+  this.emit('fire', this.controlling, state)
+}
+
+Game.prototype.setInterval = tic.interval.bind(tic)
+Game.prototype.setTimeout = tic.timeout.bind(tic)
+
+Game.prototype.tick = function(delta) {
+  for(var i = 0, len = this.items.length; i < len; ++i) {
+    this.items[i].tick(delta)
+  }
+  
+  if (this.materials) this.materials.tick(delta)
+
+  if (this.pendingChunks.length) this.loadPendingChunks()
+  if (Object.keys(this.chunksNeedsUpdate).length > 0) this.updateDirtyChunks()
+  
+  tic.tick(delta)
+
+  this.emit('tick', delta)
+  
+  if (!this.controls) return
+  var playerPos = this.playerPosition()
+  this.spatial.emit('position', playerPos, playerPos)
+}
+
+Game.prototype.render = function(delta) {
+  this.view.render(this.scene)
+}
+
+Game.prototype.initializeTimer = function(rate) {
+  var self = this
+  var accum = 0
+  var now = 0
+  var last = null
+  var dt = 0
+  var wholeTick
+  
+  self.frameUpdated = true
+  self.interval = setInterval(timer, 0)
+  return self.interval
+  
+  function timer() {
+    if (self.paused) {
+      last = Date.now()
+      accum = 0
+      return
+    }
+    now = Date.now()
+    dt = now - (last || now)
+    last = now
+    accum += dt
+    if (accum < rate) return
+    wholeTick = ((accum / rate)|0)
+    if (wholeTick <= 0) return
+    wholeTick *= rate
+    
+    self.tick(wholeTick)
+    accum -= wholeTick
+    
+    self.frameUpdated = true
+  }
+}
+
+Game.prototype.initializeRendering = function(opts) {
+  var self = this
+
+  if (!opts.statsDisabled) self.addStats()
+
+  window.addEventListener('resize', self.onWindowResize.bind(self), false)
+
+  requestAnimationFrame(window).on('data', function(dt) {
+    self.emit('prerender', dt)
+    self.render(dt)
+    self.emit('postrender', dt)
+  })
+  if (typeof stats !== 'undefined') {
+    self.on('postrender', function() {
+      stats.update()
+    })
+  }
+}
+
+Game.prototype.initializeControls = function(opts) {
+  // player control
+  this.keybindings = opts.keybindings || this.defaultButtons
+  this.buttons = kb(document.body, this.keybindings)
+  this.buttons.disable()
+  this.optout = false
+  this.interact = interact(opts.interactElement || this.view.element, opts.interactMouseDrag)
+  this.interact
+      .on('attain', this.onControlChange.bind(this, true))
+      .on('release', this.onControlChange.bind(this, false))
+      .on('opt-out', this.onControlOptOut.bind(this))
+  this.hookupControls(this.buttons, opts)
+}
+
+Game.prototype.hookupControls = function(buttons, opts) {
+  opts = opts || {}
+  opts.controls = opts.controls || {}
+  opts.controls.onfire = this.onFire.bind(this)
+  this.controls = control(buttons, opts.controls)
+  this.items.push(this.controls)
+  this.controlling = null
+}
+
+Game.prototype.handleChunkGeneration = function() {
+  var self = this
+  this.voxels.on('missingChunk', function(chunkPos) {
+    self.pendingChunks.push(chunkPos.join('|'))
+  })
+  this.voxels.requestMissingChunks(this.worldOrigin)
+  this.loadPendingChunks(this.pendingChunks.length)
+}
+
+// teardown methods
+Game.prototype.destroy = function() {
+  clearInterval(this.timer)
+}
+
+}).call(this,require('_process'))
+},{"./lib/detector":60,"./lib/stats":61,"_process":12,"aabb-3d":32,"collide-3d-tilemap":34,"events":5,"gl-matrix":44,"inherits":45,"interact":46,"kb-controls":47,"path":10,"pin-it":49,"raf":51,"spatial-events":52,"three":62,"tic":56,"voxel":71,"voxel-control":58,"voxel-mesh":63,"voxel-physical":64,"voxel-raycast":66,"voxel-region-change":67,"voxel-texture":68,"voxel-view":69}],60:[function(require,module,exports){
+/**
+ * @author alteredq / http://alteredqualia.com/
+ * @author mr.doob / http://mrdoob.com/
+ */
+
+module.exports = function() {
+  return {
+  	canvas : !! window.CanvasRenderingContext2D,
+  	webgl : ( function () { try { return !! window.WebGLRenderingContext && !! document.createElement( 'canvas' ).getContext( 'experimental-webgl' ); } catch( e ) { return false; } } )(),
+  	workers : !! window.Worker,
+  	fileapi : window.File && window.FileReader && window.FileList && window.Blob,
+
+  	getWebGLErrorMessage : function () {
+
+  		var domElement = document.createElement( 'div' );
+
+  		domElement.style.fontFamily = 'monospace';
+  		domElement.style.fontSize = '13px';
+  		domElement.style.textAlign = 'center';
+  		domElement.style.background = '#eee';
+  		domElement.style.color = '#000';
+  		domElement.style.padding = '1em';
+  		domElement.style.width = '475px';
+  		domElement.style.margin = '5em auto 0';
+
+  		if ( ! this.webgl ) {
+
+  			domElement.innerHTML = window.WebGLRenderingContext ? [
+  				'Your graphics card does not seem to support <a href="http://khronos.org/webgl/wiki/Getting_a_WebGL_Implementation">WebGL</a>.<br />',
+  				'Find out how to get it <a href="http://get.webgl.org/">here</a>.'
+  			].join( '\n' ) : [
+  				'Your browser does not seem to support <a href="http://khronos.org/webgl/wiki/Getting_a_WebGL_Implementation">WebGL</a>.<br/>',
+  				'Find out how to get it <a href="http://get.webgl.org/">here</a>.'
+  			].join( '\n' );
+
+  		}
+
+  		return domElement;
+
+  	},
+
+  	addGetWebGLMessage : function ( parameters ) {
+
+  		var parent, id, domElement;
+
+  		parameters = parameters || {};
+
+  		parent = parameters.parent !== undefined ? parameters.parent : document.body;
+  		id = parameters.id !== undefined ? parameters.id : 'oldie';
+
+  		domElement = Detector.getWebGLErrorMessage();
+  		domElement.id = id;
+
+  		parent.appendChild( domElement );
+
+  	}
+
+  };
+}
+
+},{}],61:[function(require,module,exports){
+/**
+ * @author mrdoob / http://mrdoob.com/
+ */
+
+var Stats = function () {
+
+	var startTime = Date.now(), prevTime = startTime;
+	var ms = 0, msMin = Infinity, msMax = 0;
+	var fps = 0, fpsMin = Infinity, fpsMax = 0;
+	var frames = 0, mode = 0;
+
+	var container = document.createElement( 'div' );
+	container.id = 'stats';
+	container.addEventListener( 'mousedown', function ( event ) { event.preventDefault(); setMode( ++ mode % 2 ) }, false );
+	container.style.cssText = 'width:80px;opacity:0.9;cursor:pointer';
+
+	var fpsDiv = document.createElement( 'div' );
+	fpsDiv.id = 'fps';
+	fpsDiv.style.cssText = 'padding:0 0 3px 3px;text-align:left;background-color:#002';
+	container.appendChild( fpsDiv );
+
+	var fpsText = document.createElement( 'div' );
+	fpsText.id = 'fpsText';
+	fpsText.style.cssText = 'color:#0ff;font-family:Helvetica,Arial,sans-serif;font-size:9px;font-weight:bold;line-height:15px';
+	fpsText.innerHTML = 'FPS';
+	fpsDiv.appendChild( fpsText );
+
+	var fpsGraph = document.createElement( 'div' );
+	fpsGraph.id = 'fpsGraph';
+	fpsGraph.style.cssText = 'position:relative;width:74px;height:30px;background-color:#0ff';
+	fpsDiv.appendChild( fpsGraph );
+
+	while ( fpsGraph.children.length < 74 ) {
+
+		var bar = document.createElement( 'span' );
+		bar.style.cssText = 'width:1px;height:30px;float:left;background-color:#113';
+		fpsGraph.appendChild( bar );
+
+	}
+
+	var msDiv = document.createElement( 'div' );
+	msDiv.id = 'ms';
+	msDiv.style.cssText = 'padding:0 0 3px 3px;text-align:left;background-color:#020;display:none';
+	container.appendChild( msDiv );
+
+	var msText = document.createElement( 'div' );
+	msText.id = 'msText';
+	msText.style.cssText = 'color:#0f0;font-family:Helvetica,Arial,sans-serif;font-size:9px;font-weight:bold;line-height:15px';
+	msText.innerHTML = 'MS';
+	msDiv.appendChild( msText );
+
+	var msGraph = document.createElement( 'div' );
+	msGraph.id = 'msGraph';
+	msGraph.style.cssText = 'position:relative;width:74px;height:30px;background-color:#0f0';
+	msDiv.appendChild( msGraph );
+
+	while ( msGraph.children.length < 74 ) {
+
+		var bar = document.createElement( 'span' );
+		bar.style.cssText = 'width:1px;height:30px;float:left;background-color:#131';
+		msGraph.appendChild( bar );
+
+	}
+
+	var setMode = function ( value ) {
+
+		mode = value;
+
+		switch ( mode ) {
+
+			case 0:
+				fpsDiv.style.display = 'block';
+				msDiv.style.display = 'none';
+				break;
+			case 1:
+				fpsDiv.style.display = 'none';
+				msDiv.style.display = 'block';
+				break;
+		}
+
+	}
+
+	var updateGraph = function ( dom, value ) {
+
+		var child = dom.appendChild( dom.firstChild );
+		child.style.height = value + 'px';
+
+	}
+
+	return {
+
+		REVISION: 11,
+
+		domElement: container,
+
+		setMode: setMode,
+
+		begin: function () {
+
+			startTime = Date.now();
+
+		},
+
+		end: function () {
+
+			var time = Date.now();
+
+			ms = time - startTime;
+			msMin = Math.min( msMin, ms );
+			msMax = Math.max( msMax, ms );
+
+			msText.textContent = ms + ' MS (' + msMin + '-' + msMax + ')';
+			updateGraph( msGraph, Math.min( 30, 30 - ( ms / 200 ) * 30 ) );
+
+			frames ++;
+
+			if ( time > prevTime + 1000 ) {
+
+				fps = Math.round( ( frames * 1000 ) / ( time - prevTime ) );
+				fpsMin = Math.min( fpsMin, fps );
+				fpsMax = Math.max( fpsMax, fps );
+
+				fpsText.textContent = fps + ' FPS (' + fpsMin + '-' + fpsMax + ')';
+				updateGraph( fpsGraph, Math.min( 30, 30 - ( fps / 100 ) * 30 ) );
+
+				prevTime = time;
+				frames = 0;
+
+			}
+
+			return time;
+
+		},
+
+		update: function () {
+
+			startTime = this.end();
+
+		}
+
+	}
+
+};
+
+module.exports = Stats
+},{}],62:[function(require,module,exports){
+(function (process){
+
 var window = window || {};
 var self = self || {};
 
@@ -89676,5083 +98708,179 @@ if (typeof exports !== 'undefined') {
   this['THREE'] = THREE;
 }
 
-});
+}).call(this,require('_process'))
+},{"_process":12}],63:[function(require,module,exports){
+var THREE = require('three')
 
-require.define("/node_modules/voxel-engine/lib/stats.js",function(require,module,exports,__dirname,__filename,process,global){/**
- * @author mrdoob / http://mrdoob.com/
- */
-
-var Stats = function () {
-
-	var startTime = Date.now(), prevTime = startTime;
-	var ms = 0, msMin = Infinity, msMax = 0;
-	var fps = 0, fpsMin = Infinity, fpsMax = 0;
-	var frames = 0, mode = 0;
-
-	var container = document.createElement( 'div' );
-	container.id = 'stats';
-	container.addEventListener( 'mousedown', function ( event ) { event.preventDefault(); setMode( ++ mode % 2 ) }, false );
-	container.style.cssText = 'width:80px;opacity:0.9;cursor:pointer';
-
-	var fpsDiv = document.createElement( 'div' );
-	fpsDiv.id = 'fps';
-	fpsDiv.style.cssText = 'padding:0 0 3px 3px;text-align:left;background-color:#002';
-	container.appendChild( fpsDiv );
-
-	var fpsText = document.createElement( 'div' );
-	fpsText.id = 'fpsText';
-	fpsText.style.cssText = 'color:#0ff;font-family:Helvetica,Arial,sans-serif;font-size:9px;font-weight:bold;line-height:15px';
-	fpsText.innerHTML = 'FPS';
-	fpsDiv.appendChild( fpsText );
-
-	var fpsGraph = document.createElement( 'div' );
-	fpsGraph.id = 'fpsGraph';
-	fpsGraph.style.cssText = 'position:relative;width:74px;height:30px;background-color:#0ff';
-	fpsDiv.appendChild( fpsGraph );
-
-	while ( fpsGraph.children.length < 74 ) {
-
-		var bar = document.createElement( 'span' );
-		bar.style.cssText = 'width:1px;height:30px;float:left;background-color:#113';
-		fpsGraph.appendChild( bar );
-
-	}
-
-	var msDiv = document.createElement( 'div' );
-	msDiv.id = 'ms';
-	msDiv.style.cssText = 'padding:0 0 3px 3px;text-align:left;background-color:#020;display:none';
-	container.appendChild( msDiv );
-
-	var msText = document.createElement( 'div' );
-	msText.id = 'msText';
-	msText.style.cssText = 'color:#0f0;font-family:Helvetica,Arial,sans-serif;font-size:9px;font-weight:bold;line-height:15px';
-	msText.innerHTML = 'MS';
-	msDiv.appendChild( msText );
-
-	var msGraph = document.createElement( 'div' );
-	msGraph.id = 'msGraph';
-	msGraph.style.cssText = 'position:relative;width:74px;height:30px;background-color:#0f0';
-	msDiv.appendChild( msGraph );
-
-	while ( msGraph.children.length < 74 ) {
-
-		var bar = document.createElement( 'span' );
-		bar.style.cssText = 'width:1px;height:30px;float:left;background-color:#131';
-		msGraph.appendChild( bar );
-
-	}
-
-	var setMode = function ( value ) {
-
-		mode = value;
-
-		switch ( mode ) {
-
-			case 0:
-				fpsDiv.style.display = 'block';
-				msDiv.style.display = 'none';
-				break;
-			case 1:
-				fpsDiv.style.display = 'none';
-				msDiv.style.display = 'block';
-				break;
-		}
-
-	}
-
-	var updateGraph = function ( dom, value ) {
-
-		var child = dom.appendChild( dom.firstChild );
-		child.style.height = value + 'px';
-
-	}
-
-	return {
-
-		REVISION: 11,
-
-		domElement: container,
-
-		setMode: setMode,
-
-		begin: function () {
-
-			startTime = Date.now();
-
-		},
-
-		end: function () {
-
-			var time = Date.now();
-
-			ms = time - startTime;
-			msMin = Math.min( msMin, ms );
-			msMax = Math.max( msMax, ms );
-
-			msText.textContent = ms + ' MS (' + msMin + '-' + msMax + ')';
-			updateGraph( msGraph, Math.min( 30, 30 - ( ms / 200 ) * 30 ) );
-
-			frames ++;
-
-			if ( time > prevTime + 1000 ) {
-
-				fps = Math.round( ( frames * 1000 ) / ( time - prevTime ) );
-				fpsMin = Math.min( fpsMin, fps );
-				fpsMax = Math.max( fpsMax, fps );
-
-				fpsText.textContent = fps + ' FPS (' + fpsMin + '-' + fpsMax + ')';
-				updateGraph( fpsGraph, Math.min( 30, 30 - ( fps / 100 ) * 30 ) );
-
-				prevTime = time;
-				frames = 0;
-
-			}
-
-			return time;
-
-		},
-
-		update: function () {
-
-			startTime = this.end();
-
-		}
-
-	}
-
-};
-
-module.exports = Stats
-});
-
-require.define("/node_modules/voxel-engine/lib/detector.js",function(require,module,exports,__dirname,__filename,process,global){/**
- * @author alteredq / http://alteredqualia.com/
- * @author mr.doob / http://mrdoob.com/
- */
-
-module.exports = function() {
-  return {
-  	canvas : !! window.CanvasRenderingContext2D,
-  	webgl : ( function () { try { return !! window.WebGLRenderingContext && !! document.createElement( 'canvas' ).getContext( 'experimental-webgl' ); } catch( e ) { return false; } } )(),
-  	workers : !! window.Worker,
-  	fileapi : window.File && window.FileReader && window.FileList && window.Blob,
-
-  	getWebGLErrorMessage : function () {
-
-  		var domElement = document.createElement( 'div' );
-
-  		domElement.style.fontFamily = 'monospace';
-  		domElement.style.fontSize = '13px';
-  		domElement.style.textAlign = 'center';
-  		domElement.style.background = '#eee';
-  		domElement.style.color = '#000';
-  		domElement.style.padding = '1em';
-  		domElement.style.width = '475px';
-  		domElement.style.margin = '5em auto 0';
-
-  		if ( ! this.webgl ) {
-
-  			domElement.innerHTML = window.WebGLRenderingContext ? [
-  				'Your graphics card does not seem to support <a href="http://khronos.org/webgl/wiki/Getting_a_WebGL_Implementation">WebGL</a>.<br />',
-  				'Find out how to get it <a href="http://get.webgl.org/">here</a>.'
-  			].join( '\n' ) : [
-  				'Your browser does not seem to support <a href="http://khronos.org/webgl/wiki/Getting_a_WebGL_Implementation">WebGL</a>.<br/>',
-  				'Find out how to get it <a href="http://get.webgl.org/">here</a>.'
-  			].join( '\n' );
-
-  		}
-
-  		return domElement;
-
-  	},
-
-  	addGetWebGLMessage : function ( parameters ) {
-
-  		var parent, id, domElement;
-
-  		parameters = parameters || {};
-
-  		parent = parameters.parent !== undefined ? parameters.parent : document.body;
-  		id = parameters.id !== undefined ? parameters.id : 'oldie';
-
-  		domElement = Detector.getWebGLErrorMessage();
-  		domElement.id = id;
-
-  		parent.appendChild( domElement );
-
-  	}
-
-  };
-}
-
-});
-
-require.define("/node_modules/interact/package.json",function(require,module,exports,__dirname,__filename,process,global){module.exports = {"main":"index.js"}
-});
-
-require.define("/node_modules/interact/index.js",function(require,module,exports,__dirname,__filename,process,global){var lock = require('pointer-lock')
-  , drag = require('drag-stream')
-  , full = require('fullscreen')
-
-var EE = require('events').EventEmitter
-  , Stream = require('stream').Stream
-
-module.exports = interact
-
-function interact(el, skiplock) {
-  var ee = new EE
-    , internal
-
-  if(!lock.available() || skiplock) {
-    internal = usedrag(el)
-  } else {
-    internal = uselock(el, politelydeclined)
-  }
-
-  ee.release = function() { internal.release && internal.release() }
-  ee.request = function() { internal.request && internal.request() }
-  ee.destroy = function() { internal.destroy && internal.destroy() }
-  ee.pointerAvailable = function() { return lock.available() }
-  ee.fullscreenAvailable = function() { return full.available() }
-
-  forward()
-
-  return ee
-
-  function politelydeclined() {
-    ee.emit('opt-out')
-    internal.destroy()
-    internal = usedrag(el)
-    forward()
-  }
-
-  function forward() {
-    internal.on('attain', function(stream) {
-      ee.emit('attain', stream)
-    })
-
-    internal.on('release', function() {
-      ee.emit('release')
-    })
-  }
-}
-
-function uselock(el, declined) {
-  var pointer = lock(el)
-    , fs = full(el)
-
-  pointer.on('needs-fullscreen', function() {
-    fs.once('attain', function() {
-      pointer.request()
-    })
-    fs.request()
-  })
-
-  pointer.on('error', declined)
-
-  return pointer
-}
-
-function usedrag(el) {
-  var ee = new EE
-    , d = drag(el)
-    , stream
-
-  d.paused = true
-
-  d.on('resume', function() {
-    stream = new Stream
-    stream.readable = true
-    stream.initial = null
-  })
-
-  d.on('data', function(datum) {
-    if(!stream) {
-      stream = new Stream
-      stream.readable = true
-      stream.initial = null
-    }
-
-    if(!stream.initial) {
-      stream.initial = {
-        x: datum.dx
-      , y: datum.dy
-      , t: datum.dt
-      }
-      return ee.emit('attain', stream)
-    }
-
-    if(stream.paused) {
-      ee.emit('release')
-      stream.emit('end')
-      stream.readable = false
-      stream.emit('close')
-      stream = null
-    }
-
-    stream.emit('data', datum)
-  })
-
-  return ee
-}
-
-});
-
-require.define("/node_modules/pointer-lock/package.json",function(require,module,exports,__dirname,__filename,process,global){module.exports = {"main":"index.js"}
-});
-
-require.define("/node_modules/pointer-lock/index.js",function(require,module,exports,__dirname,__filename,process,global){module.exports = pointer
-
-pointer.available = available
-
-var EE = require('events').EventEmitter
-  , Stream = require('stream').Stream
-
-function available() {
-  return !!shim(document.body)
-}
-
-function pointer(el) {
-  var ael = el.addEventListener || el.attachEvent
-    , rel = el.removeEventListener || el.detachEvent
-    , doc = el.ownerDocument
-    , body = doc.body
-    , rpl = shim(el) 
-    , out = {dx: 0, dy: 0, dt: 0}
-    , ee = new EE
-    , stream = null
-    , lastPageX, lastPageY
-    , needsFullscreen = false
-    , mouseDownMS
-
-  ael.call(el, 'mousedown', onmousedown, false)
-  ael.call(el, 'mouseup', onmouseup, false)
-  ael.call(body, 'mousemove', onmove, false)
-
-  var vendors = ['', 'webkit', 'moz', 'ms', 'o']
-
-  for(var i = 0, len = vendors.length; i < len; ++i) {
-    ael.call(doc, vendors[i]+'pointerlockchange', onpointerlockchange)
-    ael.call(doc, vendors[i]+'pointerlockerror', onpointerlockerror)
-  }
-
-  ee.release = release
-  ee.target = pointerlockelement
-  ee.request = onmousedown
-  ee.destroy = function() {
-    rel.call(el, 'mouseup', onmouseup, false)
-    rel.call(el, 'mousedown', onmousedown, false)
-    rel.call(el, 'mousemove', onmove, false)
-  }
-
-  if(!shim) {
-    setTimeout(function() {
-      ee.emit('error', new Error('pointer lock is not supported'))
-    }, 0)
-  }
-  return ee
-
-  function onmousedown(ev) {
-    if(pointerlockelement()) {
-      return
-    }
-    mouseDownMS = +new Date
-    rpl.call(el)
-  }
-
-  function onmouseup(ev) {
-    if(!needsFullscreen) {
-      return
-    }
-
-    ee.emit('needs-fullscreen')
-    needsFullscreen = false
-  }
-
-  function onpointerlockchange(ev) {
-    if(!pointerlockelement()) {
-      if(stream) release()
-      return
-    }
-
-    stream = new Stream
-    stream.readable = true
-    stream.initial = {x: lastPageX, y: lastPageY, t: Date.now()}
-
-    ee.emit('attain', stream)
-  }
-
-  function onpointerlockerror(ev) {
-    var dt = +(new Date) - mouseDownMS
-    if(dt < 100) {
-      // we errored immediately, we need to do fullscreen first.
-      needsFullscreen = true
-      return
-    }
-
-    if(stream) {
-      stream.emit('error', ev)
-      stream = null
-    }
-  }
-
-  function release() {
-    ee.emit('release')
-
-    if(stream) {
-      stream.emit('end')
-      stream.readable = false
-      stream.emit('close')
-      stream = null
-    }
-
-    var pel = pointerlockelement()
-    if(!pel) {
-      return
-    }
-
-    (doc.exitPointerLock ||
-    doc.mozExitPointerLock ||
-    doc.webkitExitPointerLock ||
-    doc.msExitPointerLock ||
-    doc.oExitPointerLock).call(doc)
-  }
-
-  function onmove(ev) {
-    lastPageX = ev.pageX
-    lastPageY = ev.pageY
-
-    if(!stream) return
-
-    // we're reusing a single object
-    // because I'd like to avoid piling up
-    // a ton of objects for the garbage
-    // collector.
-    out.dx =
-      ev.movementX || ev.webkitMovementX ||
-      ev.mozMovementX || ev.msMovementX ||
-      ev.oMovementX || 0
-
-    out.dy = 
-      ev.movementY || ev.webkitMovementY ||
-      ev.mozMovementY || ev.msMovementY ||
-      ev.oMovementY || 0
-
-    out.dt = Date.now() - stream.initial.t
-
-    ee.emit('data', out)
-    stream.emit('data', out)
-  }
-
-  function pointerlockelement() {
-    return 0 ||
-      doc.pointerLockElement ||
-      doc.mozPointerLockElement ||
-      doc.webkitPointerLockElement ||
-      doc.msPointerLockElement ||
-      doc.oPointerLockElement ||
-      null
-  }
-}
-
-function shim(el) {
-  return el.requestPointerLock ||
-    el.webkitRequestPointerLock ||
-    el.mozRequestPointerLock ||
-    el.msRequestPointerLock ||
-    el.oRequestPointerLock ||
-    null
-}
-
-});
-
-require.define("/node_modules/drag-stream/package.json",function(require,module,exports,__dirname,__filename,process,global){module.exports = {"main":"index.js"}
-});
-
-require.define("/node_modules/drag-stream/index.js",function(require,module,exports,__dirname,__filename,process,global){module.exports = dragstream
-
-var Stream = require('stream')
-  , read = require('domnode-dom').createReadStream
-  , through = require('through')
-
-function dragstream(el) {
-  var body = el.ownerDocument.body
-    , down = read(el, 'mousedown')
-    , up = read(body, 'mouseup', false)
-    , move = read(body, 'mousemove', false)
-    , anchor = {x: 0, y: 0, t: 0}
-    , drag = through(on_move)
-
-  // default to "paused"
-  drag.pause()
-
-  down.on('data', on_down)
-  up.on('data', on_up)
-
-  return move.pipe(drag)
-
-  // listeners:
-
-  function on_move(ev) {
-    if(drag.paused) return
-
-    drag.emit('data', datum(
-        ev.screenX - anchor.x
-      , ev.screenY - anchor.y
-      , +new Date
-    ))
-
-    anchor.x = ev.screenX
-    anchor.y = ev.screenY
-  }
-
-  function on_down(ev) {
-    anchor.x = ev.screenX
-    anchor.y = ev.screenY
-    anchor.t = +new Date
-    drag.resume()
-    drag.emit('data', datum(
-        anchor.x
-      , anchor.y
-      , anchor.t
-    ))
-  }
-
-  function on_up(ev) {
-    drag.pause()
-    drag.emit('data', datum(
-        ev.screenX - anchor.x
-      , ev.screenY - anchor.y
-      , +new Date
-    ))
-  }
-
-  function datum(dx, dy, when) {
-    return {
-      dx: dx
-    , dy: dy
-    , dt: when - anchor.t
-    }
-  }
-}
-
-});
-
-require.define("/node_modules/domnode-dom/package.json",function(require,module,exports,__dirname,__filename,process,global){module.exports = {"main":"index.js"}
-});
-
-require.define("/node_modules/domnode-dom/index.js",function(require,module,exports,__dirname,__filename,process,global){module.exports = require('./lib/index')
-
-});
-
-require.define("/node_modules/domnode-dom/lib/index.js",function(require,module,exports,__dirname,__filename,process,global){var WriteStream = require('./writable')
-  , ReadStream = require('./readable')
-  , DOMStream = {}
-
-DOMStream.WriteStream = WriteStream
-DOMStream.ReadStream = ReadStream
-
-DOMStream.createAppendStream = function(el, mimetype) {
-  return new DOMStream.WriteStream(
-      el
-    , DOMStream.WriteStream.APPEND
-    , mimetype
-  )
-}
-
-DOMStream.createWriteStream = function(el, mimetype) {
-  return new DOMStream.WriteStream(
-      el
-    , DOMStream.WriteStream.WRITE
-    , mimetype
-  )
-}
-
-DOMStream.createReadStream =
-DOMStream.createEventStream = function(el, type, preventDefault) {
-  preventDefault = preventDefault === undefined ? true : preventDefault
-
-  return new DOMStream.ReadStream(
-      el
-    , type
-    , preventDefault
-  )
-}
-
-module.exports = DOMStream
-
-
-});
-
-require.define("/node_modules/domnode-dom/lib/writable.js",function(require,module,exports,__dirname,__filename,process,global){module.exports = DOMStream
-
-var Stream = require('stream').Stream
-
-function DOMStream(el, mode, mimetype) {
-  this.el = el
-  this.mode = mode
-  this.mimetype = mimetype || 'text/html'
-
-  Stream.call(this)
-}
-
-var cons = DOMStream
-  , proto = cons.prototype = Object.create(Stream.prototype)
-
-proto.constructor = cons
-
-cons.APPEND = 0
-cons.WRITE = 1
-
-proto.writable = true
-
-proto.setMimetype = function(mime) {
-  this.mimetype = mime
-}
-
-proto.write = function(data) {
-  var result = (this.mode === cons.APPEND) ? this.append(data) : this.insert(data)
-  this.emit('data', this.el.childNodes)
-  return result
-}
-
-proto.end = function() {
-
-}
-
-proto.insert = function(data) {
-  this.el.innerHTML = ''
-  return this.append(data)
-}
-
-proto.append = function(data) {
-  var result = this[this.resolveMimetypeHandler()](data)
-
-  for(var i = 0, len = result.length; i < len; ++i) {
-    this.el.appendChild(result[i])
-  }
-
-  return true
-}
-
-proto.resolveMimetypeHandler = function() {
-  var type = this.mimetype.replace(/(\/\w)/, function(x) {
-    return x.slice(1).toUpperCase()
-  })
-  type = type.charAt(0).toUpperCase() + type.slice(1)
-
-  return 'construct'+type
-}
-
-proto.constructTextHtml = function(data) {
-  var isTableFragment = /(tr|td|th)/.test(data) && !/table/.test(data)
-    , div
-
-  if(isTableFragment) {
-    // wuh-oh.
-    div = document.createElement('table')
-  }
-
-  div = div || document.createElement('div')
-  div.innerHTML = data 
-
-  return [].slice.call(div.childNodes)
-}
-
-proto.constructTextPlain = function(data) {
-  var textNode = document.createTextNode(data)
-
-  return [textNode]
-}
-
-});
-
-require.define("/node_modules/domnode-dom/lib/readable.js",function(require,module,exports,__dirname,__filename,process,global){module.exports = DOMStream
-
-var Stream = require('stream').Stream
-
-var listener = function(el, type, onmsg) {
-  return el.addEventListener(type, onmsg, false)
-}
-
-if(typeof $ !== 'undefined')
-  listener = function(el, type, onmsg) {
-    return el = $(el)[type](onmsg)
-  }
-
-if(typeof document !== 'undefined' && !document.createElement('div').addEventListener)
-  listener = function(el, type, onmsg) {
-    return el.attachEvent('on'+type, onmsg)
-  }
-
-function DOMStream(el, eventType, shouldPreventDefault) {
-  this.el = el
-  this.eventType = eventType
-  this.shouldPreventDefault = shouldPreventDefault
-
-  var self = this
-
-  if(el && this.eventType)
-    listener(
-        this.el
-      , this.eventType
-      , function() { return self.listen.apply(self, arguments) }
-    )
-
-  Stream.call(this)
-}
-
-var cons = DOMStream
-  , proto = cons.prototype = Object.create(Stream.prototype)
-
-proto.constructor = cons
-
-proto.listen = function(ev) {
-  if(this.shouldPreventDefault)
-    ev.preventDefault ? ev.preventDefault() : (ev.returnValue = false)
-
-  var collectData =
-    this.eventType === 'submit' ||
-    this.eventType === 'change' ||
-    this.eventType === 'keydown' ||
-    this.eventType === 'keyup' ||
-    this.eventType === 'input'
-
-  if(collectData) {
-    if(this.el.tagName.toUpperCase() === 'FORM')
-      return this.handleFormSubmit(ev)
-
-    return this.emit('data', valueFromElement(this.el))
-  }
-
-  this.emit('data', ev)
-}
-
-proto.handleFormSubmit = function(ev) {
-  var elements = []
-
-  if(this.el.querySelectorAll) {
-    elements = this.el.querySelectorAll('input,textarea,select')
-  } else {
-    var inputs = {'INPUT':true, 'TEXTAREA':true, 'SELECT':true}
-
-    var recurse = function(el) {
-      for(var i = 0, len = el.childNodes.length; i < len; ++i) {
-        if(el.childNodes[i].tagName) {
-          if(inputs[el.childNodes[i].tagName.toUpperCase()]) {
-            elements.push(el)
-          } else {
-            recurse(el.childNodes[i])
-          }
-        }
-      }
-    }
-
-    recurse(this.el)
-  }
-
-  var output = {}
-    , attr
-    , val
-
-  for(var i = 0, len = elements.length; i < len; ++i) {
-    attr = elements[i].getAttribute('name')
-    val = valueFromElement(elements[i])
-
-    if(val !== null) {
-      output[attr] = val
-    }
-  }
-
-  return this.emit('data', output)
-}
-
-function valueFromElement(el) {
-  switch(el.getAttribute('type')) {
-    case 'radio':
-      return el.checked ? el.value : null
-    case 'checkbox':
-      return 'data', el.checked
-  }
-  return el.value
-}
-
-});
-
-require.define("/node_modules/through/package.json",function(require,module,exports,__dirname,__filename,process,global){module.exports = {"main":"index.js"}
-});
-
-require.define("/node_modules/through/index.js",function(require,module,exports,__dirname,__filename,process,global){var Stream = require('stream')
-
-// through
-//
-// a stream that does nothing but re-emit the input.
-// useful for aggregating a series of changing but not ending streams into one stream)
-
-
-
-exports = module.exports = through
-through.through = through
-
-//create a readable writable stream.
-
-function through (write, end) {
-  write = write || function (data) { this.emit('data', data) }
-  end = end || function () { this.emit('end') }
-
-  var ended = false, destroyed = false
-  var stream = new Stream(), buffer = []
-  stream.buffer = buffer
-  stream.readable = stream.writable = true
-  stream.paused = false
-  stream.write = function (data) {
-    write.call(this, data)
-    return !stream.paused
-  }
-
-  function drain() {
-    while(buffer.length && !stream.paused) {
-      var data = buffer.shift()
-      if(null === data)
-        return stream.emit('end')
-      else
-        stream.emit('data', data)
-    }
-  }
-
-  stream.queue = function (data) {
-    buffer.push(data)
-    drain()
-  }
-
-  //this will be registered as the first 'end' listener
-  //must call destroy next tick, to make sure we're after any
-  //stream piped from here.
-  //this is only a problem if end is not emitted synchronously.
-  //a nicer way to do this is to make sure this is the last listener for 'end'
-
-  stream.on('end', function () {
-    stream.readable = false
-    if(!stream.writable)
-      process.nextTick(function () {
-        stream.destroy()
-      })
-  })
-
-  function _end () {
-    stream.writable = false
-    end.call(stream)
-    if(!stream.readable)
-      stream.destroy()
-  }
-
-  stream.end = function (data) {
-    if(ended) return
-    ended = true
-    if(arguments.length) stream.write(data)
-    _end() // will emit or queue
-  }
-
-  stream.destroy = function () {
-    if(destroyed) return
-    destroyed = true
-    ended = true
-    buffer.length = 0
-    stream.writable = stream.readable = false
-    stream.emit('close')
-  }
-
-  stream.pause = function () {
-    if(stream.paused) return
-    stream.paused = true
-    stream.emit('pause')
-  }
-  stream.resume = function () {
-    if(stream.paused) {
-      stream.paused = false
-    }
-    drain()
-    //may have become paused again,
-    //as drain emits 'data'.
-    if(!stream.paused)
-      stream.emit('drain')
-  }
-  return stream
-}
-
-
-});
-
-require.define("/node_modules/fullscreen/package.json",function(require,module,exports,__dirname,__filename,process,global){module.exports = {"main":"index.js"}
-});
-
-require.define("/node_modules/fullscreen/index.js",function(require,module,exports,__dirname,__filename,process,global){module.exports = fullscreen
-fullscreen.available = available
-
-var EE = require('events').EventEmitter
-
-function available() {
-  return !!shim(document.body)
-}
-
-function fullscreen(el) {
-  var ael = el.addEventListener || el.attachEvent
-    , doc = el.ownerDocument
-    , body = doc.body
-    , rfs = shim(el)
-    , ee = new EE
-
-  var vendors = ['', 'webkit', 'moz', 'ms', 'o']
-
-  for(var i = 0, len = vendors.length; i < len; ++i) {
-    ael.call(doc, vendors[i]+'fullscreenchange', onfullscreenchange)
-    ael.call(doc, vendors[i]+'fullscreenerror', onfullscreenerror)
-  }
-
-  ee.release = release
-  ee.request = request
-  ee.target = fullscreenelement
-
-  if(!shim) {
-    setTimeout(function() {
-      ee.emit('error', new Error('fullscreen is not supported'))
-    }, 0)
-  }
-  return ee
-
-  function onfullscreenchange() {
-    if(!fullscreenelement()) {
-      return ee.emit('release')
-    }
-    ee.emit('attain')
-  }
-
-  function onfullscreenerror() {
-    ee.emit('error')
-  }
-
-  function request() {
-    return rfs.call(el)
-  }
-
-  function release() {
-    (el.exitFullscreen ||
-    el.exitFullscreen ||
-    el.webkitExitFullScreen ||
-    el.webkitExitFullscreen ||
-    el.mozExitFullScreen ||
-    el.mozExitFullscreen ||
-    el.msExitFullScreen ||
-    el.msExitFullscreen ||
-    el.oExitFullScreen ||
-    el.oExitFullscreen).call(el)
-  } 
-
-  function fullscreenelement() {
-    return 0 ||
-      doc.fullScreenElement ||
-      doc.fullscreenElement ||
-      doc.webkitFullScreenElement ||
-      doc.webkitFullscreenElement ||
-      doc.mozFullScreenElement ||
-      doc.mozFullscreenElement ||
-      doc.msFullScreenElement ||
-      doc.msFullscreenElement ||
-      doc.oFullScreenElement ||
-      doc.oFullscreenElement ||
-      null
-  }
-}
-
-function shim(el) {
-  return (el.requestFullscreen ||
-    el.webkitRequestFullscreen ||
-    el.webkitRequestFullScreen ||
-    el.mozRequestFullscreen ||
-    el.mozRequestFullScreen ||
-    el.msRequestFullscreen ||
-    el.msRequestFullScreen ||
-    el.oRequestFullscreen ||
-    el.oRequestFullScreen)
-}
-
-});
-
-require.define("/node_modules/raf/package.json",function(require,module,exports,__dirname,__filename,process,global){module.exports = {"main":"index.js"}
-});
-
-require.define("/node_modules/raf/index.js",function(require,module,exports,__dirname,__filename,process,global){module.exports = raf
-
-var EE = require('events').EventEmitter
-  , global = typeof window === 'undefined' ? this : window
-
-var _raf =
-  global.requestAnimationFrame ||
-  global.webkitRequestAnimationFrame ||
-  global.mozRequestAnimationFrame ||
-  global.msRequestAnimationFrame ||
-  global.oRequestAnimationFrame ||
-  (global.setImmediate ? function(fn, el) {
-    setImmediate(fn)
-  } :
-  function(fn, el) {
-    setTimeout(fn, 0)
-  })
-
-function raf(el) {
-  var now = raf.now()
-    , ee = new EE
-
-  ee.pause = function() { ee.paused = true }
-  ee.resume = function() { ee.paused = false }
-
-  _raf(iter, el)
-
-  return ee
-
-  function iter(timestamp) {
-    var _now = raf.now()
-      , dt = _now - now
-    
-    now = _now
-
-    ee.emit('data', dt)
-
-    if(!ee.paused) {
-      _raf(iter, el)
-    }
-  }
-}
-
-raf.polyfill = _raf
-raf.now = function() { return Date.now() }
-
-});
-
-require.define("/node_modules/collide-3d-tilemap/package.json",function(require,module,exports,__dirname,__filename,process,global){module.exports = {"main":"index.js"}
-});
-
-require.define("/node_modules/collide-3d-tilemap/index.js",function(require,module,exports,__dirname,__filename,process,global){module.exports = function(field, tilesize, dimensions, offset) {
-  dimensions = dimensions || [ 
-    Math.sqrt(field.length) >> 0
-  , Math.sqrt(field.length) >> 0
-  , Math.sqrt(field.length) >> 0
-  ] 
-
-  offset = offset || [
-    0
-  , 0
-  , 0
-  ]
-
-  field = typeof field === 'function' ? field : function(x, y, z) {
-    return this[x + y * dimensions[1] + (z * dimensions[1] * dimensions[2])]
-  }.bind(field) 
-
-  var coords
-
-  coords = [0, 0, 0]
-
-  return collide
-
-  function collide(box, vec, oncollision) {
-    if(vec[0] === 0 && vec[1] === 0 && vec[2] === 0) return
-
-    // collide x, then y
-    collideaxis(0)
-    collideaxis(1)
-    collideaxis(2)
-
-    function collideaxis(i_axis) {
-      var j_axis = (i_axis + 1) % 3
-        , k_axis = (i_axis + 2) % 3 
-        , posi = vec[i_axis] > 0
-        , leading = box[posi ? 'max' : 'base'][i_axis] 
-        , dir = posi ? 1 : -1
-        , i_start = Math.floor(leading / tilesize)
-        , i_end = (Math.floor((leading + vec[i_axis]) / tilesize)) + dir
-        , j_start = Math.floor(box.base[j_axis] / tilesize)
-        , j_end = Math.ceil(box.max[j_axis] / tilesize)
-        , k_start = Math.floor(box.base[k_axis] / tilesize) 
-        , k_end = Math.ceil(box.max[k_axis] / tilesize)
-        , done = false
-        , edge_vector
-        , edge
-        , tile
-
-      // loop from the current tile coord to the dest tile coord
-      //    -> loop on the opposite axis to get the other candidates
-      //      -> if `oncollision` return `true` we've hit something and
-      //         should break out of the loops entirely.
-      //         NB: `oncollision` is where the client gets the chance
-      //         to modify the `vec` in-flight.
-      // once we're done translate the box to the vec results
-
-      var step = 0
-      for(var i = i_start; !done && i !== i_end; ++step, i += dir) {
-        if(i < offset[i_axis] || i >= dimensions[i_axis]) continue
-        for(var j = j_start; !done && j !== j_end; ++j) {
-          if(j < offset[j_axis] || j >= dimensions[j_axis]) continue
-          for(var k = k_start; k !== k_end; ++k) {
-            if(k < offset[k_axis] || k >= dimensions[k_axis]) continue
-            coords[i_axis] = i
-            coords[j_axis] = j
-            coords[k_axis] = k
-            tile = field.apply(field, coords)
-
-            if(tile === undefined) continue
-
-            edge = dir > 0 ? i * tilesize : (i + 1) * tilesize
-            edge_vector = edge - leading
-
-            if(oncollision(i_axis, tile, coords, dir, edge_vector)) {
-              done = true
-              break
-            }
-          } 
-        }
-      }
-
-      coords[0] = coords[1] = coords[2] = 0
-      coords[i_axis] = vec[i_axis]
-      box.translate(coords)
-    }
-  }  
-}
-
-});
-
-require.define("/node_modules/aabb-3d/package.json",function(require,module,exports,__dirname,__filename,process,global){module.exports = {"main":"index.js"}
-});
-
-require.define("/node_modules/aabb-3d/index.js",function(require,module,exports,__dirname,__filename,process,global){module.exports = AABB
-
-var vec3 = require('gl-matrix').vec3
-
-function AABB(pos, vec) {
-  if(!(this instanceof AABB)) {
-    return new AABB(pos, vec)
-  }
-
-  this.base = pos
-  this.vec = vec
-
-  this.mag = vec3.length(this.vec)
-
-  this.max = vec3.create()
-  vec3.add(this.max, this.base, this.vec)
-}
-
-var cons = AABB
-  , proto = cons.prototype
-
-proto.width = function() {
-  return this.vec[0]
-}
-
-proto.height = function() {
-  return this.vec[1]
-}
-
-proto.depth = function() {
-  return this.vec[2]
-}
-
-proto.x0 = function() {
-  return this.base[0]
-}
-
-proto.y0 = function() {
-  return this.base[1]
-}
-
-proto.z0 = function() {
-  return this.base[2]
-}
-
-proto.x1 = function() {
-  return this.max[0]
-}
-
-proto.y1 = function() {
-  return this.max[1]
-}
-
-proto.z1 = function() {
-  return this.max[2]
-}
-
-proto.translate = function(by) {
-  vec3.add(this.max, this.max, by)
-  vec3.add(this.base, this.base, by)
-  return this
-}
-
-proto.expand = function(aabb) {
-  var max = vec3.create()
-    , min = vec3.create()
-
-  vec3.max(max, aabb.max, this.max)
-  vec3.min(min, aabb.base, this.base)
-  vec3.sub(max, max, min)
-
-  return new AABB(min, max)
-}
-
-proto.intersects = function(aabb) {
-  if(aabb.base[0] > this.max[0]) return false
-  if(aabb.base[1] > this.max[1]) return false
-  if(aabb.base[2] > this.max[2]) return false
-  if(aabb.max[0] < this.base[0]) return false
-  if(aabb.max[1] < this.base[1]) return false
-  if(aabb.max[2] < this.base[2]) return false
-
-  return true
-}
-
-proto.union = function(aabb) {
-  if(!this.intersects(aabb)) return null
-
-  var base_x = Math.max(aabb.base[0], this.base[0])
-    , base_y = Math.max(aabb.base[1], this.base[1])
-    , base_z = Math.max(aabb.base[2], this.base[2])
-    , max_x = Math.min(aabb.max[0], this.max[0])
-    , max_y = Math.min(aabb.max[1], this.max[1])
-    , max_z = Math.min(aabb.max[2], this.max[2])
-
-  return new AABB([base_x, base_y, base_z], [max_x - base_x, max_y - base_y, max_z - base_z])
-}
-
-});
-
-require.define("/node_modules/gl-matrix/package.json",function(require,module,exports,__dirname,__filename,process,global){module.exports = {"main":"dist/gl-matrix.js"}
-});
-
-require.define("/node_modules/gl-matrix/dist/gl-matrix.js",function(require,module,exports,__dirname,__filename,process,global){/**
- * @fileoverview gl-matrix - High performance matrix and vector operations
- * @author Brandon Jones
- * @author Colin MacKenzie IV
- * @version 2.0.0
- */
-
-/* Copyright (c) 2012, Brandon Jones, Colin MacKenzie IV. All rights reserved.
-
-Redistribution and use in source and binary forms, with or without modification,
-are permitted provided that the following conditions are met:
-
-  * Redistributions of source code must retain the above copyright notice, this
-    list of conditions and the following disclaimer.
-  * Redistributions in binary form must reproduce the above copyright notice,
-    this list of conditions and the following disclaimer in the documentation 
-    and/or other materials provided with the distribution.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
-DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
-ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
-ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. */
-
-
-(function() {
-  "use strict";
-
-  var shim = {};
-  if (typeof(exports) === 'undefined') {
-    if(typeof define == 'function' && typeof define.amd == 'object' && define.amd) {
-      shim.exports = {};
-      define(function() {
-        return shim.exports;
-      });
-    } else {
-      // gl-matrix lives in a browser, define its namespaces in global
-      shim.exports = window;
-    }    
-  }
-  else {
-    // gl-matrix lives in commonjs, define its namespaces in exports
-    shim.exports = exports;
-  }
-
-  (function(exports) {
-    /* Copyright (c) 2012, Brandon Jones, Colin MacKenzie IV. All rights reserved.
-
-Redistribution and use in source and binary forms, with or without modification,
-are permitted provided that the following conditions are met:
-
-  * Redistributions of source code must retain the above copyright notice, this
-    list of conditions and the following disclaimer.
-  * Redistributions in binary form must reproduce the above copyright notice,
-    this list of conditions and the following disclaimer in the documentation 
-    and/or other materials provided with the distribution.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
-DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
-ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
-ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. */
-
-/**
- * @class 2 Dimensional Vector
- * @name vec2
- */
-
-var vec2 = {};
-
-if(!GLMAT_EPSILON) {
-    var GLMAT_EPSILON = 0.000001;
-}
- 
-/**
- * Creates a new, empty vec2
- *
- * @returns {vec2} a new 2D vector
- */
-vec2.create = function() {
-    return new Float32Array(2);
-};
-
-/**
- * Creates a new vec2 initialized with values from an existing vector
- *
- * @param {vec2} a vector to clone
- * @returns {vec2} a new 2D vector
- */
-vec2.clone = function(a) {
-    var out = new Float32Array(2);
-    out[0] = a[0];
-    out[1] = a[1];
-    return out;
-};
-
-/**
- * Creates a new vec2 initialized with the given values
- *
- * @param {Number} x X component
- * @param {Number} y Y component
- * @returns {vec2} a new 2D vector
- */
-vec2.fromValues = function(x, y) {
-    var out = new Float32Array(2);
-    out[0] = x;
-    out[1] = y;
-    return out;
-};
-
-/**
- * Copy the values from one vec2 to another
- *
- * @param {vec2} out the receiving vector
- * @param {vec2} a the source vector
- * @returns {vec2} out
- */
-vec2.copy = function(out, a) {
-    out[0] = a[0];
-    out[1] = a[1];
-    return out;
-};
-
-/**
- * Set the components of a vec2 to the given values
- *
- * @param {vec2} out the receiving vector
- * @param {Number} x X component
- * @param {Number} y Y component
- * @returns {vec2} out
- */
-vec2.set = function(out, x, y) {
-    out[0] = x;
-    out[1] = y;
-    return out;
-};
-
-/**
- * Adds two vec2's
- *
- * @param {vec2} out the receiving vector
- * @param {vec2} a the first operand
- * @param {vec2} b the second operand
- * @returns {vec2} out
- */
-vec2.add = function(out, a, b) {
-    out[0] = a[0] + b[0];
-    out[1] = a[1] + b[1];
-    return out;
-};
-
-/**
- * Subtracts two vec2's
- *
- * @param {vec2} out the receiving vector
- * @param {vec2} a the first operand
- * @param {vec2} b the second operand
- * @returns {vec2} out
- */
-vec2.sub = vec2.subtract = function(out, a, b) {
-    out[0] = a[0] - b[0];
-    out[1] = a[1] - b[1];
-    return out;
-};
-
-/**
- * Multiplies two vec2's
- *
- * @param {vec2} out the receiving vector
- * @param {vec2} a the first operand
- * @param {vec2} b the second operand
- * @returns {vec2} out
- */
-vec2.mul = vec2.multiply = function(out, a, b) {
-    out[0] = a[0] * b[0];
-    out[1] = a[1] * b[1];
-    return out;
-};
-
-/**
- * Divides two vec2's
- *
- * @param {vec2} out the receiving vector
- * @param {vec2} a the first operand
- * @param {vec2} b the second operand
- * @returns {vec2} out
- */
-vec2.div = vec2.divide = function(out, a, b) {
-    out[0] = a[0] / b[0];
-    out[1] = a[1] / b[1];
-    return out;
-};
-
-/**
- * Returns the minimum of two vec2's
- *
- * @param {vec2} out the receiving vector
- * @param {vec2} a the first operand
- * @param {vec2} b the second operand
- * @returns {vec2} out
- */
-vec2.min = function(out, a, b) {
-    out[0] = Math.min(a[0], b[0]);
-    out[1] = Math.min(a[1], b[1]);
-    return out;
-};
-
-/**
- * Returns the maximum of two vec2's
- *
- * @param {vec2} out the receiving vector
- * @param {vec2} a the first operand
- * @param {vec2} b the second operand
- * @returns {vec2} out
- */
-vec2.max = function(out, a, b) {
-    out[0] = Math.max(a[0], b[0]);
-    out[1] = Math.max(a[1], b[1]);
-    return out;
-};
-
-/**
- * Scales a vec2 by a scalar number
- *
- * @param {vec2} out the receiving vector
- * @param {vec2} a the vector to scale
- * @param {vec2} b amount to scale the vector by
- * @returns {vec2} out
- */
-vec2.scale = function(out, a, b) {
-    out[0] = a[0] * b;
-    out[1] = a[1] * b;
-    return out;
-};
-
-/**
- * Calculates the euclidian distance between two vec2's
- *
- * @param {vec2} a the first operand
- * @param {vec2} b the second operand
- * @returns {Number} distance between a and b
- */
-vec2.dist = vec2.distance = function(a, b) {
-    var x = b[0] - a[0],
-        y = b[1] - a[1];
-    return Math.sqrt(x*x + y*y);
-};
-
-/**
- * Calculates the squared euclidian distance between two vec2's
- *
- * @param {vec2} a the first operand
- * @param {vec2} b the second operand
- * @returns {Number} squared distance between a and b
- */
-vec2.sqrDist = vec2.squaredDistance = function(a, b) {
-    var x = b[0] - a[0],
-        y = b[1] - a[1];
-    return x*x + y*y;
-};
-
-/**
- * Caclulates the length of a vec2
- *
- * @param {vec2} a vector to calculate length of
- * @returns {Number} length of a
- */
-vec2.len = vec2.length = function (a) {
-    var x = a[0],
-        y = a[1];
-    return Math.sqrt(x*x + y*y);
-};
-
-/**
- * Caclulates the squared length of a vec2
- *
- * @param {vec2} a vector to calculate squared length of
- * @returns {Number} squared length of a
- */
-vec2.sqrLen = vec2.squaredLength = function (a) {
-    var x = a[0],
-        y = a[1];
-    return x*x + y*y;
-};
-
-/**
- * Negates the components of a vec2
- *
- * @param {vec2} out the receiving vector
- * @param {vec2} a vector to negate
- * @returns {vec2} out
- */
-vec2.negate = function(out, a) {
-    out[0] = -a[0];
-    out[1] = -a[1];
-    return out;
-};
-
-/**
- * Normalize a vec2
- *
- * @param {vec2} out the receiving vector
- * @param {vec2} a vector to normalize
- * @returns {vec2} out
- */
-vec2.normalize = function(out, a) {
-    var x = a[0],
-        y = a[1];
-    var len = x*x + y*y;
-    if (len > 0) {
-        //TODO: evaluate use of glm_invsqrt here?
-        len = 1 / Math.sqrt(len);
-        out[0] = a[0] * len;
-        out[1] = a[1] * len;
-    }
-    return out;
-};
-
-/**
- * Caclulates the dot product of two vec2's
- *
- * @param {vec2} a the first operand
- * @param {vec2} b the second operand
- * @returns {Number} dot product of a and b
- */
-vec2.dot = function (a, b) {
-    return a[0] * b[0] + a[1] * b[1];
-};
-
-/**
- * Computes the cross product of two vec2's
- * Note that the cross product must by definition produce a 3D vector
- *
- * @param {vec3} out the receiving vector
- * @param {vec2} a the first operand
- * @param {vec2} b the second operand
- * @returns {vec3} out
- */
-vec2.cross = function(out, a, b) {
-    var z = a[0] * b[1] - a[1] * b[0];
-    out[0] = out[1] = 0;
-    out[2] = z;
-    return out;
-};
-
-/**
- * Performs a linear interpolation between two vec2's
- *
- * @param {vec3} out the receiving vector
- * @param {vec2} a the first operand
- * @param {vec2} b the second operand
- * @param {Number} t interpolation amount between the two inputs
- * @returns {vec2} out
- */
-vec2.lerp = function (out, a, b, t) {
-    var ax = a[0],
-        ay = a[1];
-    out[0] = ax + t * (b[0] - ax);
-    out[1] = ay + t * (b[1] - ay);
-    return out;
-};
-
-/**
- * Transforms the vec2 with a mat2
- *
- * @param {vec2} out the receiving vector
- * @param {vec2} a the vector to transform
- * @param {mat2} m matrix to transform with
- * @returns {vec2} out
- */
-vec2.transformMat2 = function(out, a, m) {
-    var x = a[0],
-        y = a[1];
-    out[0] = x * m[0] + y * m[1];
-    out[1] = x * m[2] + y * m[3];
-    return out;
-};
-
-/**
- * Perform some operation over an array of vec2s.
- *
- * @param {Array} a the array of vectors to iterate over
- * @param {Number} stride Number of elements between the start of each vec2. If 0 assumes tightly packed
- * @param {Number} offset Number of elements to skip at the beginning of the array
- * @param {Number} count Number of vec2s to iterate over. If 0 iterates over entire array
- * @param {Function} fn Function to call for each vector in the array
- * @param {Object} [arg] additional argument to pass to fn
- * @returns {Array} a
- */
-vec2.forEach = (function() {
-    var vec = new Float32Array(2);
-
-    return function(a, stride, offset, count, fn, arg) {
-        var i, l;
-        if(!stride) {
-            stride = 2;
-        }
-
-        if(!offset) {
-            offset = 0;
-        }
-        
-        if(count) {
-            l = Math.min((count * stride) + offset, a.length);
-        } else {
-            l = a.length;
-        }
-
-        for(i = offset; i < l; i += stride) {
-            vec[0] = a[i]; vec[1] = a[i+1];
-            fn(vec, vec, arg);
-            a[i] = vec[0]; a[i+1] = vec[1];
-        }
-        
-        return a;
-    };
-})();
-
-/**
- * Returns a string representation of a vector
- *
- * @param {vec2} vec vector to represent as a string
- * @returns {String} string representation of the vector
- */
-vec2.str = function (a) {
-    return 'vec2(' + a[0] + ', ' + a[1] + ')';
-};
-
-if(typeof(exports) !== 'undefined') {
-    exports.vec2 = vec2;
-}
-;
-/* Copyright (c) 2012, Brandon Jones, Colin MacKenzie IV. All rights reserved.
-
-Redistribution and use in source and binary forms, with or without modification,
-are permitted provided that the following conditions are met:
-
-  * Redistributions of source code must retain the above copyright notice, this
-    list of conditions and the following disclaimer.
-  * Redistributions in binary form must reproduce the above copyright notice,
-    this list of conditions and the following disclaimer in the documentation 
-    and/or other materials provided with the distribution.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
-DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
-ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
-ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. */
-
-/**
- * @class 3 Dimensional Vector
- * @name vec3
- */
-
-var vec3 = {};
-
-if(!GLMAT_EPSILON) {
-    var GLMAT_EPSILON = 0.000001;
-}
- 
-/**
- * Creates a new, empty vec3
- *
- * @returns {vec3} a new 3D vector
- */
-vec3.create = function() {
-    return new Float32Array(3);
-};
-
-/**
- * Creates a new vec3 initialized with values from an existing vector
- *
- * @param {vec3} a vector to clone
- * @returns {vec3} a new 3D vector
- */
-vec3.clone = function(a) {
-    var out = new Float32Array(3);
-    out[0] = a[0];
-    out[1] = a[1];
-    out[2] = a[2];
-    return out;
-};
-
-/**
- * Creates a new vec3 initialized with the given values
- *
- * @param {Number} x X component
- * @param {Number} y Y component
- * @param {Number} z Z component
- * @returns {vec3} a new 3D vector
- */
-vec3.fromValues = function(x, y, z) {
-    var out = new Float32Array(3);
-    out[0] = x;
-    out[1] = y;
-    out[2] = z;
-    return out;
-};
-
-/**
- * Copy the values from one vec3 to another
- *
- * @param {vec3} out the receiving vector
- * @param {vec3} a the source vector
- * @returns {vec3} out
- */
-vec3.copy = function(out, a) {
-    out[0] = a[0];
-    out[1] = a[1];
-    out[2] = a[2];
-    return out;
-};
-
-/**
- * Set the components of a vec3 to the given values
- *
- * @param {vec3} out the receiving vector
- * @param {Number} x X component
- * @param {Number} y Y component
- * @param {Number} z Z component
- * @returns {vec3} out
- */
-vec3.set = function(out, x, y, z) {
-    out[0] = x;
-    out[1] = y;
-    out[2] = z;
-    return out;
-};
-
-/**
- * Adds two vec3's
- *
- * @param {vec3} out the receiving vector
- * @param {vec3} a the first operand
- * @param {vec3} b the second operand
- * @returns {vec3} out
- */
-vec3.add = function(out, a, b) {
-    out[0] = a[0] + b[0];
-    out[1] = a[1] + b[1];
-    out[2] = a[2] + b[2];
-    return out;
-};
-
-/**
- * Subtracts two vec3's
- *
- * @param {vec3} out the receiving vector
- * @param {vec3} a the first operand
- * @param {vec3} b the second operand
- * @returns {vec3} out
- */
-vec3.sub = vec3.subtract = function(out, a, b) {
-    out[0] = a[0] - b[0];
-    out[1] = a[1] - b[1];
-    out[2] = a[2] - b[2];
-    return out;
-};
-
-/**
- * Multiplies two vec3's
- *
- * @param {vec3} out the receiving vector
- * @param {vec3} a the first operand
- * @param {vec3} b the second operand
- * @returns {vec3} out
- */
-vec3.mul = vec3.multiply = function(out, a, b) {
-    out[0] = a[0] * b[0];
-    out[1] = a[1] * b[1];
-    out[2] = a[2] * b[2];
-    return out;
-};
-
-/**
- * Divides two vec3's
- *
- * @param {vec3} out the receiving vector
- * @param {vec3} a the first operand
- * @param {vec3} b the second operand
- * @returns {vec3} out
- */
-vec3.div = vec3.divide = function(out, a, b) {
-    out[0] = a[0] / b[0];
-    out[1] = a[1] / b[1];
-    out[2] = a[2] / b[2];
-    return out;
-};
-
-/**
- * Returns the minimum of two vec3's
- *
- * @param {vec3} out the receiving vector
- * @param {vec3} a the first operand
- * @param {vec3} b the second operand
- * @returns {vec3} out
- */
-vec3.min = function(out, a, b) {
-    out[0] = Math.min(a[0], b[0]);
-    out[1] = Math.min(a[1], b[1]);
-    out[2] = Math.min(a[2], b[2]);
-    return out;
-};
-
-/**
- * Returns the maximum of two vec3's
- *
- * @param {vec3} out the receiving vector
- * @param {vec3} a the first operand
- * @param {vec3} b the second operand
- * @returns {vec3} out
- */
-vec3.max = function(out, a, b) {
-    out[0] = Math.max(a[0], b[0]);
-    out[1] = Math.max(a[1], b[1]);
-    out[2] = Math.max(a[2], b[2]);
-    return out;
-};
-
-/**
- * Scales a vec3 by a scalar number
- *
- * @param {vec3} out the receiving vector
- * @param {vec3} a the vector to scale
- * @param {vec3} b amount to scale the vector by
- * @returns {vec3} out
- */
-vec3.scale = function(out, a, b) {
-    out[0] = a[0] * b;
-    out[1] = a[1] * b;
-    out[2] = a[2] * b;
-    return out;
-};
-
-/**
- * Calculates the euclidian distance between two vec3's
- *
- * @param {vec3} a the first operand
- * @param {vec3} b the second operand
- * @returns {Number} distance between a and b
- */
-vec3.dist = vec3.distance = function(a, b) {
-    var x = b[0] - a[0],
-        y = b[1] - a[1],
-        z = b[2] - a[2];
-    return Math.sqrt(x*x + y*y + z*z);
-};
-
-/**
- * Calculates the squared euclidian distance between two vec3's
- *
- * @param {vec3} a the first operand
- * @param {vec3} b the second operand
- * @returns {Number} squared distance between a and b
- */
-vec3.sqrDist = vec3.squaredDistance = function(a, b) {
-    var x = b[0] - a[0],
-        y = b[1] - a[1],
-        z = b[2] - a[2];
-    return x*x + y*y + z*z;
-};
-
-/**
- * Caclulates the length of a vec3
- *
- * @param {vec3} a vector to calculate length of
- * @returns {Number} length of a
- */
-vec3.len = vec3.length = function (a) {
-    var x = a[0],
-        y = a[1],
-        z = a[2];
-    return Math.sqrt(x*x + y*y + z*z);
-};
-
-/**
- * Caclulates the squared length of a vec3
- *
- * @param {vec3} a vector to calculate squared length of
- * @returns {Number} squared length of a
- */
-vec3.sqrLen = vec3.squaredLength = function (a) {
-    var x = a[0],
-        y = a[1],
-        z = a[2];
-    return x*x + y*y + z*z;
-};
-
-/**
- * Negates the components of a vec3
- *
- * @param {vec3} out the receiving vector
- * @param {vec3} a vector to negate
- * @returns {vec3} out
- */
-vec3.negate = function(out, a) {
-    out[0] = -a[0];
-    out[1] = -a[1];
-    out[2] = -a[2];
-    return out;
-};
-
-/**
- * Normalize a vec3
- *
- * @param {vec3} out the receiving vector
- * @param {vec3} a vector to normalize
- * @returns {vec3} out
- */
-vec3.normalize = function(out, a) {
-    var x = a[0],
-        y = a[1],
-        z = a[2];
-    var len = x*x + y*y + z*z;
-    if (len > 0) {
-        //TODO: evaluate use of glm_invsqrt here?
-        len = 1 / Math.sqrt(len);
-        out[0] = a[0] * len;
-        out[1] = a[1] * len;
-        out[2] = a[2] * len;
-    }
-    return out;
-};
-
-/**
- * Caclulates the dot product of two vec3's
- *
- * @param {vec3} a the first operand
- * @param {vec3} b the second operand
- * @returns {Number} dot product of a and b
- */
-vec3.dot = function (a, b) {
-    return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-};
-
-/**
- * Computes the cross product of two vec3's
- *
- * @param {vec3} out the receiving vector
- * @param {vec3} a the first operand
- * @param {vec3} b the second operand
- * @returns {vec3} out
- */
-vec3.cross = function(out, a, b) {
-    var ax = a[0], ay = a[1], az = a[2],
-        bx = b[0], by = b[1], bz = b[2];
-
-    out[0] = ay * bz - az * by;
-    out[1] = az * bx - ax * bz;
-    out[2] = ax * by - ay * bx;
-    return out;
-};
-
-/**
- * Performs a linear interpolation between two vec3's
- *
- * @param {vec3} out the receiving vector
- * @param {vec3} a the first operand
- * @param {vec3} b the second operand
- * @param {Number} t interpolation amount between the two inputs
- * @returns {vec3} out
- */
-vec3.lerp = function (out, a, b, t) {
-    var ax = a[0],
-        ay = a[1],
-        az = a[2];
-    out[0] = ax + t * (b[0] - ax);
-    out[1] = ay + t * (b[1] - ay);
-    out[2] = az + t * (b[2] - az);
-    return out;
-};
-
-/**
- * Transforms the vec3 with a mat4.
- * 4th vector component is implicitly '1'
- *
- * @param {vec3} out the receiving vector
- * @param {vec3} a the vector to transform
- * @param {mat4} m matrix to transform with
- * @returns {vec3} out
- */
-vec3.transformMat4 = function(out, a, m) {
-    var x = a[0], y = a[1], z = a[2];
-    out[0] = m[0] * x + m[4] * y + m[8] * z + m[12];
-    out[1] = m[1] * x + m[5] * y + m[9] * z + m[13];
-    out[2] = m[2] * x + m[6] * y + m[10] * z + m[14];
-    return out;
-};
-
-/**
- * Transforms the vec3 with a quat
- *
- * @param {vec3} out the receiving vector
- * @param {vec3} a the vector to transform
- * @param {quat} q quaternion to transform with
- * @returns {vec3} out
- */
-vec3.transformQuat = function(out, a, q) {
-    var x = a[0], y = a[1], z = a[2],
-        qx = q[0], qy = q[1], qz = q[2], qw = q[3],
-
-        // calculate quat * vec
-        ix = qw * x + qy * z - qz * y,
-        iy = qw * y + qz * x - qx * z,
-        iz = qw * z + qx * y - qy * x,
-        iw = -qx * x - qy * y - qz * z;
-
-    // calculate result * inverse quat
-    out[0] = ix * qw + iw * -qx + iy * -qz - iz * -qy;
-    out[1] = iy * qw + iw * -qy + iz * -qx - ix * -qz;
-    out[2] = iz * qw + iw * -qz + ix * -qy - iy * -qx;
-    return out;
-};
-
-/**
- * Perform some operation over an array of vec3s.
- *
- * @param {Array} a the array of vectors to iterate over
- * @param {Number} stride Number of elements between the start of each vec3. If 0 assumes tightly packed
- * @param {Number} offset Number of elements to skip at the beginning of the array
- * @param {Number} count Number of vec3s to iterate over. If 0 iterates over entire array
- * @param {Function} fn Function to call for each vector in the array
- * @param {Object} [arg] additional argument to pass to fn
- * @returns {Array} a
- */
-vec3.forEach = (function() {
-    var vec = new Float32Array(3);
-
-    return function(a, stride, offset, count, fn, arg) {
-        var i, l;
-        if(!stride) {
-            stride = 3;
-        }
-
-        if(!offset) {
-            offset = 0;
-        }
-        
-        if(count) {
-            l = Math.min((count * stride) + offset, a.length);
-        } else {
-            l = a.length;
-        }
-
-        for(i = offset; i < l; i += stride) {
-            vec[0] = a[i]; vec[1] = a[i+1]; vec[2] = a[i+2];
-            fn(vec, vec, arg);
-            a[i] = vec[0]; a[i+1] = vec[1]; a[i+2] = vec[2];
-        }
-        
-        return a;
-    };
-})();
-
-/**
- * Returns a string representation of a vector
- *
- * @param {vec3} vec vector to represent as a string
- * @returns {String} string representation of the vector
- */
-vec3.str = function (a) {
-    return 'vec3(' + a[0] + ', ' + a[1] + ', ' + a[2] + ')';
-};
-
-if(typeof(exports) !== 'undefined') {
-    exports.vec3 = vec3;
-}
-;
-/* Copyright (c) 2012, Brandon Jones, Colin MacKenzie IV. All rights reserved.
-
-Redistribution and use in source and binary forms, with or without modification,
-are permitted provided that the following conditions are met:
-
-  * Redistributions of source code must retain the above copyright notice, this
-    list of conditions and the following disclaimer.
-  * Redistributions in binary form must reproduce the above copyright notice,
-    this list of conditions and the following disclaimer in the documentation 
-    and/or other materials provided with the distribution.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
-DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
-ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
-ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. */
-
-/**
- * @class 4 Dimensional Vector
- * @name vec4
- */
-
-var vec4 = {};
-
-if(!GLMAT_EPSILON) {
-    var GLMAT_EPSILON = 0.000001;
-}
-
-/**
- * Creates a new, empty vec4
- *
- * @returns {vec4} a new 4D vector
- */
-vec4.create = function() {
-    return new Float32Array(4);
-};
-
-/**
- * Creates a new vec4 initialized with values from an existing vector
- *
- * @param {vec4} a vector to clone
- * @returns {vec4} a new 4D vector
- */
-vec4.clone = function(a) {
-    var out = new Float32Array(4);
-    out[0] = a[0];
-    out[1] = a[1];
-    out[2] = a[2];
-    out[3] = a[3];
-    return out;
-};
-
-/**
- * Creates a new vec4 initialized with the given values
- *
- * @param {Number} x X component
- * @param {Number} y Y component
- * @param {Number} z Z component
- * @param {Number} w W component
- * @returns {vec4} a new 4D vector
- */
-vec4.fromValues = function(x, y, z, w) {
-    var out = new Float32Array(4);
-    out[0] = x;
-    out[1] = y;
-    out[2] = z;
-    out[3] = w;
-    return out;
-};
-
-/**
- * Copy the values from one vec4 to another
- *
- * @param {vec4} out the receiving vector
- * @param {vec4} a the source vector
- * @returns {vec4} out
- */
-vec4.copy = function(out, a) {
-    out[0] = a[0];
-    out[1] = a[1];
-    out[2] = a[2];
-    out[3] = a[3];
-    return out;
-};
-
-/**
- * Set the components of a vec4 to the given values
- *
- * @param {vec4} out the receiving vector
- * @param {Number} x X component
- * @param {Number} y Y component
- * @param {Number} z Z component
- * @param {Number} w W component
- * @returns {vec4} out
- */
-vec4.set = function(out, x, y, z, w) {
-    out[0] = x;
-    out[1] = y;
-    out[2] = z;
-    out[3] = w;
-    return out;
-};
-
-/**
- * Adds two vec4's
- *
- * @param {vec4} out the receiving vector
- * @param {vec4} a the first operand
- * @param {vec4} b the second operand
- * @returns {vec4} out
- */
-vec4.add = function(out, a, b) {
-    out[0] = a[0] + b[0];
-    out[1] = a[1] + b[1];
-    out[2] = a[2] + b[2];
-    out[3] = a[3] + b[3];
-    return out;
-};
-
-/**
- * Subtracts two vec4's
- *
- * @param {vec4} out the receiving vector
- * @param {vec4} a the first operand
- * @param {vec4} b the second operand
- * @returns {vec4} out
- */
-vec4.sub = vec4.subtract = function(out, a, b) {
-    out[0] = a[0] - b[0];
-    out[1] = a[1] - b[1];
-    out[2] = a[2] - b[2];
-    out[3] = a[3] - b[3];
-    return out;
-};
-
-/**
- * Multiplies two vec4's
- *
- * @param {vec4} out the receiving vector
- * @param {vec4} a the first operand
- * @param {vec4} b the second operand
- * @returns {vec4} out
- */
-vec4.mul = vec4.multiply = function(out, a, b) {
-    out[0] = a[0] * b[0];
-    out[1] = a[1] * b[1];
-    out[2] = a[2] * b[2];
-    out[3] = a[3] * b[3];
-    return out;
-};
-
-/**
- * Divides two vec4's
- *
- * @param {vec4} out the receiving vector
- * @param {vec4} a the first operand
- * @param {vec4} b the second operand
- * @returns {vec4} out
- */
-vec4.div = vec4.divide = function(out, a, b) {
-    out[0] = a[0] / b[0];
-    out[1] = a[1] / b[1];
-    out[2] = a[2] / b[2];
-    out[3] = a[3] / b[3];
-    return out;
-};
-
-/**
- * Returns the minimum of two vec4's
- *
- * @param {vec4} out the receiving vector
- * @param {vec4} a the first operand
- * @param {vec4} b the second operand
- * @returns {vec4} out
- */
-vec4.min = function(out, a, b) {
-    out[0] = Math.min(a[0], b[0]);
-    out[1] = Math.min(a[1], b[1]);
-    out[2] = Math.min(a[2], b[2]);
-    out[3] = Math.min(a[3], b[3]);
-    return out;
-};
-
-/**
- * Returns the maximum of two vec4's
- *
- * @param {vec4} out the receiving vector
- * @param {vec4} a the first operand
- * @param {vec4} b the second operand
- * @returns {vec4} out
- */
-vec4.max = function(out, a, b) {
-    out[0] = Math.max(a[0], b[0]);
-    out[1] = Math.max(a[1], b[1]);
-    out[2] = Math.max(a[2], b[2]);
-    out[3] = Math.max(a[3], b[3]);
-    return out;
-};
-
-/**
- * Scales a vec4 by a scalar number
- *
- * @param {vec4} out the receiving vector
- * @param {vec4} a the vector to scale
- * @param {vec4} b amount to scale the vector by
- * @returns {vec4} out
- */
-vec4.scale = function(out, a, b) {
-    out[0] = a[0] * b;
-    out[1] = a[1] * b;
-    out[2] = a[2] * b;
-    out[3] = a[3] * b;
-    return out;
-};
-
-/**
- * Calculates the euclidian distance between two vec4's
- *
- * @param {vec4} a the first operand
- * @param {vec4} b the second operand
- * @returns {Number} distance between a and b
- */
-vec4.dist = vec4.distance = function(a, b) {
-    var x = b[0] - a[0],
-        y = b[1] - a[1],
-        z = b[2] - a[2],
-        w = b[3] - a[3];
-    return Math.sqrt(x*x + y*y + z*z + w*w);
-};
-
-/**
- * Calculates the squared euclidian distance between two vec4's
- *
- * @param {vec4} a the first operand
- * @param {vec4} b the second operand
- * @returns {Number} squared distance between a and b
- */
-vec4.sqrDist = vec4.squaredDistance = function(a, b) {
-    var x = b[0] - a[0],
-        y = b[1] - a[1],
-        z = b[2] - a[2],
-        w = b[3] - a[3];
-    return x*x + y*y + z*z + w*w;
-};
-
-/**
- * Caclulates the length of a vec4
- *
- * @param {vec4} a vector to calculate length of
- * @returns {Number} length of a
- */
-vec4.len = vec4.length = function (a) {
-    var x = a[0],
-        y = a[1],
-        z = a[2],
-        w = a[3];
-    return Math.sqrt(x*x + y*y + z*z + w*w);
-};
-
-/**
- * Caclulates the squared length of a vec4
- *
- * @param {vec4} a vector to calculate squared length of
- * @returns {Number} squared length of a
- */
-vec4.sqrLen = vec4.squaredLength = function (a) {
-    var x = a[0],
-        y = a[1],
-        z = a[2],
-        w = a[3];
-    return x*x + y*y + z*z + w*w;
-};
-
-/**
- * Negates the components of a vec4
- *
- * @param {vec4} out the receiving vector
- * @param {vec4} a vector to negate
- * @returns {vec4} out
- */
-vec4.negate = function(out, a) {
-    out[0] = -a[0];
-    out[1] = -a[1];
-    out[2] = -a[2];
-    out[3] = -a[3];
-    return out;
-};
-
-/**
- * Normalize a vec4
- *
- * @param {vec4} out the receiving vector
- * @param {vec4} a vector to normalize
- * @returns {vec4} out
- */
-vec4.normalize = function(out, a) {
-    var x = a[0],
-        y = a[1],
-        z = a[2],
-        w = a[3];
-    var len = x*x + y*y + z*z + w*w;
-    if (len > 0) {
-        len = 1 / Math.sqrt(len);
-        out[0] = a[0] * len;
-        out[1] = a[1] * len;
-        out[2] = a[2] * len;
-        out[3] = a[3] * len;
-    }
-    return out;
-};
-
-/**
- * Caclulates the dot product of two vec4's
- *
- * @param {vec4} a the first operand
- * @param {vec4} b the second operand
- * @returns {Number} dot product of a and b
- */
-vec4.dot = function (a, b) {
-    return a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3];
-};
-
-/**
- * Performs a linear interpolation between two vec4's
- *
- * @param {vec4} out the receiving vector
- * @param {vec4} a the first operand
- * @param {vec4} b the second operand
- * @param {Number} t interpolation amount between the two inputs
- * @returns {vec4} out
- */
-vec4.lerp = function (out, a, b, t) {
-    var ax = a[0],
-        ay = a[1],
-        az = a[2],
-        aw = a[3];
-    out[0] = ax + t * (b[0] - ax);
-    out[1] = ay + t * (b[1] - ay);
-    out[2] = az + t * (b[2] - az);
-    out[3] = aw + t * (b[3] - aw);
-    return out;
-};
-
-/**
- * Transforms the vec4 with a mat4.
- *
- * @param {vec4} out the receiving vector
- * @param {vec4} a the vector to transform
- * @param {mat4} m matrix to transform with
- * @returns {vec4} out
- */
-vec4.transformMat4 = function(out, a, m) {
-    var x = a[0], y = a[1], z = a[2], w = a[3];
-    out[0] = m[0] * x + m[4] * y + m[8] * z + m[12] * w;
-    out[1] = m[1] * x + m[5] * y + m[9] * z + m[13] * w;
-    out[2] = m[2] * x + m[6] * y + m[10] * z + m[14] * w;
-    out[3] = m[3] * x + m[7] * y + m[11] * z + m[15] * w;
-    return out;
-};
-
-/**
- * Transforms the vec4 with a quat
- *
- * @param {vec4} out the receiving vector
- * @param {vec4} a the vector to transform
- * @param {quat} q quaternion to transform with
- * @returns {vec4} out
- */
-vec4.transformQuat = function(out, a, q) {
-    var x = a[0], y = a[1], z = a[2],
-        qx = q[0], qy = q[1], qz = q[2], qw = q[3],
-
-        // calculate quat * vec
-        ix = qw * x + qy * z - qz * y,
-        iy = qw * y + qz * x - qx * z,
-        iz = qw * z + qx * y - qy * x,
-        iw = -qx * x - qy * y - qz * z;
-
-    // calculate result * inverse quat
-    out[0] = ix * qw + iw * -qx + iy * -qz - iz * -qy;
-    out[1] = iy * qw + iw * -qy + iz * -qx - ix * -qz;
-    out[2] = iz * qw + iw * -qz + ix * -qy - iy * -qx;
-    return out;
-};
-
-/**
- * Perform some operation over an array of vec4s.
- *
- * @param {Array} a the array of vectors to iterate over
- * @param {Number} stride Number of elements between the start of each vec4. If 0 assumes tightly packed
- * @param {Number} offset Number of elements to skip at the beginning of the array
- * @param {Number} count Number of vec2s to iterate over. If 0 iterates over entire array
- * @param {Function} fn Function to call for each vector in the array
- * @param {Object} [arg] additional argument to pass to fn
- * @returns {Array} a
- */
-vec4.forEach = (function() {
-    var vec = new Float32Array(4);
-
-    return function(a, stride, offset, count, fn, arg) {
-        var i, l;
-        if(!stride) {
-            stride = 4;
-        }
-
-        if(!offset) {
-            offset = 0;
-        }
-        
-        if(count) {
-            l = Math.min((count * stride) + offset, a.length);
-        } else {
-            l = a.length;
-        }
-
-        for(i = offset; i < l; i += stride) {
-            vec[0] = a[i]; vec[1] = a[i+1]; vec[2] = a[i+2]; vec[3] = a[i+3];
-            fn(vec, vec, arg);
-            a[i] = vec[0]; a[i+1] = vec[1]; a[i+2] = vec[2]; a[i+3] = vec[3];
-        }
-        
-        return a;
-    };
-})();
-
-/**
- * Returns a string representation of a vector
- *
- * @param {vec4} vec vector to represent as a string
- * @returns {String} string representation of the vector
- */
-vec4.str = function (a) {
-    return 'vec4(' + a[0] + ', ' + a[1] + ', ' + a[2] + ', ' + a[3] + ')';
-};
-
-if(typeof(exports) !== 'undefined') {
-    exports.vec4 = vec4;
-}
-;
-/* Copyright (c) 2012, Brandon Jones, Colin MacKenzie IV. All rights reserved.
-
-Redistribution and use in source and binary forms, with or without modification,
-are permitted provided that the following conditions are met:
-
-  * Redistributions of source code must retain the above copyright notice, this
-    list of conditions and the following disclaimer.
-  * Redistributions in binary form must reproduce the above copyright notice,
-    this list of conditions and the following disclaimer in the documentation 
-    and/or other materials provided with the distribution.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
-DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
-ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
-ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. */
-
-/**
- * @class 2x2 Matrix
- * @name mat2
- */
-
-var mat2 = {};
-
-var mat2Identity = new Float32Array([
-    1, 0,
-    0, 1
-]);
-
-if(!GLMAT_EPSILON) {
-    var GLMAT_EPSILON = 0.000001;
-}
-
-/**
- * Creates a new identity mat2
- *
- * @returns {mat2} a new 2x2 matrix
- */
-mat2.create = function() {
-    return new Float32Array(mat2Identity);
-};
-
-/**
- * Creates a new mat2 initialized with values from an existing matrix
- *
- * @param {mat2} a matrix to clone
- * @returns {mat2} a new 2x2 matrix
- */
-mat2.clone = function(a) {
-    var out = new Float32Array(4);
-    out[0] = a[0];
-    out[1] = a[1];
-    out[2] = a[2];
-    out[3] = a[3];
-    return out;
-};
-
-/**
- * Copy the values from one mat2 to another
- *
- * @param {mat2} out the receiving matrix
- * @param {mat2} a the source matrix
- * @returns {mat2} out
- */
-mat2.copy = function(out, a) {
-    out[0] = a[0];
-    out[1] = a[1];
-    out[2] = a[2];
-    out[3] = a[3];
-    return out;
-};
-
-/**
- * Set a mat2 to the identity matrix
- *
- * @param {mat2} out the receiving matrix
- * @returns {mat2} out
- */
-mat2.identity = function(out) {
-    out[0] = 1;
-    out[1] = 0;
-    out[2] = 0;
-    out[3] = 1;
-    return out;
-};
-
-/**
- * Transpose the values of a mat2
- *
- * @param {mat2} out the receiving matrix
- * @param {mat2} a the source matrix
- * @returns {mat2} out
- */
-mat2.transpose = function(out, a) {
-    // If we are transposing ourselves we can skip a few steps but have to cache some values
-    if (out === a) {
-        var a1 = a[1];
-        out[1] = a[2];
-        out[2] = a1;
-    } else {
-        out[0] = a[0];
-        out[1] = a[2];
-        out[2] = a[1];
-        out[3] = a[3];
-    }
-    
-    return out;
-};
-
-/**
- * Inverts a mat2
- *
- * @param {mat2} out the receiving matrix
- * @param {mat2} a the source matrix
- * @returns {mat2} out
- */
-mat2.invert = function(out, a) {
-    var a0 = a[0], a1 = a[1], a2 = a[2], a3 = a[3],
-
-        // Calculate the determinant
-        det = a0 * a3 - a2 * a1;
-
-    if (!det) {
-        return null;
-    }
-    det = 1.0 / det;
-    
-    out[0] =  a3 * det;
-    out[1] = -a1 * det;
-    out[2] = -a2 * det;
-    out[3] =  a0 * det;
-
-    return out;
-};
-
-/**
- * Caclulates the adjugate of a mat2
- *
- * @param {mat2} out the receiving matrix
- * @param {mat2} a the source matrix
- * @returns {mat2} out
- */
-mat2.adjoint = function(out, a) {
-    // Caching this value is nessecary if out == a
-    var a0 = a[0];
-    out[0] =  a[3];
-    out[1] = -a[1];
-    out[2] = -a[2];
-    out[3] =  a0;
-
-    return out;
-};
-
-/**
- * Calculates the determinant of a mat2
- *
- * @param {mat2} a the source matrix
- * @returns {Number} determinant of a
- */
-mat2.determinant = function (a) {
-    return a[0] * a[3] - a[2] * a[1];
-};
-
-/**
- * Multiplies two mat2's
- *
- * @param {mat2} out the receiving matrix
- * @param {mat2} a the first operand
- * @param {mat2} b the second operand
- * @returns {mat2} out
- */
-mat2.mul = mat2.multiply = function (out, a, b) {
-    var a0 = a[0], a1 = a[1], a2 = a[2], a3 = a[3];
-    var b0 = b[0], b1 = b[1], b2 = b[2], b3 = b[3];
-    out[0] = a0 * b0 + a1 * b2;
-    out[1] = a0 * b1 + a1 * b3;
-    out[2] = a2 * b0 + a3 * b2;
-    out[3] = a2 * b1 + a3 * b3;
-    return out;
-};
-
-/**
- * Rotates a mat2 by the given angle
- *
- * @param {mat2} out the receiving matrix
- * @param {mat2} a the matrix to rotate
- * @param {mat2} rad the angle to rotate the matrix by
- * @returns {mat2} out
- */
-mat2.rotate = function (out, a, rad) {
-    var a0 = a[0], a1 = a[1], a2 = a[2], a3 = a[3],
-        s = Math.sin(rad),
-        c = Math.cos(rad);
-    out[0] = a0 *  c + a1 * s;
-    out[1] = a0 * -s + a1 * c;
-    out[2] = a2 *  c + a3 * s;
-    out[3] = a2 * -s + a3 * c;
-    return out;
-};
-
-/**
- * Scales the mat2 by the dimensions in the given vec2
- *
- * @param {mat2} out the receiving matrix
- * @param {mat2} a the matrix to rotate
- * @param {mat2} v the vec2 to scale the matrix by
- * @returns {mat2} out
- **/
-mat2.scale = function(out, a, v) {
-    var a0 = a[0], a1 = a[1], a2 = a[2], a3 = a[3],
-        v0 = v[0], v1 = v[1];
-    out[0] = a0 * v0;
-    out[1] = a1 * v1;
-    out[2] = a2 * v0;
-    out[3] = a3 * v1;
-    return out;
-};
-
-/**
- * Returns a string representation of a mat2
- *
- * @param {mat2} mat matrix to represent as a string
- * @returns {String} string representation of the matrix
- */
-mat2.str = function (a) {
-    return 'mat2(' + a[0] + ', ' + a[1] + ', ' + a[2] + ', ' + a[3] + ')';
-};
-
-if(typeof(exports) !== 'undefined') {
-    exports.mat2 = mat2;
-}
-;
-/* Copyright (c) 2012, Brandon Jones, Colin MacKenzie IV. All rights reserved.
-
-Redistribution and use in source and binary forms, with or without modification,
-are permitted provided that the following conditions are met:
-
-  * Redistributions of source code must retain the above copyright notice, this
-    list of conditions and the following disclaimer.
-  * Redistributions in binary form must reproduce the above copyright notice,
-    this list of conditions and the following disclaimer in the documentation 
-    and/or other materials provided with the distribution.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
-DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
-ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
-ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. */
-
-/**
- * @class 3x3 Matrix
- * @name mat3
- */
-
-var mat3 = {};
-
-var mat3Identity = new Float32Array([
-    1, 0, 0,
-    0, 1, 0,
-    0, 0, 1
-]);
-
-if(!GLMAT_EPSILON) {
-    var GLMAT_EPSILON = 0.000001;
-}
-
-/**
- * Creates a new identity mat3
- *
- * @returns {mat3} a new 3x3 matrix
- */
-mat3.create = function() {
-    return new Float32Array(mat3Identity);
-};
-
-/**
- * Creates a new mat3 initialized with values from an existing matrix
- *
- * @param {mat3} a matrix to clone
- * @returns {mat3} a new 3x3 matrix
- */
-mat3.clone = function(a) {
-    var out = new Float32Array(9);
-    out[0] = a[0];
-    out[1] = a[1];
-    out[2] = a[2];
-    out[3] = a[3];
-    out[4] = a[4];
-    out[5] = a[5];
-    out[6] = a[6];
-    out[7] = a[7];
-    out[8] = a[8];
-    return out;
-};
-
-/**
- * Copy the values from one mat3 to another
- *
- * @param {mat3} out the receiving matrix
- * @param {mat3} a the source matrix
- * @returns {mat3} out
- */
-mat3.copy = function(out, a) {
-    out[0] = a[0];
-    out[1] = a[1];
-    out[2] = a[2];
-    out[3] = a[3];
-    out[4] = a[4];
-    out[5] = a[5];
-    out[6] = a[6];
-    out[7] = a[7];
-    out[8] = a[8];
-    return out;
-};
-
-/**
- * Set a mat3 to the identity matrix
- *
- * @param {mat3} out the receiving matrix
- * @returns {mat3} out
- */
-mat3.identity = function(out) {
-    out[0] = 1;
-    out[1] = 0;
-    out[2] = 0;
-    out[3] = 0;
-    out[4] = 1;
-    out[5] = 0;
-    out[6] = 0;
-    out[7] = 0;
-    out[8] = 1;
-    return out;
-};
-
-/**
- * Transpose the values of a mat3
- *
- * @param {mat3} out the receiving matrix
- * @param {mat3} a the source matrix
- * @returns {mat3} out
- */
-mat3.transpose = function(out, a) {
-    // If we are transposing ourselves we can skip a few steps but have to cache some values
-    if (out === a) {
-        var a01 = a[1], a02 = a[2], a12 = a[5];
-        out[1] = a[3];
-        out[2] = a[6];
-        out[3] = a01;
-        out[5] = a[7];
-        out[6] = a02;
-        out[7] = a12;
-    } else {
-        out[0] = a[0];
-        out[1] = a[3];
-        out[2] = a[6];
-        out[3] = a[1];
-        out[4] = a[4];
-        out[5] = a[7];
-        out[6] = a[2];
-        out[7] = a[5];
-        out[8] = a[8];
-    }
-    
-    return out;
-};
-
-/**
- * Inverts a mat3
- *
- * @param {mat3} out the receiving matrix
- * @param {mat3} a the source matrix
- * @returns {mat3} out
- */
-mat3.invert = function(out, a) {
-    var a00 = a[0], a01 = a[1], a02 = a[2],
-        a10 = a[3], a11 = a[4], a12 = a[5],
-        a20 = a[6], a21 = a[7], a22 = a[8],
-
-        b01 = a22 * a11 - a12 * a21,
-        b11 = -a22 * a10 + a12 * a20,
-        b21 = a21 * a10 - a11 * a20,
-
-        // Calculate the determinant
-        det = a00 * b01 + a01 * b11 + a02 * b21;
-
-    if (!det) { 
-        return null; 
-    }
-    det = 1.0 / det;
-
-    out[0] = b01 * det;
-    out[1] = (-a22 * a01 + a02 * a21) * det;
-    out[2] = (a12 * a01 - a02 * a11) * det;
-    out[3] = b11 * det;
-    out[4] = (a22 * a00 - a02 * a20) * det;
-    out[5] = (-a12 * a00 + a02 * a10) * det;
-    out[6] = b21 * det;
-    out[7] = (-a21 * a00 + a01 * a20) * det;
-    out[8] = (a11 * a00 - a01 * a10) * det;
-    return out;
-};
-
-/**
- * Caclulates the adjugate of a mat3
- *
- * @param {mat3} out the receiving matrix
- * @param {mat3} a the source matrix
- * @returns {mat3} out
- */
-mat3.adjoint = function(out, a) {
-    var a00 = a[0], a01 = a[1], a02 = a[2],
-        a10 = a[3], a11 = a[4], a12 = a[5],
-        a20 = a[6], a21 = a[7], a22 = a[8];
-
-    out[0] = (a11 * a22 - a12 * a21);
-    out[1] = (a02 * a21 - a01 * a22);
-    out[2] = (a01 * a12 - a02 * a11);
-    out[3] = (a12 * a20 - a10 * a22);
-    out[4] = (a00 * a22 - a02 * a20);
-    out[5] = (a02 * a10 - a00 * a12);
-    out[6] = (a10 * a21 - a11 * a20);
-    out[7] = (a01 * a20 - a00 * a21);
-    out[8] = (a00 * a11 - a01 * a10);
-    return out;
-};
-
-/**
- * Calculates the determinant of a mat3
- *
- * @param {mat3} a the source matrix
- * @returns {Number} determinant of a
- */
-mat3.determinant = function (a) {
-    var a00 = a[0], a01 = a[1], a02 = a[2],
-        a10 = a[3], a11 = a[4], a12 = a[5],
-        a20 = a[6], a21 = a[7], a22 = a[8];
-
-    return a00 * (a22 * a11 - a12 * a21) + a01 * (-a22 * a10 + a12 * a20) + a02 * (a21 * a10 - a11 * a20);
-};
-
-/**
- * Multiplies two mat3's
- *
- * @param {mat3} out the receiving matrix
- * @param {mat3} a the first operand
- * @param {mat3} b the second operand
- * @returns {mat3} out
- */
-mat3.mul = mat3.multiply = function (out, a, b) {
-    var a00 = a[0], a01 = a[1], a02 = a[2],
-        a10 = a[3], a11 = a[4], a12 = a[5],
-        a20 = a[6], a21 = a[7], a22 = a[8],
-
-        b00 = b[0], b01 = b[1], b02 = b[2],
-        b10 = b[3], b11 = b[4], b12 = b[5],
-        b20 = b[6], b21 = b[7], b22 = b[8];
-
-    out[0] = b00 * a00 + b01 * a10 + b02 * a20;
-    out[1] = b00 * a01 + b01 * a11 + b02 * a21;
-    out[2] = b00 * a02 + b01 * a12 + b02 * a22;
-
-    out[3] = b10 * a00 + b11 * a10 + b12 * a20;
-    out[4] = b10 * a01 + b11 * a11 + b12 * a21;
-    out[5] = b10 * a02 + b11 * a12 + b12 * a22;
-
-    out[6] = b20 * a00 + b21 * a10 + b22 * a20;
-    out[7] = b20 * a01 + b21 * a11 + b22 * a21;
-    out[8] = b20 * a02 + b21 * a12 + b22 * a22;
-    return out;
-};
-
-/**
- * Returns a string representation of a mat3
- *
- * @param {mat3} mat matrix to represent as a string
- * @returns {String} string representation of the matrix
- */
-mat3.str = function (a) {
-    return 'mat3(' + a[0] + ', ' + a[1] + ', ' + a[2] + ', ' + 
-                    a[3] + ', ' + a[4] + ', ' + a[5] + ', ' + 
-                    a[6] + ', ' + a[7] + ', ' + a[8] + ')';
-};
-
-if(typeof(exports) !== 'undefined') {
-    exports.mat3 = mat3;
-}
-;
-/* Copyright (c) 2012, Brandon Jones, Colin MacKenzie IV. All rights reserved.
-
-Redistribution and use in source and binary forms, with or without modification,
-are permitted provided that the following conditions are met:
-
-  * Redistributions of source code must retain the above copyright notice, this
-    list of conditions and the following disclaimer.
-  * Redistributions in binary form must reproduce the above copyright notice,
-    this list of conditions and the following disclaimer in the documentation 
-    and/or other materials provided with the distribution.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
-DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
-ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
-ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. */
-
-/**
- * @class 4x4 Matrix
- * @name mat4
- */
-
-var mat4 = {};
-
-var mat4Identity = new Float32Array([
-    1, 0, 0, 0,
-    0, 1, 0, 0,
-    0, 0, 1, 0,
-    0, 0, 0, 1
-]);
-
-if(!GLMAT_EPSILON) {
-    var GLMAT_EPSILON = 0.000001;
-}
-
-/**
- * Creates a new identity mat4
- *
- * @returns {mat4} a new 4x4 matrix
- */
-mat4.create = function() {
-    return new Float32Array(mat4Identity);
-};
-
-/**
- * Creates a new mat4 initialized with values from an existing matrix
- *
- * @param {mat4} a matrix to clone
- * @returns {mat4} a new 4x4 matrix
- */
-mat4.clone = function(a) {
-    var out = new Float32Array(16);
-    out[0] = a[0];
-    out[1] = a[1];
-    out[2] = a[2];
-    out[3] = a[3];
-    out[4] = a[4];
-    out[5] = a[5];
-    out[6] = a[6];
-    out[7] = a[7];
-    out[8] = a[8];
-    out[9] = a[9];
-    out[10] = a[10];
-    out[11] = a[11];
-    out[12] = a[12];
-    out[13] = a[13];
-    out[14] = a[14];
-    out[15] = a[15];
-    return out;
-};
-
-/**
- * Copy the values from one mat4 to another
- *
- * @param {mat4} out the receiving matrix
- * @param {mat4} a the source matrix
- * @returns {mat4} out
- */
-mat4.copy = function(out, a) {
-    out[0] = a[0];
-    out[1] = a[1];
-    out[2] = a[2];
-    out[3] = a[3];
-    out[4] = a[4];
-    out[5] = a[5];
-    out[6] = a[6];
-    out[7] = a[7];
-    out[8] = a[8];
-    out[9] = a[9];
-    out[10] = a[10];
-    out[11] = a[11];
-    out[12] = a[12];
-    out[13] = a[13];
-    out[14] = a[14];
-    out[15] = a[15];
-    return out;
-};
-
-/**
- * Set a mat4 to the identity matrix
- *
- * @param {mat4} out the receiving matrix
- * @returns {mat4} out
- */
-mat4.identity = function(out) {
-    out[0] = 1;
-    out[1] = 0;
-    out[2] = 0;
-    out[3] = 0;
-    out[4] = 0;
-    out[5] = 1;
-    out[6] = 0;
-    out[7] = 0;
-    out[8] = 0;
-    out[9] = 0;
-    out[10] = 1;
-    out[11] = 0;
-    out[12] = 0;
-    out[13] = 0;
-    out[14] = 0;
-    out[15] = 1;
-    return out;
-};
-
-/**
- * Transpose the values of a mat4
- *
- * @param {mat4} out the receiving matrix
- * @param {mat4} a the source matrix
- * @returns {mat4} out
- */
-mat4.transpose = function(out, a) {
-    // If we are transposing ourselves we can skip a few steps but have to cache some values
-    if (out === a) {
-        var a01 = a[1], a02 = a[2], a03 = a[3],
-            a12 = a[6], a13 = a[7],
-            a23 = a[11];
-
-        out[1] = a[4];
-        out[2] = a[8];
-        out[3] = a[12];
-        out[4] = a01;
-        out[6] = a[9];
-        out[7] = a[13];
-        out[8] = a02;
-        out[9] = a12;
-        out[11] = a[14];
-        out[12] = a03;
-        out[13] = a13;
-        out[14] = a23;
-    } else {
-        out[0] = a[0];
-        out[1] = a[4];
-        out[2] = a[8];
-        out[3] = a[12];
-        out[4] = a[1];
-        out[5] = a[5];
-        out[6] = a[9];
-        out[7] = a[13];
-        out[8] = a[2];
-        out[9] = a[6];
-        out[10] = a[10];
-        out[11] = a[14];
-        out[12] = a[3];
-        out[13] = a[7];
-        out[14] = a[11];
-        out[15] = a[15];
-    }
-    
-    return out;
-};
-
-/**
- * Inverts a mat4
- *
- * @param {mat4} out the receiving matrix
- * @param {mat4} a the source matrix
- * @returns {mat4} out
- */
-mat4.invert = function(out, a) {
-    var a00 = a[0], a01 = a[1], a02 = a[2], a03 = a[3],
-        a10 = a[4], a11 = a[5], a12 = a[6], a13 = a[7],
-        a20 = a[8], a21 = a[9], a22 = a[10], a23 = a[11],
-        a30 = a[12], a31 = a[13], a32 = a[14], a33 = a[15],
-
-        b00 = a00 * a11 - a01 * a10,
-        b01 = a00 * a12 - a02 * a10,
-        b02 = a00 * a13 - a03 * a10,
-        b03 = a01 * a12 - a02 * a11,
-        b04 = a01 * a13 - a03 * a11,
-        b05 = a02 * a13 - a03 * a12,
-        b06 = a20 * a31 - a21 * a30,
-        b07 = a20 * a32 - a22 * a30,
-        b08 = a20 * a33 - a23 * a30,
-        b09 = a21 * a32 - a22 * a31,
-        b10 = a21 * a33 - a23 * a31,
-        b11 = a22 * a33 - a23 * a32,
-
-        // Calculate the determinant
-        det = b00 * b11 - b01 * b10 + b02 * b09 + b03 * b08 - b04 * b07 + b05 * b06;
-
-    if (!det) { 
-        return null; 
-    }
-    det = 1.0 / det;
-
-    out[0] = (a11 * b11 - a12 * b10 + a13 * b09) * det;
-    out[1] = (a02 * b10 - a01 * b11 - a03 * b09) * det;
-    out[2] = (a31 * b05 - a32 * b04 + a33 * b03) * det;
-    out[3] = (a22 * b04 - a21 * b05 - a23 * b03) * det;
-    out[4] = (a12 * b08 - a10 * b11 - a13 * b07) * det;
-    out[5] = (a00 * b11 - a02 * b08 + a03 * b07) * det;
-    out[6] = (a32 * b02 - a30 * b05 - a33 * b01) * det;
-    out[7] = (a20 * b05 - a22 * b02 + a23 * b01) * det;
-    out[8] = (a10 * b10 - a11 * b08 + a13 * b06) * det;
-    out[9] = (a01 * b08 - a00 * b10 - a03 * b06) * det;
-    out[10] = (a30 * b04 - a31 * b02 + a33 * b00) * det;
-    out[11] = (a21 * b02 - a20 * b04 - a23 * b00) * det;
-    out[12] = (a11 * b07 - a10 * b09 - a12 * b06) * det;
-    out[13] = (a00 * b09 - a01 * b07 + a02 * b06) * det;
-    out[14] = (a31 * b01 - a30 * b03 - a32 * b00) * det;
-    out[15] = (a20 * b03 - a21 * b01 + a22 * b00) * det;
-
-    return out;
-};
-
-/**
- * Caclulates the adjugate of a mat4
- *
- * @param {mat4} out the receiving matrix
- * @param {mat4} a the source matrix
- * @returns {mat4} out
- */
-mat4.adjoint = function(out, a) {
-    var a00 = a[0], a01 = a[1], a02 = a[2], a03 = a[3],
-        a10 = a[4], a11 = a[5], a12 = a[6], a13 = a[7],
-        a20 = a[8], a21 = a[9], a22 = a[10], a23 = a[11],
-        a30 = a[12], a31 = a[13], a32 = a[14], a33 = a[15];
-
-    out[0]  =  (a11 * (a22 * a33 - a23 * a32) - a21 * (a12 * a33 - a13 * a32) + a31 * (a12 * a23 - a13 * a22));
-    out[1]  = -(a01 * (a22 * a33 - a23 * a32) - a21 * (a02 * a33 - a03 * a32) + a31 * (a02 * a23 - a03 * a22));
-    out[2]  =  (a01 * (a12 * a33 - a13 * a32) - a11 * (a02 * a33 - a03 * a32) + a31 * (a02 * a13 - a03 * a12));
-    out[3]  = -(a01 * (a12 * a23 - a13 * a22) - a11 * (a02 * a23 - a03 * a22) + a21 * (a02 * a13 - a03 * a12));
-    out[4]  = -(a10 * (a22 * a33 - a23 * a32) - a20 * (a12 * a33 - a13 * a32) + a30 * (a12 * a23 - a13 * a22));
-    out[5]  =  (a00 * (a22 * a33 - a23 * a32) - a20 * (a02 * a33 - a03 * a32) + a30 * (a02 * a23 - a03 * a22));
-    out[6]  = -(a00 * (a12 * a33 - a13 * a32) - a10 * (a02 * a33 - a03 * a32) + a30 * (a02 * a13 - a03 * a12));
-    out[7]  =  (a00 * (a12 * a23 - a13 * a22) - a10 * (a02 * a23 - a03 * a22) + a20 * (a02 * a13 - a03 * a12));
-    out[8]  =  (a10 * (a21 * a33 - a23 * a31) - a20 * (a11 * a33 - a13 * a31) + a30 * (a11 * a23 - a13 * a21));
-    out[9]  = -(a00 * (a21 * a33 - a23 * a31) - a20 * (a01 * a33 - a03 * a31) + a30 * (a01 * a23 - a03 * a21));
-    out[10] =  (a00 * (a11 * a33 - a13 * a31) - a10 * (a01 * a33 - a03 * a31) + a30 * (a01 * a13 - a03 * a11));
-    out[11] = -(a00 * (a11 * a23 - a13 * a21) - a10 * (a01 * a23 - a03 * a21) + a20 * (a01 * a13 - a03 * a11));
-    out[12] = -(a10 * (a21 * a32 - a22 * a31) - a20 * (a11 * a32 - a12 * a31) + a30 * (a11 * a22 - a12 * a21));
-    out[13] =  (a00 * (a21 * a32 - a22 * a31) - a20 * (a01 * a32 - a02 * a31) + a30 * (a01 * a22 - a02 * a21));
-    out[14] = -(a00 * (a11 * a32 - a12 * a31) - a10 * (a01 * a32 - a02 * a31) + a30 * (a01 * a12 - a02 * a11));
-    out[15] =  (a00 * (a11 * a22 - a12 * a21) - a10 * (a01 * a22 - a02 * a21) + a20 * (a01 * a12 - a02 * a11));
-    return out;
-};
-
-/**
- * Calculates the determinant of a mat4
- *
- * @param {mat4} a the source matrix
- * @returns {Number} determinant of a
- */
-mat4.determinant = function (a) {
-    var a00 = a[0], a01 = a[1], a02 = a[2], a03 = a[3],
-        a10 = a[4], a11 = a[5], a12 = a[6], a13 = a[7],
-        a20 = a[8], a21 = a[9], a22 = a[10], a23 = a[11],
-        a30 = a[12], a31 = a[13], a32 = a[14], a33 = a[15],
-
-        b00 = a00 * a11 - a01 * a10,
-        b01 = a00 * a12 - a02 * a10,
-        b02 = a00 * a13 - a03 * a10,
-        b03 = a01 * a12 - a02 * a11,
-        b04 = a01 * a13 - a03 * a11,
-        b05 = a02 * a13 - a03 * a12,
-        b06 = a20 * a31 - a21 * a30,
-        b07 = a20 * a32 - a22 * a30,
-        b08 = a20 * a33 - a23 * a30,
-        b09 = a21 * a32 - a22 * a31,
-        b10 = a21 * a33 - a23 * a31,
-        b11 = a22 * a33 - a23 * a32;
-
-    // Calculate the determinant
-    return b00 * b11 - b01 * b10 + b02 * b09 + b03 * b08 - b04 * b07 + b05 * b06;
-};
-
-/**
- * Multiplies two mat4's
- *
- * @param {mat4} out the receiving matrix
- * @param {mat4} a the first operand
- * @param {mat4} b the second operand
- * @returns {mat4} out
- */
-mat4.mul = mat4.multiply = function (out, a, b) {
-    var a00 = a[0], a01 = a[1], a02 = a[2], a03 = a[3],
-        a10 = a[4], a11 = a[5], a12 = a[6], a13 = a[7],
-        a20 = a[8], a21 = a[9], a22 = a[10], a23 = a[11],
-        a30 = a[12], a31 = a[13], a32 = a[14], a33 = a[15];
-
-    // Cache only the current line of the second matrix
-    var b0  = b[0], b1 = b[1], b2 = b[2], b3 = b[3];  
-    out[0] = b0*a00 + b1*a10 + b2*a20 + b3*a30;
-    out[1] = b0*a01 + b1*a11 + b2*a21 + b3*a31;
-    out[2] = b0*a02 + b1*a12 + b2*a22 + b3*a32;
-    out[3] = b0*a03 + b1*a13 + b2*a23 + b3*a33;
-
-    b0 = b[4]; b1 = b[5]; b2 = b[6]; b3 = b[7];
-    out[4] = b0*a00 + b1*a10 + b2*a20 + b3*a30;
-    out[5] = b0*a01 + b1*a11 + b2*a21 + b3*a31;
-    out[6] = b0*a02 + b1*a12 + b2*a22 + b3*a32;
-    out[7] = b0*a03 + b1*a13 + b2*a23 + b3*a33;
-
-    b0 = b[8]; b1 = b[9]; b2 = b[10]; b3 = b[11];
-    out[8] = b0*a00 + b1*a10 + b2*a20 + b3*a30;
-    out[9] = b0*a01 + b1*a11 + b2*a21 + b3*a31;
-    out[10] = b0*a02 + b1*a12 + b2*a22 + b3*a32;
-    out[11] = b0*a03 + b1*a13 + b2*a23 + b3*a33;
-
-    b0 = b[12]; b1 = b[13]; b2 = b[14]; b3 = b[15];
-    out[12] = b0*a00 + b1*a10 + b2*a20 + b3*a30;
-    out[13] = b0*a01 + b1*a11 + b2*a21 + b3*a31;
-    out[14] = b0*a02 + b1*a12 + b2*a22 + b3*a32;
-    out[15] = b0*a03 + b1*a13 + b2*a23 + b3*a33;
-    return out;
-};
-
-/**
- * Translate a mat4 by the given vector
- *
- * @param {mat4} out the receiving matrix
- * @param {mat4} a the matrix to translate
- * @param {vec3} v vector to translate by
- * @returns {mat4} out
- */
-mat4.translate = function (out, a, v) {
-    var x = v[0], y = v[1], z = v[2],
-        a00, a01, a02, a03,
-        a10, a11, a12, a13,
-        a20, a21, a22, a23;
-
-    if (a === out) {
-        out[12] = a[0] * x + a[4] * y + a[8] * z + a[12];
-        out[13] = a[1] * x + a[5] * y + a[9] * z + a[13];
-        out[14] = a[2] * x + a[6] * y + a[10] * z + a[14];
-        out[15] = a[3] * x + a[7] * y + a[11] * z + a[15];
-    } else {
-        a00 = a[0]; a01 = a[1]; a02 = a[2]; a03 = a[3];
-        a10 = a[4]; a11 = a[5]; a12 = a[6]; a13 = a[7];
-        a20 = a[8]; a21 = a[9]; a22 = a[10]; a23 = a[11];
-
-        out[0] = a00; out[1] = a01; out[2] = a02; out[3] = a03;
-        out[4] = a10; out[5] = a11; out[6] = a12; out[7] = a13;
-        out[8] = a20; out[9] = a21; out[10] = a22; out[11] = a23;
-
-        out[12] = a00 * x + a10 * y + a20 * z + a[12];
-        out[13] = a01 * x + a11 * y + a21 * z + a[13];
-        out[14] = a02 * x + a12 * y + a22 * z + a[14];
-        out[15] = a03 * x + a13 * y + a23 * z + a[15];
-    }
-
-    return out;
-};
-
-/**
- * Scales the mat4 by the dimensions in the given vec3
- *
- * @param {mat4} out the receiving matrix
- * @param {mat4} a the matrix to scale
- * @param {vec3} v the vec3 to scale the matrix by
- * @returns {mat4} out
- **/
-mat4.scale = function(out, a, v) {
-    var x = v[0], y = v[1], z = v[2];
-
-    out[0] = a[0] * x;
-    out[1] = a[1] * x;
-    out[2] = a[2] * x;
-    out[3] = a[3] * x;
-    out[4] = a[4] * y;
-    out[5] = a[5] * y;
-    out[6] = a[6] * y;
-    out[7] = a[7] * y;
-    out[8] = a[8] * z;
-    out[9] = a[9] * z;
-    out[10] = a[10] * z;
-    out[11] = a[11] * z;
-    out[12] = a[12];
-    out[13] = a[13];
-    out[14] = a[14];
-    out[15] = a[15];
-    return out;
-};
-
-/**
- * Rotates a mat4 by the given angle
- *
- * @param {mat4} out the receiving matrix
- * @param {mat4} a the matrix to rotate
- * @param {Number} rad the angle to rotate the matrix by
- * @param {vec3} axis the axis to rotate around
- * @returns {mat4} out
- */
-mat4.rotate = function (out, a, rad, axis) {
-    var x = axis[0], y = axis[1], z = axis[2],
-        len = Math.sqrt(x * x + y * y + z * z),
-        s, c, t,
-        a00, a01, a02, a03,
-        a10, a11, a12, a13,
-        a20, a21, a22, a23,
-        b00, b01, b02,
-        b10, b11, b12,
-        b20, b21, b22;
-
-    if (Math.abs(len) < GLMAT_EPSILON) { return null; }
-    
-    len = 1 / len;
-    x *= len;
-    y *= len;
-    z *= len;
-
-    s = Math.sin(rad);
-    c = Math.cos(rad);
-    t = 1 - c;
-
-    a00 = a[0]; a01 = a[1]; a02 = a[2]; a03 = a[3];
-    a10 = a[4]; a11 = a[5]; a12 = a[6]; a13 = a[7];
-    a20 = a[8]; a21 = a[9]; a22 = a[10]; a23 = a[11];
-
-    // Construct the elements of the rotation matrix
-    b00 = x * x * t + c; b01 = y * x * t + z * s; b02 = z * x * t - y * s;
-    b10 = x * y * t - z * s; b11 = y * y * t + c; b12 = z * y * t + x * s;
-    b20 = x * z * t + y * s; b21 = y * z * t - x * s; b22 = z * z * t + c;
-
-    // Perform rotation-specific matrix multiplication
-    out[0] = a00 * b00 + a10 * b01 + a20 * b02;
-    out[1] = a01 * b00 + a11 * b01 + a21 * b02;
-    out[2] = a02 * b00 + a12 * b01 + a22 * b02;
-    out[3] = a03 * b00 + a13 * b01 + a23 * b02;
-    out[4] = a00 * b10 + a10 * b11 + a20 * b12;
-    out[5] = a01 * b10 + a11 * b11 + a21 * b12;
-    out[6] = a02 * b10 + a12 * b11 + a22 * b12;
-    out[7] = a03 * b10 + a13 * b11 + a23 * b12;
-    out[8] = a00 * b20 + a10 * b21 + a20 * b22;
-    out[9] = a01 * b20 + a11 * b21 + a21 * b22;
-    out[10] = a02 * b20 + a12 * b21 + a22 * b22;
-    out[11] = a03 * b20 + a13 * b21 + a23 * b22;
-
-    if (a !== out) { // If the source and destination differ, copy the unchanged last row
-        out[12] = a[12];
-        out[13] = a[13];
-        out[14] = a[14];
-        out[15] = a[15];
-    }
-    return out;
-};
-
-/**
- * Rotates a matrix by the given angle around the X axis
- *
- * @param {mat4} out the receiving matrix
- * @param {mat4} a the matrix to rotate
- * @param {Number} rad the angle to rotate the matrix by
- * @returns {mat4} out
- */
-mat4.rotateX = function (out, a, rad) {
-    var s = Math.sin(rad),
-        c = Math.cos(rad),
-        a10 = a[4],
-        a11 = a[5],
-        a12 = a[6],
-        a13 = a[7],
-        a20 = a[8],
-        a21 = a[9],
-        a22 = a[10],
-        a23 = a[11];
-
-    if (a !== out) { // If the source and destination differ, copy the unchanged rows
-        out[0]  = a[0];
-        out[1]  = a[1];
-        out[2]  = a[2];
-        out[3]  = a[3];
-        out[12] = a[12];
-        out[13] = a[13];
-        out[14] = a[14];
-        out[15] = a[15];
-    }
-
-    // Perform axis-specific matrix multiplication
-    out[4] = a10 * c + a20 * s;
-    out[5] = a11 * c + a21 * s;
-    out[6] = a12 * c + a22 * s;
-    out[7] = a13 * c + a23 * s;
-    out[8] = a20 * c - a10 * s;
-    out[9] = a21 * c - a11 * s;
-    out[10] = a22 * c - a12 * s;
-    out[11] = a23 * c - a13 * s;
-    return out;
-};
-
-/**
- * Rotates a matrix by the given angle around the Y axis
- *
- * @param {mat4} out the receiving matrix
- * @param {mat4} a the matrix to rotate
- * @param {Number} rad the angle to rotate the matrix by
- * @returns {mat4} out
- */
-mat4.rotateY = function (out, a, rad) {
-    var s = Math.sin(rad),
-        c = Math.cos(rad),
-        a00 = a[0],
-        a01 = a[1],
-        a02 = a[2],
-        a03 = a[3],
-        a20 = a[8],
-        a21 = a[9],
-        a22 = a[10],
-        a23 = a[11];
-
-    if (a !== out) { // If the source and destination differ, copy the unchanged rows
-        out[4]  = a[4];
-        out[5]  = a[5];
-        out[6]  = a[6];
-        out[7]  = a[7];
-        out[12] = a[12];
-        out[13] = a[13];
-        out[14] = a[14];
-        out[15] = a[15];
-    }
-
-    // Perform axis-specific matrix multiplication
-    out[0] = a00 * c - a20 * s;
-    out[1] = a01 * c - a21 * s;
-    out[2] = a02 * c - a22 * s;
-    out[3] = a03 * c - a23 * s;
-    out[8] = a00 * s + a20 * c;
-    out[9] = a01 * s + a21 * c;
-    out[10] = a02 * s + a22 * c;
-    out[11] = a03 * s + a23 * c;
-    return out;
-};
-
-/**
- * Rotates a matrix by the given angle around the Z axis
- *
- * @param {mat4} out the receiving matrix
- * @param {mat4} a the matrix to rotate
- * @param {Number} rad the angle to rotate the matrix by
- * @returns {mat4} out
- */
-mat4.rotateZ = function (out, a, rad) {
-    var s = Math.sin(rad),
-        c = Math.cos(rad),
-        a00 = a[0],
-        a01 = a[1],
-        a02 = a[2],
-        a03 = a[3],
-        a10 = a[4],
-        a11 = a[5],
-        a12 = a[6],
-        a13 = a[7];
-
-    if (a !== out) { // If the source and destination differ, copy the unchanged last row
-        out[8]  = a[8];
-        out[9]  = a[9];
-        out[10] = a[10];
-        out[11] = a[11];
-        out[12] = a[12];
-        out[13] = a[13];
-        out[14] = a[14];
-        out[15] = a[15];
-    }
-
-    // Perform axis-specific matrix multiplication
-    out[0] = a00 * c + a10 * s;
-    out[1] = a01 * c + a11 * s;
-    out[2] = a02 * c + a12 * s;
-    out[3] = a03 * c + a13 * s;
-    out[4] = a10 * c - a00 * s;
-    out[5] = a11 * c - a01 * s;
-    out[6] = a12 * c - a02 * s;
-    out[7] = a13 * c - a03 * s;
-    return out;
-};
-
-/**
- * Creates a matrix from a quaternion rotation and vector translation
- * This is equivalent to (but much faster than):
- *
- *     mat4.identity(dest);
- *     mat4.translate(dest, vec);
- *     var quatMat = mat4.create();
- *     quat4.toMat4(quat, quatMat);
- *     mat4.multiply(dest, quatMat);
- *
- * @param {mat4} out mat4 receiving operation result
- * @param {quat4} q Rotation quaternion
- * @param {vec3} v Translation vector
- * @returns {mat4} out
- */
-mat4.fromRotationTranslation = function (out, q, v) {
-    // Quaternion math
-    var x = q[0], y = q[1], z = q[2], w = q[3],
-        x2 = x + x,
-        y2 = y + y,
-        z2 = z + z,
-
-        xx = x * x2,
-        xy = x * y2,
-        xz = x * z2,
-        yy = y * y2,
-        yz = y * z2,
-        zz = z * z2,
-        wx = w * x2,
-        wy = w * y2,
-        wz = w * z2;
-
-    out[0] = 1 - (yy + zz);
-    out[1] = xy + wz;
-    out[2] = xz - wy;
-    out[3] = 0;
-    out[4] = xy - wz;
-    out[5] = 1 - (xx + zz);
-    out[6] = yz + wx;
-    out[7] = 0;
-    out[8] = xz + wy;
-    out[9] = yz - wx;
-    out[10] = 1 - (xx + yy);
-    out[11] = 0;
-    out[12] = v[0];
-    out[13] = v[1];
-    out[14] = v[2];
-    out[15] = 1;
-    
-    return out;
-};
-
-/**
- * Generates a frustum matrix with the given bounds
- *
- * @param {mat4} out mat4 frustum matrix will be written into
- * @param {Number} left Left bound of the frustum
- * @param {Number} right Right bound of the frustum
- * @param {Number} bottom Bottom bound of the frustum
- * @param {Number} top Top bound of the frustum
- * @param {Number} near Near bound of the frustum
- * @param {Number} far Far bound of the frustum
- * @returns {mat4} out
- */
-mat4.frustum = function (out, left, right, bottom, top, near, far) {
-    var rl = 1 / (right - left),
-        tb = 1 / (top - bottom),
-        nf = 1 / (near - far);
-    out[0] = (near * 2) * rl;
-    out[1] = 0;
-    out[2] = 0;
-    out[3] = 0;
-    out[4] = 0;
-    out[5] = (near * 2) * tb;
-    out[6] = 0;
-    out[7] = 0;
-    out[8] = (right + left) * rl;
-    out[9] = (top + bottom) * tb;
-    out[10] = (far + near) * nf;
-    out[11] = -1;
-    out[12] = 0;
-    out[13] = 0;
-    out[14] = (far * near * 2) * nf;
-    out[15] = 0;
-    return out;
-};
-
-/**
- * Generates a perspective projection matrix with the given bounds
- *
- * @param {mat4} out mat4 frustum matrix will be written into
- * @param {number} fovy Vertical field of view in radians
- * @param {number} aspect Aspect ratio. typically viewport width/height
- * @param {number} near Near bound of the frustum
- * @param {number} far Far bound of the frustum
- * @returns {mat4} out
- */
-mat4.perspective = function (out, fovy, aspect, near, far) {
-    var f = 1.0 / Math.tan(fovy / 2),
-        nf = 1 / (near - far);
-    out[0] = f / aspect;
-    out[1] = 0;
-    out[2] = 0;
-    out[3] = 0;
-    out[4] = 0;
-    out[5] = f;
-    out[6] = 0;
-    out[7] = 0;
-    out[8] = 0;
-    out[9] = 0;
-    out[10] = (far + near) * nf;
-    out[11] = -1;
-    out[12] = 0;
-    out[13] = 0;
-    out[14] = (2 * far * near) * nf;
-    out[15] = 0;
-    return out;
-};
-
-/**
- * Generates a orthogonal projection matrix with the given bounds
- *
- * @param {mat4} out mat4 frustum matrix will be written into
- * @param {number} left Left bound of the frustum
- * @param {number} right Right bound of the frustum
- * @param {number} bottom Bottom bound of the frustum
- * @param {number} top Top bound of the frustum
- * @param {number} near Near bound of the frustum
- * @param {number} far Far bound of the frustum
- * @returns {mat4} out
- */
-mat4.ortho = function (out, left, right, bottom, top, near, far) {
-    var lr = 1 / (left - right),
-        bt = 1 / (bottom - top),
-        nf = 1 / (near - far);
-    out[0] = -2 * lr;
-    out[1] = 0;
-    out[2] = 0;
-    out[3] = 0;
-    out[4] = 0;
-    out[5] = -2 * bt;
-    out[6] = 0;
-    out[7] = 0;
-    out[8] = 0;
-    out[9] = 0;
-    out[10] = 2 * nf;
-    out[11] = 0;
-    out[12] = (left + right) * lr;
-    out[13] = (top + bottom) * bt;
-    out[14] = (far + near) * nf;
-    out[15] = 1;
-    return out;
-};
-
-/**
- * Generates a look-at matrix with the given eye position, focal point, and up axis
- *
- * @param {mat4} out mat4 frustum matrix will be written into
- * @param {vec3} eye Position of the viewer
- * @param {vec3} center Point the viewer is looking at
- * @param {vec3} up vec3 pointing up
- * @returns {mat4} out
- */
-mat4.lookAt = function (out, eye, center, up) {
-    var x0, x1, x2, y0, y1, y2, z0, z1, z2, len,
-        eyex = eye[0],
-        eyey = eye[1],
-        eyez = eye[2],
-        upx = up[0],
-        upy = up[1],
-        upz = up[2],
-        centerx = center[0],
-        centery = center[1],
-        centerz = center[2];
-
-    if (Math.abs(eyex - centerx) < GLMAT_EPSILON &&
-        Math.abs(eyey - centery) < GLMAT_EPSILON &&
-        Math.abs(eyez - centerz) < GLMAT_EPSILON) {
-        return mat4.identity(out);
-    }
-
-    z0 = eyex - centerx;
-    z1 = eyey - centery;
-    z2 = eyez - centerz;
-
-    len = 1 / Math.sqrt(z0 * z0 + z1 * z1 + z2 * z2);
-    z0 *= len;
-    z1 *= len;
-    z2 *= len;
-
-    x0 = upy * z2 - upz * z1;
-    x1 = upz * z0 - upx * z2;
-    x2 = upx * z1 - upy * z0;
-    len = Math.sqrt(x0 * x0 + x1 * x1 + x2 * x2);
-    if (!len) {
-        x0 = 0;
-        x1 = 0;
-        x2 = 0;
-    } else {
-        len = 1 / len;
-        x0 *= len;
-        x1 *= len;
-        x2 *= len;
-    }
-
-    y0 = z1 * x2 - z2 * x1;
-    y1 = z2 * x0 - z0 * x2;
-    y2 = z0 * x1 - z1 * x0;
-
-    len = Math.sqrt(y0 * y0 + y1 * y1 + y2 * y2);
-    if (!len) {
-        y0 = 0;
-        y1 = 0;
-        y2 = 0;
-    } else {
-        len = 1 / len;
-        y0 *= len;
-        y1 *= len;
-        y2 *= len;
-    }
-
-    out[0] = x0;
-    out[1] = y0;
-    out[2] = z0;
-    out[3] = 0;
-    out[4] = x1;
-    out[5] = y1;
-    out[6] = z1;
-    out[7] = 0;
-    out[8] = x2;
-    out[9] = y2;
-    out[10] = z2;
-    out[11] = 0;
-    out[12] = -(x0 * eyex + x1 * eyey + x2 * eyez);
-    out[13] = -(y0 * eyex + y1 * eyey + y2 * eyez);
-    out[14] = -(z0 * eyex + z1 * eyey + z2 * eyez);
-    out[15] = 1;
-
-    return out;
-};
-
-/**
- * Returns a string representation of a mat4
- *
- * @param {mat4} mat matrix to represent as a string
- * @returns {String} string representation of the matrix
- */
-mat4.str = function (a) {
-    return 'mat4(' + a[0] + ', ' + a[1] + ', ' + a[2] + ', ' + a[3] + ', ' +
-                    a[4] + ', ' + a[5] + ', ' + a[6] + ', ' + a[7] + ', ' +
-                    a[8] + ', ' + a[9] + ', ' + a[10] + ', ' + a[11] + ', ' + 
-                    a[12] + ', ' + a[13] + ', ' + a[14] + ', ' + a[15] + ')';
-};
-
-if(typeof(exports) !== 'undefined') {
-    exports.mat4 = mat4;
-}
-;
-/* Copyright (c) 2012, Brandon Jones, Colin MacKenzie IV. All rights reserved.
-
-Redistribution and use in source and binary forms, with or without modification,
-are permitted provided that the following conditions are met:
-
-  * Redistributions of source code must retain the above copyright notice, this
-    list of conditions and the following disclaimer.
-  * Redistributions in binary form must reproduce the above copyright notice,
-    this list of conditions and the following disclaimer in the documentation 
-    and/or other materials provided with the distribution.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
-DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR
-ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
-ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. */
-
-/**
- * @class Quaternion
- * @name quat
- */
-
-var quat = {};
-
-var quatIdentity = new Float32Array([0, 0, 0, 1]);
-
-if(!GLMAT_EPSILON) {
-    var GLMAT_EPSILON = 0.000001;
-}
-
-/**
- * Creates a new identity quat
- *
- * @returns {quat} a new quaternion
- */
-quat.create = function() {
-    return new Float32Array(quatIdentity);
-};
-
-/**
- * Creates a new quat initialized with values from an existing quaternion
- *
- * @param {quat} a quaternion to clone
- * @returns {quat} a new quaternion
- */
-quat.clone = vec4.clone;
-
-/**
- * Creates a new quat initialized with the given values
- *
- * @param {Number} x X component
- * @param {Number} y Y component
- * @param {Number} z Z component
- * @param {Number} w W component
- * @returns {quat} a new quaternion
- */
-quat.fromValues = vec4.fromValues;
-
-/**
- * Copy the values from one quat to another
- *
- * @param {quat} out the receiving quaternion
- * @param {quat} a the source quaternion
- * @returns {quat} out
- */
-quat.copy = vec4.copy;
-
-/**
- * Set the components of a quat to the given values
- *
- * @param {quat} out the receiving quaternion
- * @param {Number} x X component
- * @param {Number} y Y component
- * @param {Number} z Z component
- * @param {Number} w W component
- * @returns {quat} out
- */
-quat.set = vec4.set;
-
-/**
- * Set a quat to the identity quaternion
- *
- * @param {quat} out the receiving quaternion
- * @returns {quat} out
- */
-quat.identity = function(out) {
-    out[0] = 0;
-    out[1] = 0;
-    out[2] = 0;
-    out[3] = 1;
-    return out;
-};
-
-/**
- * Sets a quat from the given angle and rotation axis,
- * then returns it.
- *
- * @param {quat} out the receiving quaternion
- * @param {vec3} axis the axis around which to rotate
- * @param {Number} rad the angle in radians
- * @returns {quat} out
- **/
-quat.setAxisAngle = function(out, axis, rad) {
-    rad = rad * 0.5;
-    var s = Math.sin(rad);
-    out[0] = s * axis[0];
-    out[1] = s * axis[1];
-    out[2] = s * axis[2];
-    out[3] = Math.cos(rad);
-    return out;
-};
-
-/**
- * Adds two quat's
- *
- * @param {quat} out the receiving quaternion
- * @param {quat} a the first operand
- * @param {quat} b the second operand
- * @returns {quat} out
- */
-quat.add = vec4.add;
-
-/**
- * Multiplies two quat's
- *
- * @param {quat} out the receiving quaternion
- * @param {quat} a the first operand
- * @param {quat} b the second operand
- * @returns {quat} out
- */
-quat.mul = quat.multiply = function(out, a, b) {
-    var ax = a[0], ay = a[1], az = a[2], aw = a[3],
-        bx = b[0], by = b[1], bz = b[2], bw = b[3];
-
-    out[0] = ax * bw + aw * bx + ay * bz - az * by;
-    out[1] = ay * bw + aw * by + az * bx - ax * bz;
-    out[2] = az * bw + aw * bz + ax * by - ay * bx;
-    out[3] = aw * bw - ax * bx - ay * by - az * bz;
-    return out;
-};
-
-/**
- * Scales a quat by a scalar number
- *
- * @param {quat} out the receiving vector
- * @param {quat} a the vector to scale
- * @param {quat} b amount to scale the vector by
- * @returns {quat} out
- */
-quat.scale = vec4.scale;
-
-/**
- * Rotates a quaternion by the given angle around the X axis
- *
- * @param {quat} out quat receiving operation result
- * @param {quat} a quat to rotate
- * @param {number} rad angle (in radians) to rotate
- * @returns {quat} out
- */
-quat.rotateX = function (out, a, rad) {
-    rad *= 0.5; 
-
-    var ax = a[0], ay = a[1], az = a[2], aw = a[3],
-        bx = Math.sin(rad), bw = Math.cos(rad);
-
-    out[0] = ax * bw + aw * bx;
-    out[1] = ay * bw + az * bx;
-    out[2] = az * bw - ay * bx;
-    out[3] = aw * bw - ax * bx;
-    return out;
-};
-
-/**
- * Rotates a quaternion by the given angle around the X axis
- *
- * @param {quat} out quat receiving operation result
- * @param {quat} a quat to rotate
- * @param {number} rad angle (in radians) to rotate
- * @returns {quat} out
- */
-quat.rotateY = function (out, a, rad) {
-    rad *= 0.5; 
-
-    var ax = a[0], ay = a[1], az = a[2], aw = a[3],
-        by = Math.sin(rad), bw = Math.cos(rad);
-
-    out[0] = ax * bw - az * by;
-    out[1] = ay * bw + aw * by;
-    out[2] = az * bw + ax * by;
-    out[3] = aw * bw - ay * by;
-    return out;
-};
-
-/**
- * Rotates a quaternion by the given angle around the X axis
- *
- * @param {quat} out quat receiving operation result
- * @param {quat} a quat to rotate
- * @param {number} rad angle (in radians) to rotate
- * @returns {quat} out
- */
-quat.rotateZ = function (out, a, rad) {
-    rad *= 0.5; 
-
-    var ax = a[0], ay = a[1], az = a[2], aw = a[3],
-        bz = Math.sin(rad), bw = Math.cos(rad);
-
-    out[0] = ax * bw + ay * bz;
-    out[1] = ay * bw - ax * bz;
-    out[2] = az * bw + aw * bz;
-    out[3] = aw * bw - az * bz;
-    return out;
-};
-
-/**
- * Calculates the W component of a quat from the X, Y, and Z components.
- * Assumes that quaternion is 1 unit in length.
- * Any existing W component will be ignored.
- *
- * @param {quat} out the receiving quaternion
- * @param {quat} a quat to calculate W component of
- * @returns {quat} out
- */
-quat.calculateW = function (out, a) {
-    var x = a[0], y = a[1], z = a[2];
-
-    out[0] = x;
-    out[1] = y;
-    out[2] = z;
-    out[3] = -Math.sqrt(Math.abs(1.0 - x * x - y * y - z * z));
-    return out;
-};
-
-/**
- * Caclulates the dot product of two quat's
- *
- * @param {quat} a the first operand
- * @param {quat} b the second operand
- * @returns {Number} dot product of a and b
- */
-quat.dot = vec4.dot;
-
-/**
- * Performs a linear interpolation between two quat's
- *
- * @param {quat} out the receiving quaternion
- * @param {quat} a the first operand
- * @param {quat} b the second operand
- * @param {Number} t interpolation amount between the two inputs
- * @returns {quat} out
- */
-quat.lerp = vec4.lerp;
-
-/**
- * Performs a spherical linear interpolation between two quat
- *
- * @param {quat} out the receiving quaternion
- * @param {quat} a the first operand
- * @param {quat} b the second operand
- * @param {Number} t interpolation amount between the two inputs
- * @returns {quat} out
- */
-quat.slerp = function (out, a, b, t) {
-    var ax = a[0], ay = a[1], az = a[2], aw = a[3],
-        bx = b[0], by = b[1], bz = b[2], bw = a[3];
-
-    var cosHalfTheta = ax * bx + ay * by + az * bz + aw * bw,
-        halfTheta,
-        sinHalfTheta,
-        ratioA,
-        ratioB;
-
-    if (Math.abs(cosHalfTheta) >= 1.0) {
-        if (out !== a) {
-            out[0] = ax;
-            out[1] = ay;
-            out[2] = az;
-            out[3] = aw;
-        }
-        return out;
-    }
-
-    halfTheta = Math.acos(cosHalfTheta);
-    sinHalfTheta = Math.sqrt(1.0 - cosHalfTheta * cosHalfTheta);
-
-    if (Math.abs(sinHalfTheta) < 0.001) {
-        out[0] = (ax * 0.5 + bx * 0.5);
-        out[1] = (ay * 0.5 + by * 0.5);
-        out[2] = (az * 0.5 + bz * 0.5);
-        out[3] = (aw * 0.5 + bw * 0.5);
-        return out;
-    }
-
-    ratioA = Math.sin((1 - t) * halfTheta) / sinHalfTheta;
-    ratioB = Math.sin(t * halfTheta) / sinHalfTheta;
-
-    out[0] = (ax * ratioA + bx * ratioB);
-    out[1] = (ay * ratioA + by * ratioB);
-    out[2] = (az * ratioA + bz * ratioB);
-    out[3] = (aw * ratioA + bw * ratioB);
-
-    return out;
-};
-
-/**
- * Calculates the inverse of a quat
- *
- * @param {quat} out the receiving quaternion
- * @param {quat} a quat to calculate inverse of
- * @returns {quat} out
- */
-quat.invert = function(out, a) {
-    var a0 = a[0], a1 = a[1], a2 = a[2], a3 = a[3],
-        dot = a0*a0 + a1*a1 + a2*a2 + a3*a3,
-        invDot = dot ? 1.0/dot : 0;
-    
-    // TODO: Would be faster to return [0,0,0,0] immediately if dot == 0
-
-    out[0] = -a0*invDot;
-    out[1] = -a1*invDot;
-    out[2] = -a2*invDot;
-    out[3] = a3*invDot;
-    return out;
-};
-
-/**
- * Calculates the conjugate of a quat
- * If the quaternion is normalized, this function is faster than quat.inverse and produces the same result.
- *
- * @param {quat} out the receiving quaternion
- * @param {quat} a quat to calculate conjugate of
- * @returns {quat} out
- */
-quat.conjugate = function (out, a) {
-    out[0] = -a[0];
-    out[1] = -a[1];
-    out[2] = -a[2];
-    out[3] = a[3];
-    return out;
-};
-
-/**
- * Caclulates the length of a quat
- *
- * @param {quat} a vector to calculate length of
- * @returns {Number} length of a
- */
-quat.len = quat.length = vec4.length;
-
-/**
- * Caclulates the squared length of a quat
- *
- * @param {quat} a vector to calculate squared length of
- * @returns {Number} squared length of a
- */
-quat.sqrLen = quat.squaredLength = vec4.squaredLength;
-
-/**
- * Normalize a quat
- *
- * @param {quat} out the receiving quaternion
- * @param {quat} a quaternion to normalize
- * @returns {quat} out
- */
-quat.normalize = vec4.normalize;
-
-/**
- * Returns a string representation of a quatenion
- *
- * @param {quat} vec vector to represent as a string
- * @returns {String} string representation of the vector
- */
-quat.str = function (a) {
-    return 'quat(' + a[0] + ', ' + a[1] + ', ' + a[2] + ', ' + a[3] + ')';
-};
-
-if(typeof(exports) !== 'undefined') {
-    exports.quat = quat;
-}
-;
-
-
-
-
-
-
-
-
-
-
-  })(shim.exports);
-})();
-
-});
-
-require.define("/node_modules/spatial-events/package.json",function(require,module,exports,__dirname,__filename,process,global){module.exports = {"main":"index.js"}
-});
-
-require.define("/node_modules/spatial-events/index.js",function(require,module,exports,__dirname,__filename,process,global){module.exports = SpatialEventEmitter
-
-var slice = [].slice
-  , Tree = require('./tree')
-  , aabb = require('aabb-3d')
-
-function SpatialEventEmitter() {
-  this.root = null
-  this.infinites = {}
-}
-
-var cons = SpatialEventEmitter
-  , proto = cons.prototype
-
-proto.size = 16
-
-proto.addListener = 
-proto.addEventListener = 
-proto.on = function(event, bbox, listener) {
-  if(!finite(bbox)) {
-    (this.infinites[event] = this.infinites[event] || []).push({
-      bbox: bbox
-    , func: listener
-    })
-    return this
-  }
-
-  (this.root = this.root || this.create_root(bbox))
-    .add(event, bbox, listener)
-
-  return this
-}
-
-proto.once = function(event, bbox, listener) {
-  var self = this
-
-  self.on(event, bbox, function once() {
-    listener.apply(null, arguments)
-    self.remove(event, once)
-  })
-
-  return self
-}
-
-proto.removeListener =
-proto.removeEventListener =
-proto.remove = function(event, listener) {
-  if(this.root) {
-    this.root.remove(event, listener)
-  }
-
-  if(!this.infinites[event]) {
-    return this
-  }
-
-  for(var i = 0, len = this.infinites[event].length; i < len; ++i) {
-    if(this.infinites[event][i].func === listener) {
-      break
-    }
-  }
-
-  if(i !== len) {
-    this.infinites[event].splice(i, 1)
-  }
-
-  return this
-}
-
-proto.emit = function(event, bbox/*, ...args */) {
-  var args = slice.call(arguments, 2)
-
-  // support point emitting
-  if('0' in bbox) {
-    bbox = aabb(bbox, [0, 0, 0]) 
-  }
-
-  if(this.root) {
-    this.root.send(event, bbox, args)
-  }
-
-  if(!this.infinites[event]) {
-    return this
-  }
-
-  var list = this.infinites[event].slice()
-  for(var i = 0, len = list.length; i < len; ++i) {
-    if(list[i].bbox.intersects(bbox)) {
-      list[i].func.apply(null, args) 
-    }
-  }
-
-  return this
-}
-
-proto.rootSize = function(size) {
-  proto.size = size
-}
-
-proto.create_root = function(bbox) {
-  var self = this
-    , size = self.size
-    , base = [
-        Math.floor(bbox.x0() / size) * size
-      , Math.floor(bbox.y0() / size) * size
-      , Math.floor(bbox.z0() / size) * size
-      ]
-    , tree_bbox = new bbox.constructor(base, [size, size, size])
-
-  function OurTree(size, bbox) {
-    Tree.call(this, size, bbox, null)
-  }
-
-  OurTree.prototype = Object.create(Tree.prototype)
-  OurTree.prototype.constructor = OurTree
-  OurTree.prototype.grow = function(new_root) {
-    self.root = new_root
-  }
-  OurTree.prototype.min_size = size
-
-  return new OurTree(size, tree_bbox) 
+module.exports = function(data, mesher, scaleFactor, three) {
+  return new Mesh(data, mesher, scaleFactor, three)
 }
-
-function finite(bbox) {
-  return isFinite(bbox.x0()) &&
-         isFinite(bbox.x1()) &&
-         isFinite(bbox.y0()) &&
-         isFinite(bbox.y1()) &&
-         isFinite(bbox.z0()) &&
-         isFinite(bbox.z1())
-}
-
-});
-
-require.define("/node_modules/spatial-events/tree.js",function(require,module,exports,__dirname,__filename,process,global){module.exports = Tree
-
-var aabb = require('aabb-3d')
-
-function Tree(size, bbox, parent) {
-  this.listeners = {}
-  this.size = size
-  this.bbox = bbox
-  this.parent = parent
-  this.children = []
-}
-
-var cons = Tree
-  , proto = cons.prototype
-
-proto.add = function(event, bbox, listener) {
-  if(!this.parent && !this.contains(bbox)) {
-    return this.expand(bbox).add(event, bbox, listener)
-  }
-
-  for(var i = 0, len = this.children.length; i < len; ++i) {
-    if(this.children[i].contains(bbox)) {
-      return this.children[i].add(event, bbox, listener)
-    }
-  }
-
-  var size = this.size / 2
-
-  if(size > this.min_size && bbox.vec[0] < size && bbox.vec[1] < size && bbox.vec[2] < size) {
-    // if it fits into a child node, make that childnode
-    if(Math.floor(bbox.x0() / size) === Math.floor(bbox.x1() / size) &&
-       Math.floor(bbox.y0() / size) === Math.floor(bbox.y1() / size) &&
-       Math.floor(bbox.z0() / size) === Math.floor(bbox.z1() / size)) {
-      var inst = new this.constructor(
-          size
-        , aabb([
-              Math.floor(bbox.x0() / size) * size
-            , Math.floor(bbox.y0() / size) * size
-            , Math.floor(bbox.z0() / size) * size
-            ]
-          , [size, size, size]
-          )
-        , this
-      )
-      this.children.push(inst)
-      return inst.add(event, bbox, listener)
-    }
-  }
-
-  (this.listeners[event] = this.listeners[event] || [])
-    .push({bbox: bbox, func: listener})
-}
-
-proto.contains = function(bbox) {
-  return bbox.x0() >= this.bbox.x0() &&
-         bbox.y0() >= this.bbox.y0() &&
-         bbox.z0() >= this.bbox.z0() &&
-         bbox.x1() <= this.bbox.x1() &&
-         bbox.y1() <= this.bbox.y1() &&
-         bbox.z1() <= this.bbox.z1()
-}
-
-proto.expand = function(bbox) {
-  var size = this.size
-    , new_size = size * 2
-    , expanded = this.bbox.expand(bbox)
-    , new_i = Math.floor(bbox.x0() / size)
-    , new_j = Math.floor(bbox.y0() / size)
-    , new_k = Math.floor(bbox.z0() / size)
-    , cur_i = Math.floor(this.bbox.x0() / size)
-    , cur_j = Math.floor(this.bbox.y0() / size)
-    , cur_k = Math.floor(this.bbox.z0() / size)
-    , new_base = [
-        new_i - cur_i >= 0 ? cur_i : cur_i - 1
-      , new_j - cur_j >= 0 ? cur_j : cur_j - 1
-      , new_k - cur_k >= 0 ? cur_k : cur_k - 1
-      ].map(function(ii) { return ii * size })
-    , new_bbox = aabb(new_base, [new_size, new_size, new_size])
-    , new_root = new this.constructor(new_size, new_bbox)
-    , self = this
-
-  this.parent = new_root
-  this.grow(this.parent)
-
-  new_root.children.push(self)
-
-  return new_root
-}
-
-proto.remove = function(event, listener) {
-  var list = this.listeners[event]
-  if(list) {
-    for(var i = 0, len = list.length; i < len; ++i) {
-      if(list[i].func === listener)
-        break
-    }
-
-    if(i !== len) {
-      list.splice(i, 1)
-    }
-  }
-  for(var i = 0, len = this.children.length; i < len; ++i) {
-    this.children[i].remove(event, listener)
-  }
-}
-
-proto.send = function(event, bbox, args) {
-  for(var i = 0, len = this.children.length; i < len; ++i) {
-    if(bbox.intersects(this.children[i].bbox)) {
-      this.children[i].send(event, bbox, args)
-    }
-  }
-
-  var list = this.listeners[event]
-  if(!list) {
-    return
-  }
-
-  for(var i = 0, len = list.length; i < len; ++i) {
-    if(list[i].bbox.intersects(bbox)) {
-      list[i].func.apply(null, args)
-    }
-  }
-}
-
-});
-
-require.define("/node_modules/voxel-region-change/package.json",function(require,module,exports,__dirname,__filename,process,global){module.exports = {}
-});
-
-require.define("/node_modules/voxel-region-change/index.js",function(require,module,exports,__dirname,__filename,process,global){module.exports = coordinates
-
-var aabb = require('aabb-3d')
-var events = require('events')
-
-function coordinates(spatial, box, regionWidth) {
-  var emitter = new events.EventEmitter()
-  var lastRegion = [NaN, NaN, NaN]
-  var thisRegion
 
-  if (arguments.length === 2) {
-    regionWidth = box
-    box = aabb([-Infinity, -Infinity, -Infinity], [Infinity, Infinity, Infinity])
-  }
+module.exports.Mesh = Mesh
 
-  spatial.on('position', box, updateRegion)
+function Mesh(data, mesher, scaleFactor, three) {
+  this.THREE = three || THREE
+  this.data = data
+  var geometry = this.geometry = new this.THREE.Geometry()
+  this.scale = scaleFactor || new this.THREE.Vector3(10, 10, 10)
   
-  function updateRegion(pos) {
-    thisRegion = [Math.floor(pos[0] / regionWidth), Math.floor(pos[1] / regionWidth), Math.floor(pos[2] / regionWidth)]
-    if (thisRegion[0] !== lastRegion[0] || thisRegion[1] !== lastRegion[1] || thisRegion[2] !== lastRegion[2]) {
-      emitter.emit('change', thisRegion)
-    }
-    lastRegion = thisRegion
-  }
- 
-  return emitter
-}
-});
+  var result = mesher( data.voxels, data.dims )
+  this.meshed = result
 
-require.define("/node_modules/kb-controls/package.json",function(require,module,exports,__dirname,__filename,process,global){module.exports = {"main":"index.js"}
-});
+  geometry.vertices.length = 0
+  geometry.faces.length = 0
 
-require.define("/node_modules/kb-controls/index.js",function(require,module,exports,__dirname,__filename,process,global){var ever = require('ever')
-  , vkey = require('vkey')
-  , max = Math.max
-
-module.exports = function(el, bindings, state) {
-  if(bindings === undefined || !el.ownerDocument) {
-    state = bindings
-    bindings = el
-    el = this.document.body
-  }
-
-  var ee = ever(el)
-    , measured = {}
-    , enabled = true
-
-  state = state || {}
-
-  // always initialize the state.
-  for(var key in bindings) {
-    if(bindings[key] === 'enabled' ||
-       bindings[key] === 'enable' ||
-       bindings[key] === 'disable' ||
-       bindings[key] === 'destroy') {
-      throw new Error(bindings[key]+' is reserved')
-    }
-    state[bindings[key]] = 0
-    measured[key] = 1
-  }
-
-  ee.on('keyup', wrapped(onoff(kb, false)))
-  ee.on('keydown', wrapped(onoff(kb, true)))
-  ee.on('mouseup', wrapped(onoff(mouse, false)))
-  ee.on('mousedown', wrapped(onoff(mouse, true)))
-
-  state.enabled = function() {
-    return enabled
-  }
-
-  state.enable = enable_disable(true)
-  state.disable = enable_disable(false)
-  state.destroy = function() {
-    ee.removeAllListeners()
+  for (var i = 0; i < result.vertices.length; ++i) {
+    var q = result.vertices[i]
+    geometry.vertices.push(new this.THREE.Vector3(q[0], q[1], q[2]))
   } 
-  return state
-
-  function clear() {
-    // always initialize the state.
-    for(var key in bindings) {
-      state[bindings[key]] = 0
-      measured[key] = 1
+  
+  for (var i = 0; i < result.faces.length; ++i) {
+    geometry.faceVertexUvs[0].push(this.faceVertexUv(i))
+    
+    var q = result.faces[i]
+    if (q.length === 5) {
+      var f = new this.THREE.Face4(q[0], q[1], q[2], q[3])
+      f.color = new this.THREE.Color(q[4])
+      geometry.faces.push(f)
+    } else if (q.length == 4) {
+      var f = new this.THREE.Face3(q[0], q[1], q[2])
+      f.color = new this.THREE.Color(q[3])
+      geometry.faces.push(f)
     }
   }
+  
+  geometry.computeFaceNormals()
 
-  function enable_disable(on_or_off) {
-    return function() {
-      clear()
-      enabled = on_or_off
-      return this
-    }
+  // compute vertex colors for ambient occlusion
+  var light = new THREE.Color(0xffffff)
+  var shadow = new THREE.Color(0x505050)
+  for (var i = 0; i < geometry.faces.length; ++i) {
+    var face = geometry.faces[i]
+    // facing up
+    if (face.normal.y === 1)       face.vertexColors = [light, light, light, light]
+    // facing down
+    else if (face.normal.y === -1) face.vertexColors = [shadow, shadow, shadow, shadow]
+    // facing right
+    else if (face.normal.x === 1)  face.vertexColors = [shadow, light, light, shadow]
+    // facing left
+    else if (face.normal.x === -1) face.vertexColors = [shadow, shadow, light, light]
+    // facing backward
+    else if (face.normal.z === 1)  face.vertexColors = [shadow, shadow, light, light]
+    // facing forward
+    else                           face.vertexColors = [shadow, light, light, shadow]
   }
 
-  function wrapped(fn) {
-    return function(ev) {
-      if(enabled) {
-        ev.preventDefault()
-        fn(ev)
-      } else {
-        return
-      }
-    }
-  }
+  geometry.verticesNeedUpdate = true
+  geometry.elementsNeedUpdate = true
+  geometry.normalsNeedUpdate = true
 
-  function onoff(find, on_or_off) {
-    return function(ev) {
-      var key = find(ev)
-        , binding = bindings[key]
+  geometry.computeBoundingBox()
+  geometry.computeBoundingSphere()
 
-      if(binding) {
-        state[binding] += on_or_off ? max(measured[key]--, 0) : -(measured[key] = 1)
-
-        if(!on_or_off && state[binding] < 0) {
-          state[binding] = 0
-        }
-      }
-    }
-  }
-
-  function mouse(ev) {
-    return '<mouse '+ev.which+'>'
-  }
-
-  function kb(ev) {
-    return vkey[ev.keyCode] || ev.char
-  }
 }
 
-});
-
-require.define("/node_modules/ever/package.json",function(require,module,exports,__dirname,__filename,process,global){module.exports = {"main":"index.js"}
-});
-
-require.define("/node_modules/ever/index.js",function(require,module,exports,__dirname,__filename,process,global){var EventEmitter = require('events').EventEmitter;
-
-module.exports = function (elem) {
-    return new Ever(elem);
-};
-
-function Ever (elem) {
-    this.element = elem;
+Mesh.prototype.createWireMesh = function(hexColor) {    
+  var wireMaterial = new this.THREE.MeshBasicMaterial({
+    color : hexColor || 0xffffff,
+    wireframe : true
+  })
+  wireMesh = new THREE.Mesh(this.geometry, wireMaterial)
+  wireMesh.scale = this.scale
+  wireMesh.doubleSided = true
+  this.wireMesh = wireMesh
+  return wireMesh
 }
 
-Ever.prototype = new EventEmitter;
-
-Ever.prototype.on = function (name, cb, useCapture) {
-    if (!this._events) this._events = {};
-    if (!this._events[name]) this._events[name] = [];
-    this._events[name].push(cb);
-    this.element.addEventListener(name, cb, useCapture || false);
-
-    return this;
-};
-Ever.prototype.addListener = Ever.prototype.on;
-
-Ever.prototype.removeListener = function (type, listener, useCapture) {
-    if (!this._events) this._events = {};
-    this.element.removeEventListener(type, listener, useCapture || false);
-    
-    var xs = this.listeners(type);
-    var ix = xs.indexOf(listener);
-    if (ix >= 0) xs.splice(ix, 1);
-
-    return this;
-};
-
-Ever.prototype.removeAllListeners = function (type) {
-    var self = this;
-    function removeAll (t) {
-        var xs = self.listeners(t);
-        for (var i = 0; i < xs.length; i++) {
-            self.removeListener(t, xs[i]);
-        }
-    }
-    
-    if (type) {
-        removeAll(type)
-    }
-    else if (self._events) {
-        for (var key in self._events) {
-            if (key) removeAll(key);
-        }
-    }
-    return EventEmitter.prototype.removeAllListeners.apply(self, arguments);
+Mesh.prototype.createSurfaceMesh = function(material) {
+  material = material || new this.THREE.MeshNormalMaterial()
+  var surfaceMesh  = new this.THREE.Mesh( this.geometry, material )
+  surfaceMesh.scale = this.scale
+  surfaceMesh.doubleSided = false
+  this.surfaceMesh = surfaceMesh
+  return surfaceMesh
 }
 
-var initSignatures = require('./init.json');
-
-Ever.prototype.emit = function (name, ev) {
-    if (typeof name === 'object') {
-        ev = name;
-        name = ev.type;
-    }
-    
-    if (!isEvent(ev)) {
-        var type = Ever.typeOf(name);
-        
-        var opts = ev || {};
-        if (opts.type === undefined) opts.type = name;
-        
-        ev = document.createEvent(type + 's');
-        var init = typeof ev['init' + type] === 'function'
-            ? 'init' + type : 'initEvent'
-        ;
-        
-        var sig = initSignatures[init];
-        var used = {};
-        var args = [];
-        
-        for (var i = 0; i < sig.length; i++) {
-            var key = sig[i];
-            args.push(opts[key]);
-            used[key] = true;
-        }
-        ev[init].apply(ev, args);
-        
-        // attach remaining unused options to the object
-        for (var key in opts) {
-            if (!used[key]) ev[key] = opts[key];
-        }
-    }
-    return this.element.dispatchEvent(ev);
-};
-
-function isEvent (ev) {
-    var s = Object.prototype.toString.call(ev);
-    return /\[object \S+Event\]/.test(s);
+Mesh.prototype.addToScene = function(scene) {
+  if (this.wireMesh) scene.add( this.wireMesh )
+  if (this.surfaceMesh) scene.add( this.surfaceMesh )
 }
 
-Ever.types = require('./types.json');
-Ever.typeOf = (function () {
-    var types = {};
-    for (var key in Ever.types) {
-        var ts = Ever.types[key];
-        for (var i = 0; i < ts.length; i++) {
-            types[ts[i]] = key;
-        }
-    }
-    
-    return function (name) {
-        return types[name] || 'Event';
-    };
-})();;
+Mesh.prototype.setPosition = function(x, y, z) {
+  if (this.wireMesh) this.wireMesh.position = new this.THREE.Vector3(x, y, z)
+  if (this.surfaceMesh) this.surfaceMesh.position = new this.THREE.Vector3(x, y, z)
+}
 
-});
-
-require.define("/node_modules/ever/init.json",function(require,module,exports,__dirname,__filename,process,global){module.exports = {
-  "initEvent" : [
-    "type",
-    "canBubble", 
-    "cancelable"
-  ],
-  "initUIEvent" : [
-    "type",
-    "canBubble", 
-    "cancelable", 
-    "view", 
-    "detail"
-  ],
-  "initMouseEvent" : [
-    "type",
-    "canBubble", 
-    "cancelable", 
-    "view", 
-    "detail", 
-    "screenX", 
-    "screenY", 
-    "clientX", 
-    "clientY", 
-    "ctrlKey", 
-    "altKey", 
-    "shiftKey", 
-    "metaKey", 
-    "button",
-    "relatedTarget"
-  ],
-  "initMutationEvent" : [
-    "type",
-    "canBubble", 
-    "cancelable", 
-    "relatedNode", 
-    "prevValue", 
-    "newValue", 
-    "attrName", 
-    "attrChange"
+Mesh.prototype.faceVertexUv = function(i) {
+  var vs = [
+    this.meshed.vertices[i*4+0],
+    this.meshed.vertices[i*4+1],
+    this.meshed.vertices[i*4+2],
+    this.meshed.vertices[i*4+3]
   ]
+  var spans = {
+    x0: vs[0][0] - vs[1][0],
+    x1: vs[1][0] - vs[2][0],
+    y0: vs[0][1] - vs[1][1],
+    y1: vs[1][1] - vs[2][1],
+    z0: vs[0][2] - vs[1][2],
+    z1: vs[1][2] - vs[2][2]
+  }
+  var size = {
+    x: Math.max(Math.abs(spans.x0), Math.abs(spans.x1)),
+    y: Math.max(Math.abs(spans.y0), Math.abs(spans.y1)),
+    z: Math.max(Math.abs(spans.z0), Math.abs(spans.z1))
+  }
+  if (size.x === 0) {
+    if (spans.y0 > spans.y1) {
+      var width = size.y
+      var height = size.z
+    }
+    else {
+      var width = size.z
+      var height = size.y
+    }
+  }
+  if (size.y === 0) {
+    if (spans.x0 > spans.x1) {
+      var width = size.x
+      var height = size.z
+    }
+    else {
+      var width = size.z
+      var height = size.x
+    }
+  }
+  if (size.z === 0) {
+    if (spans.x0 > spans.x1) {
+      var width = size.x
+      var height = size.y
+    }
+    else {
+      var width = size.y
+      var height = size.x
+    }
+  }
+  if ((size.z === 0 && spans.x0 < spans.x1) || (size.x === 0 && spans.y0 > spans.y1)) {
+    return [
+      new this.THREE.Vector2(height, 0),
+      new this.THREE.Vector2(0, 0),
+      new this.THREE.Vector2(0, width),
+      new this.THREE.Vector2(height, width)
+    ]
+  } else {
+    return [
+      new this.THREE.Vector2(0, 0),
+      new this.THREE.Vector2(0, height),
+      new this.THREE.Vector2(width, height),
+      new this.THREE.Vector2(width, 0)
+    ]
+  }
 }
 ;
 
-});
-
-require.define("/node_modules/ever/types.json",function(require,module,exports,__dirname,__filename,process,global){module.exports = {
-  "MouseEvent" : [
-    "click",
-    "mousedown",
-    "mouseup",
-    "mouseover",
-    "mousemove",
-    "mouseout"
-  ],
-  "KeyBoardEvent" : [
-    "keydown",
-    "keyup",
-    "keypress"
-  ],
-  "MutationEvent" : [
-    "DOMSubtreeModified",
-    "DOMNodeInserted",
-    "DOMNodeRemoved",
-    "DOMNodeRemovedFromDocument",
-    "DOMNodeInsertedIntoDocument",
-    "DOMAttrModified",
-    "DOMCharacterDataModified"
-  ],
-  "HTMLEvent" : [
-    "load",
-    "unload",
-    "abort",
-    "error",
-    "select",
-    "change",
-    "submit",
-    "reset",
-    "focus",
-    "blur",
-    "resize",
-    "scroll"
-  ],
-  "UIEvent" : [
-    "DOMFocusIn",
-    "DOMFocusOut",
-    "DOMActivate"
-  ]
-}
-;
-
-});
-
-require.define("/node_modules/vkey/package.json",function(require,module,exports,__dirname,__filename,process,global){module.exports = {"main":"index.js"}
-});
-
-require.define("/node_modules/vkey/index.js",function(require,module,exports,__dirname,__filename,process,global){'use strict'
-
-var ua = typeof window !== 'undefined' ? window.navigator.userAgent : ''
-  , isOSX = /OS X/.test(ua)
-  , isOpera = /Opera/.test(ua)
-  , maybeFirefox = !/like Gecko/.test(ua) && !isOpera
-
-var i, output = module.exports = {
-  0:  isOSX ? '<menu>' : '<UNK>'
-, 1:  '<mouse 1>'
-, 2:  '<mouse 2>'
-, 3:  '<break>'
-, 4:  '<mouse 3>'
-, 5:  '<mouse 4>'
-, 6:  '<mouse 5>'
-, 8:  '<backspace>'
-, 9:  '<tab>'
-, 12: '<clear>'
-, 13: '<enter>'
-, 16: '<shift>'
-, 17: '<control>'
-, 18: '<alt>'
-, 19: '<pause>'
-, 20: '<caps-lock>'
-, 21: '<ime-hangul>'
-, 23: '<ime-junja>'
-, 24: '<ime-final>'
-, 25: '<ime-kanji>'
-, 27: '<escape>'
-, 28: '<ime-convert>'
-, 29: '<ime-nonconvert>'
-, 30: '<ime-accept>'
-, 31: '<ime-mode-change>'
-, 32: '<space>'
-, 33: '<page-up>'
-, 34: '<page-down>'
-, 35: '<end>'
-, 36: '<home>'
-, 37: '<left>'
-, 38: '<up>'
-, 39: '<right>'
-, 40: '<down>'
-, 41: '<select>'
-, 42: '<print>'
-, 43: '<execute>'
-, 44: '<snapshot>'
-, 45: '<insert>'
-, 46: '<delete>'
-, 47: '<help>'
-, 91: '<meta>'  // meta-left -- no one handles left and right properly, so we coerce into one.
-, 92: '<meta>'  // meta-right
-, 93: isOSX ? '<meta>' : '<menu>'      // chrome,opera,safari all report this for meta-right (osx mbp).
-, 95: '<sleep>'
-, 106: '<num-*>'
-, 107: '<num-+>'
-, 108: '<num-enter>'
-, 109: '<num-->'
-, 110: '<num-.>'
-, 111: '<num-/>'
-, 144: '<num-lock>'
-, 145: '<scroll-lock>'
-, 160: '<shift-left>'
-, 161: '<shift-right>'
-, 162: '<control-left>'
-, 163: '<control-right>'
-, 164: '<alt-left>'
-, 165: '<alt-right>'
-, 166: '<browser-back>'
-, 167: '<browser-forward>'
-, 168: '<browser-refresh>'
-, 169: '<browser-stop>'
-, 170: '<browser-search>'
-, 171: '<browser-favorites>'
-, 172: '<browser-home>'
-
-  // ff/osx reports '<volume-mute>' for '-'
-, 173: isOSX && maybeFirefox ? '-' : '<volume-mute>'
-, 174: '<volume-down>'
-, 175: '<volume-up>'
-, 176: '<next-track>'
-, 177: '<prev-track>'
-, 178: '<stop>'
-, 179: '<play-pause>'
-, 180: '<launch-mail>'
-, 181: '<launch-media-select>'
-, 182: '<launch-app 1>'
-, 183: '<launch-app 2>'
-, 186: ';'
-, 187: '='
-, 188: ','
-, 189: '-'
-, 190: '.'
-, 191: '/'
-, 192: '`'
-, 219: '['
-, 220: '\\'
-, 221: ']'
-, 222: "'"
-, 223: '<meta>'
-, 224: '<meta>'       // firefox reports meta here.
-, 226: '<alt-gr>'
-, 229: '<ime-process>'
-, 231: isOpera ? '`' : '<unicode>'
-, 246: '<attention>'
-, 247: '<crsel>'
-, 248: '<exsel>'
-, 249: '<erase-eof>'
-, 250: '<play>'
-, 251: '<zoom>'
-, 252: '<no-name>'
-, 253: '<pa-1>'
-, 254: '<clear>'
-}
-
-for(i = 58; i < 65; ++i) {
-  output[i] = String.fromCharCode(i)
-}
-
-// 0-9
-for(i = 48; i < 58; ++i) {
-  output[i] = (i - 48)+''
-}
-
-// A-Z
-for(i = 65; i < 91; ++i) {
-  output[i] = String.fromCharCode(i)
-}
-
-// num0-9
-for(i = 96; i < 106; ++i) {
-  output[i] = '<num-'+(i - 96)+'>'
-}
-
-// F1-F24
-for(i = 112; i < 136; ++i) {
-  output[i] = 'F'+(i-111)
-}
-
-});
-
-require.define("/node_modules/voxel-physical/package.json",function(require,module,exports,__dirname,__filename,process,global){module.exports = {"main":"index.js"}
-});
-
-require.define("/node_modules/voxel-physical/index.js",function(require,module,exports,__dirname,__filename,process,global){module.exports = physical
+},{"three":54}],64:[function(require,module,exports){
+module.exports = physical
 
 var aabb = require('aabb-3d')
   , THREE = require('three')
@@ -94970,98 +99098,8 @@ proto.atRestZ = function() {
   return this.resting.z
 }
 
-});
-
-require.define("/node_modules/pin-it/package.json",function(require,module,exports,__dirname,__filename,process,global){module.exports = {"main":"index.js"}
-});
-
-require.define("/node_modules/pin-it/index.js",function(require,module,exports,__dirname,__filename,process,global){module.exports = pin
-
-var pins = {}
-  , stack_holder = {}
-  , pin_holder
-
-function make_pin_for(name, obj) {
-  var container = document.createElement('div')
-    , header = document.createElement('h4')
-    , body = document.createElement('pre')
-
-  container.style.background = 'white'
-  container.style.marginBottom = '4px'
-  container.appendChild(header)
-  container.appendChild(body)
-  header.textContents = header.innerText = obj && obj.repr ? obj.repr() : name
-  body.style.padding = '8px'
-
-
-  if(!pin_holder) {
-    pin_holder = document.createElement('div')
-    pin_holder.style.position = 'absolute'
-    pin_holder.style.top =
-    pin_holder.style.right = '4px'
-
-    document.body.appendChild(pin_holder)
-  }
-
-  pin_holder.appendChild(container)
-
-  return (pins[name] = pins[name] || []).push({body: body, last: -Infinity, for_object: obj}), pins[name]
-}
-
-function update_pin(item, into, retain, depth) {
-  if(!retain) into.innerHTML = ''
-  if(depth > 1) return
-  depth = depth || 0
-
-  switch(typeof item) {
-    case 'number': into.innerText += item.toFixed(3); break
-    case 'string': into.innerText += '"'+item+'"'; break
-    case 'undefined':
-    case 'object':
-      if(item) {
-        for(var key in item) if(item.hasOwnProperty(key)) {
-          into.innerText += key +':'
-          update_pin(item[key], into, true, depth+1)
-          into.innerText += '\n'
-        } 
-        break
-      }
-    case 'boolean': into.innerText += ''+item; break
-  }  
-}
-
-function pin(item, every, obj, name) {
-  if(!name) Error.captureStackTrace(stack_holder)
-  var location = name || stack_holder.stack.split('\n').slice(2)[0].replace(/^\s+at /g, '')
-    , target = pins[location] || make_pin_for(location, obj)
-    , now = Date.now()
-    , every = every || 0
-
-  if(arguments.length < 3) target = target[0]
-  else {
-    for(var i = 0, len = target.length; i < len; ++i) {
-    if(target[i].for_object === obj) {
-      target = target[i]
-      break   
-    }
-  }
-    if(i === len) {
-      pins[location].push(target = make_pin_for(location, obj))
-    }
-  }
-
-  if(now - target.last > every) {
-    update_pin(item, target.body)
-    target.last = now 
-  }
-}
-
-});
-
-require.define("/node_modules/voxel-player/package.json",function(require,module,exports,__dirname,__filename,process,global){module.exports = {"main":"index.js"}
-});
-
-require.define("/node_modules/voxel-player/index.js",function(require,module,exports,__dirname,__filename,process,global){var skin = require('minecraft-skin');
+},{"aabb-3d":32,"three":54}],65:[function(require,module,exports){
+var skin = require('minecraft-skin');
 
 module.exports = function (game) {
     var mountPoint;
@@ -95140,467 +99178,1422 @@ function parseXYZ (x, y, z) {
     return { x: Number(x), y: Number(y), z: Number(z) };
 }
 
-});
+},{"minecraft-skin":48}],66:[function(require,module,exports){
+"use strict"
 
-require.define("/node_modules/minecraft-skin/package.json",function(require,module,exports,__dirname,__filename,process,global){module.exports = {}
-});
-
-require.define("/node_modules/minecraft-skin/index.js",function(require,module,exports,__dirname,__filename,process,global){var THREE
-
-module.exports = function(three, image, sizeRatio) {
-  return new Skin(three, image, sizeRatio)
-}
-
-function Skin(three, image, opts) {
-  if (opts) opts.image = opts.image || image
-  else opts = { image: image }
-  if (typeof image === 'object' && !(image instanceof HTMLElement)) opts = image
-  THREE = three // hack until three.js fixes multiple instantiation
-  this.sizeRatio = opts.sizeRatio || 8
-  this.scale = opts.scale || new three.Vector3(1, 1, 1)
-  this.fallbackImage = opts.fallbackImage || 'skin.png'
-  this.createCanvases()
-  this.charMaterial = this.getMaterial(this.skin, false)
-	this.charMaterialTrans = this.getMaterial(this.skin, true)
-  if (typeof opts.image === "string") this.fetchImage(opts.image)
-  if (opts.image instanceof HTMLElement) this.setImage(opts.image)
-  this.mesh = this.createPlayerObject()
-}
-
-Skin.prototype.createCanvases = function() {
-  this.skinBig = document.createElement('canvas')
-  this.skinBigContext = this.skinBig.getContext('2d')
-  this.skinBig.width = 64 * this.sizeRatio
-  this.skinBig.height = 32 * this.sizeRatio
-  
-  this.skin = document.createElement('canvas')
-  this.skinContext = this.skin.getContext('2d')
-  this.skin.width = 64
-  this.skin.height = 32
-}
-
-Skin.prototype.fetchImage = function(imageURL) {
-  var self = this
-  this.image = new Image()
-  this.image.crossOrigin = 'anonymous'
-  this.image.src = imageURL
-  this.image.onload = function() {
-    self.setImage(self.image)
-  }
-}
-
-Skin.prototype.setImage = function (skin) {
-  this.image = skin
-  this.skinContext.clearRect(0, 0, 64, 32);
-  
-  this.skinContext.drawImage(skin, 0, 0);
-  
-  var imgdata = this.skinContext.getImageData(0, 0, 64, 32);
-  var pixels = imgdata.data;
-
-  this.skinBigContext.clearRect(0, 0, this.skinBig.width, this.skinBig.height);
-  this.skinBigContext.save();
-  
-  var isOnecolor = true;
-  
-  var colorCheckAgainst = [40, 0];
-  var colorIndex = (colorCheckAgainst[0]+colorCheckAgainst[1]*64)*4;
-  
-  var isPixelDifferent = function (x, y) {
-    if(pixels[(x+y*64)*4+0] !== pixels[colorIndex+0] || pixels[(x+y*64)*4+1] !== pixels[colorIndex+1] || pixels[(x+y*64)*4+2] !== pixels[colorIndex+2] || pixels[(x+y*64)*4+3] !== pixels[colorIndex+3]) {
-      return true;
-    }
-    return false;
-  };
-  
-  // Check if helmet/hat is a solid color
-  // Bottom row
-  for(var i=32; i < 64; i+=1) {
-    for(var j=8; j < 16; j+=1) {
-      if(isPixelDifferent(i, j)) {
-        isOnecolor = false;
-        break;
+function traceRay_impl(
+  voxels,
+  px, py, pz,
+  dx, dy, dz,
+  max_d,
+  hit_pos,
+  hit_norm,
+  EPSILON) {
+  var t = 0.0
+    , nx=0, ny=0, nz=0
+    , ix, iy, iz
+    , fx, fy, fz
+    , ox, oy, oz
+    , ex, ey, ez
+    , b, step, min_step
+    , floor = Math.floor
+  //Step block-by-block along ray
+  while(t <= max_d) {
+    ox = px + t * dx
+    oy = py + t * dy
+    oz = pz + t * dz
+    ix = floor(ox)|0
+    iy = floor(oy)|0
+    iz = floor(oz)|0
+    fx = ox - ix
+    fy = oy - iy
+    fz = oz - iz
+    b = voxels.getBlock(ix, iy, iz)
+    if(b) {
+      if(hit_pos) {
+        //Clamp to face on hit
+        hit_pos[0] = fx < EPSILON ? +ix : (fx > 1.0-EPSILON ? ix+1.0-EPSILON : ox)
+        hit_pos[1] = fy < EPSILON ? +iy : (fy > 1.0-EPSILON ? iy+1.0-EPSILON : oy)
+        hit_pos[2] = fz < EPSILON ? +iz : (fz > 1.0-EPSILON ? iz+1.0-EPSILON : oz)
       }
+      if(hit_norm) {
+        hit_norm[0] = nx
+        hit_norm[1] = ny
+        hit_norm[2] = nz
+      }
+      return b
     }
-    if(!isOnecolor) {
-      break;
-    }
-  }
-  if(!isOnecolor) {
-    // Top row
-    for(var i=40; i < 56; i+=1) {
-      for(var j=0; j < 8; j+=1) {
-        if(isPixelDifferent(i, j)) {
-          isOnecolor = false;
-          break;
+    //Check edge cases
+    min_step = +(EPSILON * (1.0 + t))
+    if(t > min_step) {
+      ex = nx < 0 ? fx <= min_step : fx >= 1.0 - min_step
+      ey = ny < 0 ? fy <= min_step : fy >= 1.0 - min_step
+      ez = nz < 0 ? fz <= min_step : fz >= 1.0 - min_step
+      if(ex && ey && ez) {
+        b = voxels.getBlock(ix+nx, iy+ny, iz) ||
+            voxels.getBlock(ix, iy+ny, iz+nz) ||
+            voxels.getBlock(ix+nx, iy, iz+nz)
+        if(b) {
+          if(hit_pos) {
+            hit_pos[0] = nx < 0 ? ix-EPSILON : ix + 1.0-EPSILON
+            hit_pos[1] = ny < 0 ? iy-EPSILON : iy + 1.0-EPSILON
+            hit_pos[2] = nz < 0 ? iz-EPSILON : iz + 1.0-EPSILON
+          }
+          if(hit_norm) {
+            hit_norm[0] = nx
+            hit_norm[1] = ny
+            hit_norm[2] = nz
+          }
+          return b
         }
       }
-      if(!isOnecolor) {
-        break;
+      if(ex && (ey || ez)) {
+        b = voxels.getBlock(ix+nx, iy, iz)
+        if(b) {
+          if(hit_pos) {
+            hit_pos[0] = nx < 0 ? ix-EPSILON : ix + 1.0-EPSILON
+            hit_pos[1] = fy < EPSILON ? +iy : oy
+            hit_pos[2] = fz < EPSILON ? +iz : oz
+          }
+          if(hit_norm) {
+            hit_norm[0] = nx
+            hit_norm[1] = ny
+            hit_norm[2] = nz
+          }
+          return b
+        }
       }
-      
-    }
-  }
-  
-  for(var i=0; i < 64; i+=1) {
-    for(var j=0; j < 32; j+=1) {
-      if(isOnecolor && ((i >= 32 && i < 64 && j >= 8 && j < 16) || (i >= 40 && i < 56 && j >= 0 && j < 8))) {
-        pixels[(i+j*64)*4+3] = 0
+      if(ey && (ex || ez)) {
+        b = voxels.getBlock(ix, iy+ny, iz)
+        if(b) {
+          if(hit_pos) {
+            hit_pos[0] = fx < EPSILON ? +ix : ox
+            hit_pos[1] = ny < 0 ? iy-EPSILON : iy + 1.0-EPSILON
+            hit_pos[2] = fz < EPSILON ? +iz : oz
+          }
+          if(hit_norm) {
+            hit_norm[0] = nx
+            hit_norm[1] = ny
+            hit_norm[2] = nz
+          }
+          return b
+        }
       }
-      this.skinBigContext.fillStyle = 'rgba('+pixels[(i+j*64)*4+0]+', '+pixels[(i+j*64)*4+1]+', '+pixels[(i+j*64)*4+2]+', '+pixels[(i+j*64)*4+3]/255+')';
-      this.skinBigContext.fillRect(i * this.sizeRatio, j * this.sizeRatio, this.sizeRatio, this.sizeRatio);
+      if(ez && (ex || ey)) {
+        b = voxels.getBlock(ix, iy, iz+nz)
+        if(b) {
+          if(hit_pos) {
+            hit_pos[0] = fx < EPSILON ? +ix : ox
+            hit_pos[1] = fy < EPSILON ? +iy : oy
+            hit_pos[2] = nz < 0 ? iz-EPSILON : iz + 1.0-EPSILON
+          }
+          if(hit_norm) {
+            hit_norm[0] = nx
+            hit_norm[1] = ny
+            hit_norm[2] = nz
+          }
+          return b
+        }
+      }
     }
+    //Walk to next face of cube along ray
+    nx = ny = nz = 0
+    step = 2.0
+    if(dx < -EPSILON) {
+      var s = -fx/dx
+      nx = 1
+      step = s
+    }
+    if(dx > EPSILON) {
+      var s = (1.0-fx)/dx
+      nx = -1
+      step = s
+    }
+    if(dy < -EPSILON) {
+      var s = -fy/dy
+      if(s < step-min_step) {
+        nx = 0
+        ny = 1
+        step = s
+      } else if(s < step+min_step) {
+        ny = 1
+      }
+    }
+    if(dy > EPSILON) {
+      var s = (1.0-fy)/dy
+      if(s < step-min_step) {
+        nx = 0
+        ny = -1
+        step = s
+      } else if(s < step+min_step) {
+        ny = -1
+      }
+    }
+    if(dz < -EPSILON) {
+      var s = -fz/dz
+      if(s < step-min_step) {
+        nx = ny = 0
+        nz = 1
+        step = s
+      } else if(s < step+min_step) {
+        nz = 1
+      }
+    }
+    if(dz > EPSILON) {
+      var s = (1.0-fz)/dz
+      if(s < step-min_step) {
+        nx = ny = 0
+        nz = -1
+        step = s
+      } else if(s < step+min_step) {
+        nz = -1
+      }
+    }
+    if(step > max_d - t) {
+      step = max_d - t - min_step
+    }
+    if(step < min_step) {
+      step = min_step
+    }
+    t += step
   }
+  if(hit_pos) {
+    hit_pos[0] = ox;
+    hit_pos[1] = oy;
+    hit_pos[2] = oz;
+  }
+  if(hit_norm) {
+    hit_norm[0] = hit_norm[1] = hit_norm[2] = 0;
+  }
+  return 0
+}
+
+function traceRay(voxels, origin, direction, max_d, hit_pos, hit_norm, EPSILON) {
+  var px = +origin[0]
+    , py = +origin[1]
+    , pz = +origin[2]
+    , dx = +direction[0]
+    , dy = +direction[1]
+    , dz = +direction[2]
+    , ds = Math.sqrt(dx*dx + dy*dy + dz*dz)
+  if(typeof(EPSILON) === "undefined") {
+    EPSILON = 1e-8
+  }
+  if(ds < EPSILON) {
+    if(hit_pos) {
+      hit_pos[0] = hit_pos[1] = hit_pos[2]
+    }
+    if(hit_norm) {
+      hit_norm[0] = hit_norm[1] = hit_norm[2]
+    }
+    return 0;
+  }
+  dx /= ds
+  dy /= ds
+  dz /= ds
+  if(typeof(max_d) === "undefined") {
+    max_d = 64.0
+  } else {
+    max_d = +max_d
+  }
+  return traceRay_impl(voxels, px, py, pz, dx, dy, dz, max_d, hit_pos, hit_norm, EPSILON)
+}
+
+module.exports = traceRay
+},{}],67:[function(require,module,exports){
+module.exports = coordinates
+
+var aabb = require('aabb-3d')
+var events = require('events')
+
+function coordinates(spatial, box, regionWidth) {
+  var emitter = new events.EventEmitter()
+  var lastRegion = [NaN, NaN, NaN]
+  var thisRegion
+
+  if (arguments.length === 2) {
+    regionWidth = box
+    box = aabb([-Infinity, -Infinity, -Infinity], [Infinity, Infinity, Infinity])
+  }
+
+  spatial.on('position', box, updateRegion)
   
-  this.skinBigContext.restore();
-  
-  this.skinContext.putImageData(imgdata, 0, 0);
-  
-  this.charMaterial.map.needsUpdate = true;
-  this.charMaterialTrans.map.needsUpdate = true;
-  
+  function updateRegion(pos) {
+    thisRegion = [Math.floor(pos[0] / regionWidth), Math.floor(pos[1] / regionWidth), Math.floor(pos[2] / regionWidth)]
+    if (thisRegion[0] !== lastRegion[0] || thisRegion[1] !== lastRegion[1] || thisRegion[2] !== lastRegion[2]) {
+      emitter.emit('change', thisRegion)
+    }
+    lastRegion = thisRegion
+  }
+ 
+  return emitter
+}
+},{"aabb-3d":32,"events":5}],68:[function(require,module,exports){
+var tic = require('tic')();
+var createAtlas = require('atlaspack');
+
+function Texture(opts) {
+  if (!(this instanceof Texture)) return new Texture(opts || {});
+  var self = this;
+  this.game = opts.game; delete opts.game;
+  this.THREE = this.game.THREE;
+  this.materials = [];
+  this.texturePath = opts.texturePath || '/textures/';
+  this.loading = 0;
+
+  var useFlatColors = opts.materialFlatColor === true;
+  delete opts.materialFlatColor;
+
+  this.options = defaults(opts || {}, {
+    crossOrigin: 'Anonymous',
+    materialParams: defaults(opts.materialParams || {}, {
+      ambient: 0xbbbbbb
+    }),
+    materialType: this.THREE.MeshLambertMaterial,
+    applyTextureParams: function(map) {
+      map.magFilter = self.THREE.NearestFilter;
+      map.minFilter = self.THREE.LinearMipMapLinearFilter;
+    }
+  });
+
+  // create a canvas for the texture atlas
+  this.canvas = (typeof document !== 'undefined') ? document.createElement('canvas') : {};
+  this.canvas.width = opts.atlasWidth || 512;
+  this.canvas.height = opts.atlasHeight || 512;
+
+  // create core atlas and texture
+  this.atlas = createAtlas(this.canvas);
+  this.atlas.tilepad = true;
+  this._atlasuv = false;
+  this._atlaskey = false;
+  this.texture = new this.THREE.Texture(this.canvas);
+  this.options.applyTextureParams(this.texture);
+
+  if (useFlatColors) {
+    // If were using simple colors
+    this.material = new this.THREE.MeshBasicMaterial({
+      vertexColors: this.THREE.VertexColors
+    });
+  } else {
+    // load a first material for easy application to meshes
+    this.material = new this.options.materialType(this.options.materialParams);
+    this.material.map = this.texture;
+    this.material.transparent = true;
+  }
+
+  // a place for meshes to wait while textures are loading
+  this._meshQueue = [];
+}
+module.exports = Texture;
+
+Texture.prototype.load = function(names, done) {
+  var self = this;
+  if (!Array.isArray(names)) names = [names];
+  done = done || function() {};
+  this.loading++;
+
+  var materialSlice = names.map(self._expandName);
+  self.materials = self.materials.concat(materialSlice);
+
+  // load onto the texture atlas
+  var load = Object.create(null);
+  materialSlice.forEach(function(mats) {
+    mats.forEach(function(mat) {
+      if (mat.slice(0, 1) === '#') return;
+      // todo: check if texture already exists
+      load[mat] = true;
+    });
+  });
+  if (Object.keys(load).length > 0) {
+    each(Object.keys(load), self.pack.bind(self), function() {
+      self._afterLoading();
+      done(materialSlice);
+    });
+  } else {
+    self._afterLoading();
+  }
 };
 
-Skin.prototype.getMaterial = function(img, transparent) {
-  var texture    = new THREE.Texture(img);
-  texture.magFilter  = THREE.NearestFilter;
-  texture.minFilter  = THREE.NearestFilter;
-  texture.format    = transparent ? THREE.RGBAFormat : THREE.RGBFormat;
-  texture.needsUpdate  = true;
-  var material  = new THREE.MeshBasicMaterial({
-    map    : texture,
-    transparent  : transparent ? true : false
+Texture.prototype.pack = function(name, done) {
+  var self = this;
+  function pack(img) {
+    var node = self.atlas.pack(img);
+    if (node === false) {
+      self.atlas = self.atlas.expand(img);
+      self.atlas.tilepad = true;
+    }
+    done();
+  }
+  if (typeof name === 'string') {
+    var img = new Image();
+    img.id = name;
+    img.crossOrigin = self.options.crossOrigin;
+    img.src = self.texturePath + ext(name);
+    img.onload = function() {
+      pack(img);
+    };
+    img.onerror = function() {
+      console.error('Couldn\'t load URL [' + img.src + ']');
+      done();
+    };
+  } else {
+    pack(name);
+  }
+  return self;
+};
+
+Texture.prototype.find = function(name) {
+  var self = this;
+  var type = 0;
+  self.materials.forEach(function(mats, i) {
+    mats.forEach(function(mat) {
+      if (mat === name) {
+        type = i + 1;
+        return false;
+      }
+    });
+    if (type !== 0) return false;
   });
-  return material;
-}
+  return type;
+};
 
-Skin.prototype.UVMap = function(mesh, face, x, y, w, h, rotateBy) {
-  if (!rotateBy) rotateBy = 0;
-  var uvs = mesh.geometry.faceVertexUvs[0][face];
-  var tileU = x;
-  var tileV = y;
-  var tileUvWidth = 1/64;
-  var tileUvHeight = 1/32;
-  uvs[ (0 + rotateBy) % 4 ].x = (tileU * tileUvWidth)
-  uvs[ (0 + rotateBy) % 4 ].y = 1 - (tileV * tileUvHeight)
-  uvs[ (1 + rotateBy) % 4 ].x = (tileU * tileUvWidth)
-  uvs[ (1 + rotateBy) % 4 ].y = 1 - (tileV * tileUvHeight + h * tileUvHeight)
-  uvs[ (2 + rotateBy) % 4 ].x = (tileU * tileUvWidth + w * tileUvWidth)
-  uvs[ (2 + rotateBy) % 4 ].y = 1 - (tileV * tileUvHeight + h * tileUvHeight)
-  uvs[ (3 + rotateBy) % 4 ].x = (tileU * tileUvWidth + w * tileUvWidth)
-  uvs[ (3 + rotateBy) % 4 ].y = 1 - (tileV * tileUvHeight)
-}
+Texture.prototype._expandName = function(name) {
+  if (name === null) return Array(6);
+  if (name.top) return [name.back, name.front, name.top, name.bottom, name.left, name.right];
+  if (!Array.isArray(name)) name = [name];
+  // load the 0 texture to all
+  if (name.length === 1) name = [name[0],name[0],name[0],name[0],name[0],name[0]];
+  // 0 is top/bottom, 1 is sides
+  if (name.length === 2) name = [name[1],name[1],name[0],name[0],name[1],name[1]];
+  // 0 is top, 1 is bottom, 2 is sides
+  if (name.length === 3) name = [name[2],name[2],name[0],name[1],name[2],name[2]];
+  // 0 is top, 1 is bottom, 2 is front/back, 3 is left/right
+  if (name.length === 4) name = [name[2],name[2],name[0],name[1],name[3],name[3]];
+  return name;
+};
 
-Skin.prototype.cubeFromPlanes = function (size, mat) {
-  var cube = new THREE.Object3D();
-  var meshes = [];
-  for(var i=0; i < 6; i++) {
-    var mesh = new THREE.Mesh(new THREE.PlaneGeometry(size, size), mat);
-    mesh.doubleSided = true;
-    cube.add(mesh);
-    meshes.push(mesh);
+Texture.prototype._afterLoading = function() {
+  var self = this;
+  function alldone() {
+    self.loading--;
+    self._atlasuv = self.atlas.uv(self.canvas.width, self.canvas.height);
+    self._atlaskey = Object.create(null);
+    self.atlas.index().forEach(function(key) {
+      self._atlaskey[key.name] = key;
+    });
+    self.texture.needsUpdate = true;
+    self.material.needsUpdate = true;
+    //window.open(self.canvas.toDataURL());
+    if (self._meshQueue.length > 0) {
+      self._meshQueue.forEach(function(queue, i) {
+        self.paint.apply(queue.self, queue.args);
+        delete self._meshQueue[i];
+      });
+    }
   }
-  // Front
-  meshes[0].rotation.x = Math.PI/2;
-  meshes[0].rotation.z = -Math.PI/2;
-  meshes[0].position.x = size/2;
-  
-  // Back
-  meshes[1].rotation.x = Math.PI/2;
-  meshes[1].rotation.z = Math.PI/2;
-  meshes[1].position.x = -size/2;
-  
-  // Top
-  meshes[2].position.y = size/2;
-  
-  // Bottom
-  meshes[3].rotation.y = Math.PI;
-  meshes[3].rotation.z = Math.PI;
-  meshes[3].position.y = -size/2;
-  
-  // Left
-  meshes[4].rotation.x = Math.PI/2;
-  meshes[4].position.z = size/2;
-  
-  // Right
-  meshes[5].rotation.x = -Math.PI/2;
-  meshes[5].rotation.y = Math.PI;
-  meshes[5].position.z = -size/2;
-  
-  return cube;
-}
+  self._powerof2(function() {
+    setTimeout(alldone, 100);
+  });
+};
 
-//exporting these meshes for manipulation:
-//leftLeg
-//rightLeg
-//leftArm
-//rightArm
-//body
-//head
-
-Skin.prototype.createPlayerObject = function(scene) {
-  var headgroup = new THREE.Object3D();
-  var upperbody = this.upperbody = new THREE.Object3D();
-  
-  // Left leg
-  var leftleggeo = new THREE.CubeGeometry(4, 12, 4);
-  for(var i=0; i < 8; i+=1) {
-    leftleggeo.vertices[i].y -= 6;
+// Ensure the texture stays at a power of 2 for mipmaps
+// this is cheating :D
+Texture.prototype._powerof2 = function(done) {
+  var w = this.canvas.width;
+  var h = this.canvas.height;
+  function pow2(x) {
+    x--;
+    x |= x >> 1;
+    x |= x >> 2;
+    x |= x >> 4;
+    x |= x >> 8;
+    x |= x >> 16;
+    x++;
+    return x;
   }
-  var leftleg = this.leftLeg = new THREE.Mesh(leftleggeo, this.charMaterial);
-  leftleg.position.z = -2;
-  leftleg.position.y = -6;
-  this.UVMap(leftleg, 0, 8, 20, -4, 12);
-  this.UVMap(leftleg, 1, 16, 20, -4, 12);
-  this.UVMap(leftleg, 2, 4, 16, 4, 4, 3);
-  this.UVMap(leftleg, 3, 8, 20, 4, -4, 1);
-  this.UVMap(leftleg, 4, 12, 20, -4, 12);
-  this.UVMap(leftleg, 5, 4, 20, -4, 12);
+  if (h > w) w = h;
+  var old = this.canvas.getContext('2d').getImageData(0, 0, this.canvas.width, this.canvas.height);
+  this.canvas.width = this.canvas.height = pow2(w);
+  this.canvas.getContext('2d').putImageData(old, 0, 0);
+  done();
+};
 
-  // Right leg
-  var rightleggeo = new THREE.CubeGeometry(4, 12, 4);
-  for(var i=0; i < 8; i+=1) {
-    rightleggeo.vertices[i].y -= 6;
+Texture.prototype.paint = function(mesh, materials) {
+  var self = this;
+
+  // if were loading put into queue
+  if (self.loading > 0) {
+    self._meshQueue.push({self: self, args: arguments});
+    return false;
   }
-  var rightleg = this.rightLeg =new THREE.Mesh(rightleggeo, this.charMaterial);
-  rightleg.position.z = 2;
-  rightleg.position.y = -6;
-  this.UVMap(rightleg, 0, 4, 20, 4, 12);
-  this.UVMap(rightleg, 1, 12, 20, 4, 12);
-  this.UVMap(rightleg, 2, 8, 16, -4, 4, 3);
-  this.UVMap(rightleg, 3, 12, 20, -4, -4, 1);
-  this.UVMap(rightleg, 4, 0, 20, 4, 12);
-  this.UVMap(rightleg, 5, 8, 20, 4, 12);
-  
-  // Body
-  var bodygeo = new THREE.CubeGeometry(4, 12, 8);
-  var bodymesh = this.body = new THREE.Mesh(bodygeo, this.charMaterial);
-  this.UVMap(bodymesh, 0, 20, 20, 8, 12);
-  this.UVMap(bodymesh, 1, 32, 20, 8, 12);
-  this.UVMap(bodymesh, 2, 20, 16, 8, 4, 1);
-  this.UVMap(bodymesh, 3, 28, 16, 8, 4, 3);
-  this.UVMap(bodymesh, 4, 16, 20, 4, 12);
-  this.UVMap(bodymesh, 5, 28, 20, 4, 12);
-  upperbody.add(bodymesh);
-  
-  
-  // Left arm
-  var leftarmgeo = new THREE.CubeGeometry(4, 12, 4);
-  for(var i=0; i < 8; i+=1) {
-    leftarmgeo.vertices[i].y -= 4;
-  }
-  var leftarm = this.leftArm = new THREE.Mesh(leftarmgeo, this.charMaterial);
-  leftarm.position.z = -6;
-  leftarm.position.y = 4;
-  leftarm.rotation.x = Math.PI/32;
-  this.UVMap(leftarm, 0, 48, 20, -4, 12);
-  this.UVMap(leftarm, 1, 56, 20, -4, 12);
-  this.UVMap(leftarm, 2, 48, 16, -4, 4, 1);
-  this.UVMap(leftarm, 3, 52, 16, -4, 4, 3);
-  this.UVMap(leftarm, 4, 52, 20, -4, 12);
-  this.UVMap(leftarm, 5, 44, 20, -4, 12);
-  upperbody.add(leftarm);
-  
-  // Right arm
-  var rightarmgeo = new THREE.CubeGeometry(4, 12, 4);
-  for(var i=0; i < 8; i+=1) {
-    rightarmgeo.vertices[i].y -= 4;
-  }
-  var rightarm =this.rightArm = new THREE.Mesh(rightarmgeo, this.charMaterial);
-  rightarm.position.z = 6;
-  rightarm.position.y = 4;
-  rightarm.rotation.x = -Math.PI/32;
-  this.UVMap(rightarm, 0, 44, 20, 4, 12);
-  this.UVMap(rightarm, 1, 52, 20, 4, 12);
-  this.UVMap(rightarm, 2, 44, 16, 4, 4, 1);
-  this.UVMap(rightarm, 3, 48, 16, 4, 4, 3);
-  this.UVMap(rightarm, 4, 40, 20, 4, 12);
-  this.UVMap(rightarm, 5, 48, 20, 4, 12);
-  upperbody.add(rightarm);
-  
-  //Head
-  var headgeo = new THREE.CubeGeometry(8, 8, 8);
-  var headmesh = this.head = new THREE.Mesh(headgeo, this.charMaterial);
-  headmesh.position.y = 2;
-  this.UVMap(headmesh, 0, 8, 8, 8, 8);
-  this.UVMap(headmesh, 1, 24, 8, 8, 8);
-  
-  this.UVMap(headmesh, 2, 8, 0, 8, 8, 1);
-  this.UVMap(headmesh, 3, 16, 0, 8, 8, 3);
-  
-  this.UVMap(headmesh, 4, 0, 8, 8, 8);
-  this.UVMap(headmesh, 5, 16, 8, 8, 8);
 
-  var unrotatedHeadMesh = new THREE.Object3D();
-  unrotatedHeadMesh.rotation.y = Math.PI / 2;
-  unrotatedHeadMesh.add(headmesh);
+  var isVoxelMesh = (materials) ? false : true;
+  if (!isVoxelMesh) materials = self._expandName(materials);
 
-  headgroup.add(unrotatedHeadMesh);
+  mesh.geometry.faces.forEach(function(face, i) {
+    if (mesh.geometry.faceVertexUvs[0].length < 1) return;
 
-  var helmet = this.cubeFromPlanes(9, this.charMaterialTrans);
-  helmet.position.y = 2;
-  this.UVMap(helmet.children[0], 0, 32+8, 8, 8, 8);
-  this.UVMap(helmet.children[1], 0, 32+24, 8, 8, 8);
-  this.UVMap(helmet.children[2], 0, 32+8, 0, 8, 8, 1);
-  this.UVMap(helmet.children[3], 0, 32+16, 0, 8, 8, 3);
-  this.UVMap(helmet.children[4], 0, 32+0, 8, 8, 8);
-  this.UVMap(helmet.children[5], 0, 32+16, 8, 8, 8);
-  
-  headgroup.add(helmet);
-  
-  var ears = new THREE.Object3D();
-  
-  var eargeo = new THREE.CubeGeometry(1, (9/8)*6, (9/8)*6);
-  var leftear = new THREE.Mesh(eargeo, this.charMaterial);
-  var rightear = new THREE.Mesh(eargeo, this.charMaterial);
-  
-  leftear.position.y = 2+(9/8)*5;
-  rightear.position.y = 2+(9/8)*5;
-  leftear.position.z = -(9/8)*5;
-  rightear.position.z = (9/8)*5;
-  
-  // Right ear share same geometry, same uv-maps
-  
-  this.UVMap(leftear, 0, 25, 1, 6, 6); // Front side
-  this.UVMap(leftear, 1, 32, 1, 6, 6); // Back side
-  
-  this.UVMap(leftear, 2, 25, 0, 6, 1, 1); // Top edge
-  this.UVMap(leftear, 3, 31, 0, 6, 1, 1); // Bottom edge
-  
-  this.UVMap(leftear, 4, 24, 1, 1, 6); // Left edge
-  this.UVMap(leftear, 5, 31, 1, 1, 6); // Right edge
-  
-  ears.add(leftear);
-  ears.add(rightear);
-  
-  leftear.visible = rightear.visible = false;
-  
-  headgroup.add(ears);
-  headgroup.position.y = 8;
-  
-  var playerModel = this.playerModel = new THREE.Object3D();
-  
-  playerModel.add(leftleg);
-  playerModel.add(rightleg);
-  
-  playerModel.add(upperbody);
-  
-  var playerRotation = new THREE.Object3D();
-  playerRotation.rotation.y = Math.PI / 2
-  playerRotation.position.y = 12
-  playerRotation.add(playerModel)
+    if (isVoxelMesh) {
+      var index = Math.floor(face.color.b*255 + face.color.g*255*255 + face.color.r*255*255*255);
+      materials = self.materials[index - 1];
+      if (!materials) materials = self.materials[0];
+    }
 
-  var rotatedHead = new THREE.Object3D();
-  rotatedHead.rotation.y = -Math.PI/2;
-  rotatedHead.add(headgroup);
+    // BACK, FRONT, TOP, BOTTOM, LEFT, RIGHT
+    var name = materials[0] || '';
+    if      (face.normal.z === 1)  name = materials[1] || '';
+    else if (face.normal.y === 1)  name = materials[2] || '';
+    else if (face.normal.y === -1) name = materials[3] || '';
+    else if (face.normal.x === -1) name = materials[4] || '';
+    else if (face.normal.x === 1)  name = materials[5] || '';
 
-  playerModel.add(rotatedHead);
-  playerModel.position.y = 6;
-  
-  var playerGroup = new THREE.Object3D();
-  playerGroup.cameraInside = new THREE.Object3D()
-  playerGroup.cameraOutside = new THREE.Object3D()
+    // if just a simple color
+    if (name.slice(0, 1) === '#') {
+      self.setColor(mesh.geometry.faces[i], name);
+      return;
+    }
 
-  playerGroup.cameraInside.position.x = 0;
-  playerGroup.cameraInside.position.y = 2;
-  playerGroup.cameraInside.position.z = 0; 
+    var atlasuv = self._atlasuv[name];
+    if (!atlasuv) return;
 
-  playerGroup.head = headgroup
-  headgroup.add(playerGroup.cameraInside)
-  playerGroup.cameraInside.add(playerGroup.cameraOutside)
+    // 0 -- 1
+    // |    |
+    // 3 -- 2
+    // faces on these meshes are flipped vertically, so we map in reverse
+    // TODO: tops need rotate
+    if (isVoxelMesh) {
+      if (face.normal.z === -1 || face.normal.x === 1) {
+        atlasuv = uvrot(atlasuv, 90);
+      }
+      atlasuv = uvinvert(atlasuv);
+    } else {
+      atlasuv = uvrot(atlasuv, -90);
+    }
+    for (var j = 0; j < 4; j++) {
+      mesh.geometry.faceVertexUvs[0][i][j].set(atlasuv[j][0], 1 - atlasuv[j][1]);
+    }
+  });
 
-  playerGroup.cameraOutside.position.z = 100
+  mesh.geometry.uvsNeedUpdate = true;
+};
 
-  
-  playerGroup.add(playerRotation);
-  playerGroup.scale = this.scale
-  return playerGroup
-}
+Texture.prototype.sprite = function(name, w, h, cb) {
+  var self = this;
+  if (typeof w === 'function') { cb = w; w = null; }
+  if (typeof h === 'function') { cb = h; h = null; }
+  w = w || 16; h = h || w;
+  self.loading++;
+  var img = new Image();
+  img.src = self.texturePath + ext(name);
+  img.onerror = cb;
+  img.onload = function() {
+    var canvases = [];
+    for (var x = 0; x < img.width; x += w) {
+      for (var y = 0; y < img.height; y += h) {
+        var canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.name = name + '_' + x + '_' + y;
+        canvas.getContext('2d').drawImage(img, x, y, w, h, 0, 0, w, h);
+        canvases.push(canvas);
+      }
+    }
+    var textures = [];
+    each(canvases, function(canvas, next) {
+      var tex = new Image();
+      tex.name = canvas.name;
+      tex.src = canvas.toDataURL();
+      tex.onload = function() {
+        self.pack(tex, next);
+      };
+      tex.onerror = next;
+      textures.push([
+        tex.name, tex.name, tex.name,
+        tex.name, tex.name, tex.name
+      ]);
+    }, function() {
+      self._afterLoading();
+      delete canvases;
+      self.materials = self.materials.concat(textures);
+      cb(textures);
+    });
+  };
+  return self;
+};
+
+Texture.prototype.animate = function(mesh, names, delay) {
+  var self = this;
+  delay = delay || 1000;
+  if (!Array.isArray(names) || names.length < 2) return false;
+  var i = 0;
+  var mat = new this.options.materialType(this.options.materialParams);
+  mat.map = this.texture;
+  mat.transparent = true;
+  mat.needsUpdate = true;
+  tic.interval(function() {
+    self.paint(mesh, names[i % names.length]);
+    i++;
+  }, delay);
+  return mat;
+};
+
+Texture.prototype.tick = function(dt) {
+  tic.tick(dt);
+};
+
+Texture.prototype.setColor = function(face, color) {
+  var rgb = hex2rgb(color);
+  face.color.setRGB(rgb[0], rgb[1], rgb[2]);
+  var ld = this._lightDark(color);
+
+  // TODO: AO should be figured better than this
+  if (face.normal.y === 1)       face.vertexColors = [ld[0], ld[0], ld[0], ld[0]];
+  else if (face.normal.y === -1) face.vertexColors = [ld[1], ld[1], ld[1], ld[1]];
+  else if (face.normal.x === 1)  face.vertexColors = [ld[1], ld[0], ld[0], ld[1]];
+  else if (face.normal.x === -1) face.vertexColors = [ld[1], ld[1], ld[0], ld[0]];
+  else if (face.normal.z === 1)  face.vertexColors = [ld[1], ld[1], ld[0], ld[0]];
+  else                           face.vertexColors = [ld[1], ld[0], ld[0], ld[1]];
+};
+
+Texture.prototype._lightDark = memoize(function(color) {
+  var light = new this.THREE.Color(color);
+  var hsl = light.getHSL();
+  var dark = light.clone();
+  dark.setHSL(hsl.h, hsl.s, hsl.l - 0.1);
+  return [light, dark];
 });
 
-require.define("/htdocs/index.js",function(require,module,exports,__dirname,__filename,process,global){window.addEventListener('load', function () {
-    // var THREE = require('three');
-    var createGame = require('voxel-engine');
-    var game = createGame({
-        generate: function(x, y, z) { return 0; },
-        materials: ["#fff", "#000", "#ff0000"],
-        materialFlatColor: true
+function uvrot(coords, deg) {
+  if (deg === 0) return coords;
+  var c = [];
+  var i = (4 - Math.ceil(deg / 90)) % 4;
+  for (var j = 0; j < 4; j++) {
+    c.push(coords[i]);
+    if (i === 3) i = 0; else i++;
+  }
+  return c;
+}
+
+function uvinvert(coords) {
+  var c = coords.slice(0);
+  return [c[3], c[2], c[1], c[0]];
+}
+
+function ext(name) {
+  return (String(name).indexOf('.') !== -1) ? name : name + '.png';
+}
+
+function defaults(obj) {
+  [].slice.call(arguments, 1).forEach(function(from) {
+    if (from) for (var k in from) if (obj[k] == null) obj[k] = from[k];
+  });
+  return obj;
+}
+
+function each(arr, it, done) {
+  var count = 0;
+  arr.forEach(function(a) {
+    it(a, function() {
+      count++;
+      if (count >= arr.length) done();
     });
-    game.appendTo(document.body);
-    game.gravity = [0, 0, 0];
+  });
+}
 
-    var createPlayer = require('voxel-player')(game);
-    var player = createPlayer('dude.png');
-    player.possess();
-    player.position.set(0, 0, 5);
+function hex2rgb(hex) {
+  if (hex[0] === '#') hex = hex.substr(1);
+  return [parseInt(hex.substr(0,2), 16)/255, parseInt(hex.substr(2,2), 16)/255, parseInt(hex.substr(4,2), 16)/255];
+}
 
-    window.addEventListener('keyup', function (event) {
-        player.velocity = {x: 0, y: 0, z: 0};
-    });
+function memoize(func) {
+  function memoized() {
+    var cache = memoized.cache, key = arguments[0];
+    return hasOwnProperty.call(cache, key)
+      ? cache[key]
+      : (cache[key] = func.apply(this, arguments));
+  }
+  memoized.cache = {};
+  return memoized;
+}
 
-    var blocks = [];
+},{"atlaspack":33,"tic":56}],69:[function(require,module,exports){
+(function (process){
+var THREE, temporaryPosition, temporaryVector
 
-    // WebSocket Client
+module.exports = function(three, opts) {
+  temporaryPosition = new three.Vector3
+  temporaryVector = new three.Vector3
+  
+  return new View(three, opts)
+}
 
-    const socket = new WebSocket("ws://localhost:8001/");
+function View(three, opts) {
+  THREE = three // three.js doesn't support multiple instances on a single page
+  this.fov = opts.fov || 60
+  this.width = opts.width || 512
+  this.height = opts.height || 512
+  this.aspectRatio = opts.aspectRatio || this.width/this.height
+  this.nearPlane = opts.nearPlane || 1
+  this.farPlane = opts.farPlane || 10000
+  this.skyColor = opts.skyColor || 0xBFD1E5
+  this.ortho = opts.ortho
+  this.camera = this.ortho?(new THREE.OrthographicCamera(this.width/-2, this.width/2, this.height/2, this.height/-2, this.nearPlane, this.farPlane)):(new THREE.PerspectiveCamera(this.fov, this.aspectRatio, this.nearPlane, this.farPlane))
+  this.camera.lookAt(new THREE.Vector3(0, 0, 0))
 
-    socket.addEventListener('message', function (event) {
-        // var msg = JSON.parse(event.data);
-        // console.log('Message from the server:', msg);
+  if (!process.browser) return
 
-        for (var i=0; i < blocks.length; i++) {
-            game.setBlock(blocks[i], 0);
+  this.createRenderer()
+  this.element = this.renderer.domElement
+}
+
+View.prototype.createRenderer = function() {
+  this.renderer = new THREE.WebGLRenderer({
+    antialias: true
+  })
+  this.renderer.setSize(this.width, this.height)
+  this.renderer.setClearColorHex(this.skyColor, 1.0)
+  this.renderer.clear()
+}
+
+View.prototype.bindToScene = function(scene) {
+  scene.add(this.camera)
+}
+
+View.prototype.getCamera = function() {
+  return this.camera
+}
+
+View.prototype.cameraPosition = function() {
+  temporaryPosition.multiplyScalar(0)
+  temporaryPosition.applyMatrix4(this.camera.matrixWorld)
+  return [temporaryPosition.x, temporaryPosition.y, temporaryPosition.z]
+}
+
+View.prototype.cameraVector = function() {
+  temporaryVector.multiplyScalar(0)
+  temporaryVector.z = -1
+  this.camera.matrixWorld.rotateAxis(temporaryVector)
+  return [temporaryVector.x, temporaryVector.y, temporaryVector.z]
+}
+
+View.prototype.resizeWindow = function(width, height) {
+  if (this.element.parentElement) {
+    width = width || this.element.parentElement.clientWidth
+    height = height || this.element.parentElement.clientHeight
+  }
+
+  this.camera.aspect = this.aspectRatio = width/height
+  this.width = width
+  this.height = height
+
+  this.camera.updateProjectionMatrix()
+
+  this.renderer.setSize( width, height )
+}
+
+View.prototype.render = function(scene) {
+  this.renderer.render(scene, this.camera)
+}
+
+View.prototype.appendTo = function(element) {
+  if (typeof element === 'object') {
+    element.appendChild(this.element)
+  }
+  else {
+    document.querySelector(element).appendChild(this.element)
+  }
+
+  this.resizeWindow(this.width,this.height)
+}
+}).call(this,require('_process'))
+},{"_process":12}],70:[function(require,module,exports){
+var events = require('events')
+var inherits = require('inherits')
+
+module.exports = function(opts) {
+  return new Chunker(opts)
+}
+
+module.exports.Chunker = Chunker
+
+function Chunker(opts) {
+  this.distance = opts.chunkDistance || 2
+  this.chunkSize = opts.chunkSize || 32
+  this.cubeSize = opts.cubeSize || 25
+  this.generateVoxelChunk = opts.generateVoxelChunk
+  this.chunks = {}
+  this.meshes = {}
+
+  if (this.chunkSize & this.chunkSize-1 !== 0)
+    throw new Error('chunkSize must be a power of 2')
+  var bits = 0;
+  for (var size = this.chunkSize; size > 0; size >>= 1) bits++;
+  this.chunkBits = bits - 1;
+}
+
+inherits(Chunker, events.EventEmitter)
+
+Chunker.prototype.nearbyChunks = function(position, distance) {
+  var current = this.chunkAtPosition(position)
+  var x = current[0]
+  var y = current[1]
+  var z = current[2]
+  var dist = distance || this.distance
+  var nearby = []
+  for (var cx = (x - dist); cx !== (x + dist); ++cx) {
+    for (var cy = (y - dist); cy !== (y + dist); ++cy) {
+      for (var cz = (z - dist); cz !== (z + dist); ++cz) {
+        nearby.push([cx, cy, cz])
+      }
+    }
+  }
+  return nearby
+}
+
+Chunker.prototype.requestMissingChunks = function(position) {
+  var self = this
+  this.nearbyChunks(position).map(function(chunk) {
+    if (!self.chunks[chunk.join('|')]) {
+      self.emit('missingChunk', chunk)
+    }
+  })
+}
+
+Chunker.prototype.getBounds = function(x, y, z) {
+  var bits = this.chunkBits
+  var low = [x << bits, y << bits, z << bits]
+  var high = [(x+1) << bits, (y+1) << bits, (z+1) << bits]
+  return [low, high]
+}
+
+Chunker.prototype.generateChunk = function(x, y, z) {
+  var self = this
+  var bounds = this.getBounds(x, y, z)
+  var chunk = this.generateVoxelChunk(bounds[0], bounds[1], x, y, z)
+  var position = [x, y, z]
+  chunk.position = position
+  this.chunks[position.join('|')] = chunk
+  return chunk
+}
+
+Chunker.prototype.chunkAtCoordinates = function(x, y, z) {
+  var bits = this.chunkBits;
+  var cx = x >> bits;
+  var cy = y >> bits;
+  var cz = z >> bits;
+  var chunkPos = [cx, cy, cz];
+  return chunkPos;
+}
+
+Chunker.prototype.chunkAtPosition = function(position) {
+  var cubeSize = this.cubeSize;
+  var x = Math.floor(position[0] / cubeSize)
+  var y = Math.floor(position[1] / cubeSize)
+  var z = Math.floor(position[2] / cubeSize)
+  var chunkPos = this.chunkAtCoordinates(x, y, z)
+  return chunkPos
+};
+
+Chunker.prototype.voxelIndexFromCoordinates = function(x, y, z) {
+  var bits = this.chunkBits
+  var mask = (1 << bits) - 1
+  var vidx = (x & mask) + ((y & mask) << bits) + ((z & mask) << bits * 2)
+  return vidx
+}
+
+Chunker.prototype.voxelIndexFromPosition = function(pos) {
+  var v = this.voxelVector(pos)
+  return this.voxelIndex(v)
+}
+
+Chunker.prototype.voxelAtCoordinates = function(x, y, z, val) {
+  var ckey = this.chunkAtCoordinates(x, y, z).join('|')
+  var chunk = this.chunks[ckey]
+  if (!chunk) return false
+  var vidx = this.voxelIndexFromCoordinates(x, y, z)
+  var v = chunk.voxels[vidx]
+  if (typeof val !== 'undefined') {
+    chunk.voxels[vidx] = val
+  }
+  return v
+}
+
+Chunker.prototype.voxelAtPosition = function(pos, val) {
+  var cubeSize = this.cubeSize;
+  var x = Math.floor(pos[0] / cubeSize)
+  var y = Math.floor(pos[1] / cubeSize)
+  var z = Math.floor(pos[2] / cubeSize)
+  var v = this.voxelAtCoordinates(x, y, z, val)
+  return v;
+}
+
+// deprecated
+Chunker.prototype.voxelIndex = function(voxelVector) {
+  var vidx = this.voxelIndexFromCoordinates(voxelVector[0], voxelVector[1], voxelVector[2])
+  return vidx
+}
+
+// deprecated
+Chunker.prototype.voxelVector = function(pos) {
+  var cubeSize = this.cubeSize
+  var mask = (1 << this.chunkBits) - 1
+  var vx = (Math.floor(pos[0] / cubeSize)) & mask
+  var vy = (Math.floor(pos[1] / cubeSize)) & mask
+  var vz = (Math.floor(pos[2] / cubeSize)) & mask
+  return [vx, vy, vz]
+};
+
+},{"events":5,"inherits":45}],71:[function(require,module,exports){
+var chunker = require('./chunker')
+
+module.exports = function(opts) {
+  if (!opts.generateVoxelChunk) opts.generateVoxelChunk = function(low, high) {
+    return generate(low, high, module.exports.generator['Valley'])
+  }
+  return chunker(opts)
+}
+
+module.exports.meshers = {
+  culled: require('./meshers/culled').mesher,
+  greedy: require('./meshers/greedy').mesher,
+  monotone: require('./meshers/monotone').mesher,
+  stupid: require('./meshers/stupid').mesher
+}
+
+module.exports.Chunker = chunker.Chunker
+module.exports.geometry = {}
+module.exports.generator = {}
+module.exports.generate = generate
+
+// from https://github.com/mikolalysenko/mikolalysenko.github.com/blob/master/MinecraftMeshes2/js/testdata.js#L4
+function generate(l, h, f, game) {
+  var d = [ h[0]-l[0], h[1]-l[1], h[2]-l[2] ]
+  var v = new Int8Array(d[0]*d[1]*d[2])
+  var n = 0
+  for(var k=l[2]; k<h[2]; ++k)
+  for(var j=l[1]; j<h[1]; ++j)
+  for(var i=l[0]; i<h[0]; ++i, ++n) {
+    v[n] = f(i,j,k,n,game)
+  }
+  return {voxels:v, dims:d}
+}
+
+// shape and terrain generator functions
+module.exports.generator['Sphere'] = function(i,j,k) {
+  return i*i+j*j+k*k <= 16*16 ? 1 : 0
+}
+
+module.exports.generator['Noise'] = function(i,j,k) {
+  return Math.random() < 0.1 ? Math.random() * 0xffffff : 0;
+}
+
+module.exports.generator['Dense Noise'] = function(i,j,k) {
+  return Math.round(Math.random() * 0xffffff);
+}
+
+module.exports.generator['Checker'] = function(i,j,k) {
+  return !!((i+j+k)&1) ? (((i^j^k)&2) ? 1 : 0xffffff) : 0;
+}
+
+module.exports.generator['Hill'] = function(i,j,k) {
+  return j <= 16 * Math.exp(-(i*i + k*k) / 64) ? 1 : 0;
+}
+
+module.exports.generator['Valley'] = function(i,j,k) {
+  return j <= (i*i + k*k) * 31 / (32*32*2) + 1 ? 1 : 0;
+}
+
+module.exports.generator['Hilly Terrain'] = function(i,j,k) {
+  var h0 = 3.0 * Math.sin(Math.PI * i / 12.0 - Math.PI * k * 0.1) + 27;    
+  if(j > h0+1) {
+    return 0;
+  }
+  if(h0 <= j) {
+    return 1;
+  }
+  var h1 = 2.0 * Math.sin(Math.PI * i * 0.25 - Math.PI * k * 0.3) + 20;
+  if(h1 <= j) {
+    return 2;
+  }
+  if(2 < j) {
+    return Math.random() < 0.1 ? 0x222222 : 0xaaaaaa;
+  }
+  return 3;
+}
+
+module.exports.scale = function ( x, fromLow, fromHigh, toLow, toHigh ) {
+  return ( x - fromLow ) * ( toHigh - toLow ) / ( fromHigh - fromLow ) + toLow
+}
+
+// convenience function that uses the above functions to prebake some simple voxel geometries
+module.exports.generateExamples = function() {
+  return {
+    'Sphere': generate([-16,-16,-16], [16,16,16], module.exports.generator['Sphere']),
+    'Noise': generate([0,0,0], [16,16,16], module.exports.generator['Noise']),
+    'Dense Noise': generate([0,0,0], [16,16,16], module.exports.generator['Dense Noise']),
+    'Checker': generate([0,0,0], [8,8,8], module.exports.generator['Checker']),
+    'Hill': generate([-16, 0, -16], [16,16,16], module.exports.generator['Hill']),
+    'Valley': generate([0,0,0], [32,32,32], module.exports.generator['Valley']),
+    'Hilly Terrain': generate([0, 0, 0], [32,32,32], module.exports.generator['Hilly Terrain'])
+  }
+}
+
+
+},{"./chunker":70,"./meshers/culled":72,"./meshers/greedy":73,"./meshers/monotone":74,"./meshers/stupid":75}],72:[function(require,module,exports){
+//Naive meshing (with face culling)
+function CulledMesh(volume, dims) {
+  //Precalculate direction vectors for convenience
+  var dir = new Array(3);
+  for(var i=0; i<3; ++i) {
+    dir[i] = [[0,0,0], [0,0,0]];
+    dir[i][0][(i+1)%3] = 1;
+    dir[i][1][(i+2)%3] = 1;
+  }
+  //March over the volume
+  var vertices = []
+    , faces = []
+    , x = [0,0,0]
+    , B = [[false,true]    //Incrementally update bounds (this is a bit ugly)
+          ,[false,true]
+          ,[false,true]]
+    , n = -dims[0]*dims[1];
+  for(           B[2]=[false,true],x[2]=-1; x[2]<dims[2]; B[2]=[true,(++x[2]<dims[2]-1)])
+  for(n-=dims[0],B[1]=[false,true],x[1]=-1; x[1]<dims[1]; B[1]=[true,(++x[1]<dims[1]-1)])
+  for(n-=1,      B[0]=[false,true],x[0]=-1; x[0]<dims[0]; B[0]=[true,(++x[0]<dims[0]-1)], ++n) {
+    //Read current voxel and 3 neighboring voxels using bounds check results
+    var p =   (B[0][0] && B[1][0] && B[2][0]) ? volume[n]                 : 0
+      , b = [ (B[0][1] && B[1][0] && B[2][0]) ? volume[n+1]               : 0
+            , (B[0][0] && B[1][1] && B[2][0]) ? volume[n+dims[0]]         : 0
+            , (B[0][0] && B[1][0] && B[2][1]) ? volume[n+dims[0]*dims[1]] : 0
+          ];
+    //Generate faces
+    for(var d=0; d<3; ++d)
+    if((!!p) !== (!!b[d])) {
+      var s = !p ? 1 : 0;
+      var t = [x[0],x[1],x[2]]
+        , u = dir[d][s]
+        , v = dir[d][s^1];
+      ++t[d];
+      
+      var vertex_count = vertices.length;
+      vertices.push([t[0],           t[1],           t[2]          ]);
+      vertices.push([t[0]+u[0],      t[1]+u[1],      t[2]+u[2]     ]);
+      vertices.push([t[0]+u[0]+v[0], t[1]+u[1]+v[1], t[2]+u[2]+v[2]]);
+      vertices.push([t[0]     +v[0], t[1]     +v[1], t[2]     +v[2]]);
+      faces.push([vertex_count, vertex_count+1, vertex_count+2, vertex_count+3, s ? b[d] : p]);
+    }
+  }
+  return { vertices:vertices, faces:faces };
+}
+
+
+if(exports) {
+  exports.mesher = CulledMesh;
+}
+
+},{}],73:[function(require,module,exports){
+var GreedyMesh = (function() {
+//Cache buffer internally
+var mask = new Int32Array(4096);
+
+return function(volume, dims) {
+  var vertices = [], faces = []
+    , dimsX = dims[0]
+    , dimsY = dims[1]
+    , dimsXY = dimsX * dimsY;
+
+  //Sweep over 3-axes
+  for(var d=0; d<3; ++d) {
+    var i, j, k, l, w, W, h, n, c
+      , u = (d+1)%3
+      , v = (d+2)%3
+      , x = [0,0,0]
+      , q = [0,0,0]
+      , du = [0,0,0]
+      , dv = [0,0,0]
+      , dimsD = dims[d]
+      , dimsU = dims[u]
+      , dimsV = dims[v]
+      , qdimsX, qdimsXY
+      , xd
+
+    if (mask.length < dimsU * dimsV) {
+      mask = new Int32Array(dimsU * dimsV);
+    }
+
+    q[d] =  1;
+    x[d] = -1;
+
+    qdimsX  = dimsX  * q[1]
+    qdimsXY = dimsXY * q[2]
+
+    // Compute mask
+    while (x[d] < dimsD) {
+      xd = x[d]
+      n = 0;
+
+      for(x[v] = 0; x[v] < dimsV; ++x[v]) {
+        for(x[u] = 0; x[u] < dimsU; ++x[u], ++n) {
+          var a = xd >= 0      && volume[x[0]      + dimsX * x[1]          + dimsXY * x[2]          ]
+            , b = xd < dimsD-1 && volume[x[0]+q[0] + dimsX * x[1] + qdimsX + dimsXY * x[2] + qdimsXY]
+          if (a ? b : !b) {
+            mask[n] = 0; continue;
+          }
+          mask[n] = a ? a : -b;
         }
-        blocks = [];
-        lines = event.data.split(/\n/);
-        for (var y=0; y < lines.length; y++) {
-            for (var x=0; x < lines[y].length; x++) {
-                var c = lines[y].charAt(x);
-                if (!(c === " ")) {
-                    game.setBlock([x, y, 0], parseInt(c, 10));
-                    blocks.push([x, y, 0]);
-                }
+      }
+
+      ++x[d];
+
+      // Generate mesh for mask using lexicographic ordering
+      n = 0;
+      for (j=0; j < dimsV; ++j) {
+        for (i=0; i < dimsU; ) {
+          c = mask[n];
+          if (!c) {
+            i++;  n++; continue;
+          }
+
+          //Compute width
+          w = 1;
+          while (c === mask[n+w] && i+w < dimsU) w++;
+
+          //Compute height (this is slightly awkward)
+          for (h=1; j+h < dimsV; ++h) {
+            k = 0;
+            while (k < w && c === mask[n+k+h*dimsU]) k++
+            if (k < w) break;
+          }
+
+          // Add quad
+          // The du/dv arrays are reused/reset
+          // for each iteration.
+          du[d] = 0; dv[d] = 0;
+          x[u]  = i;  x[v] = j;
+
+          if (c > 0) {
+            dv[v] = h; dv[u] = 0;
+            du[u] = w; du[v] = 0;
+          } else {
+            c = -c;
+            du[v] = h; du[u] = 0;
+            dv[u] = w; dv[v] = 0;
+          }
+          var vertex_count = vertices.length;
+          vertices.push([x[0],             x[1],             x[2]            ]);
+          vertices.push([x[0]+du[0],       x[1]+du[1],       x[2]+du[2]      ]);
+          vertices.push([x[0]+du[0]+dv[0], x[1]+du[1]+dv[1], x[2]+du[2]+dv[2]]);
+          vertices.push([x[0]      +dv[0], x[1]      +dv[1], x[2]      +dv[2]]);
+          faces.push([vertex_count, vertex_count+1, vertex_count+2, vertex_count+3, c]);
+
+          //Zero-out mask
+          W = n + w;
+          for(l=0; l<h; ++l) {
+            for(k=n; k<W; ++k) {
+              mask[k+l*dimsU] = 0;
             }
+          }
+
+          //Increment counters and continue
+          i += w; n += w;
         }
-
-    });
-
-    // game.createBlock([0, 0, 0], 3);
-
-    // // 3-D Canvas
-
-    // var scene = new THREE.Scene();
-    // var camera =
-    //     new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-
-    // var renderer = new THREE.WebGLRenderer();
-    // renderer.setSize(window.innerWidth, window.innerHeight);
-
-    // console.log(window.innerWidth);
-    // console.log(window.innerHeight);
-
-    // document.body.appendChild(renderer.domElement);
-
-    // // 3-D Scene
-
-    // var geometry = new THREE.BoxGeometry(1, 1, 1);
-    // var material = new THREE.MeshBasicMaterial({color: 0x00ff00});
-    // var cube = new THREE.Mesh(geometry, material);
-    // scene.add(cube);
-
-    // camera.position.z = 5;
-
-    // function animate() {
-    //     requestAnimationFrame(animate);
-    //     cube.rotation.x += 0.01;
-    //     cube.rotation.y += 0.01;
-    //     renderer.render(scene, camera);
-    // }
-
-    // animate();
-
-});
-
-});
-require("/htdocs/index.js");
+      }
+    }
+  }
+  return { vertices:vertices, faces:faces };
+}
 })();
+
+if(exports) {
+  exports.mesher = GreedyMesh;
+}
+
+},{}],74:[function(require,module,exports){
+"use strict";
+
+var MonotoneMesh = (function(){
+
+function MonotonePolygon(c, v, ul, ur) {
+  this.color  = c;
+  this.left   = [[ul, v]];
+  this.right  = [[ur, v]];
+};
+
+MonotonePolygon.prototype.close_off = function(v) {
+  this.left.push([ this.left[this.left.length-1][0], v ]);
+  this.right.push([ this.right[this.right.length-1][0], v ]);
+};
+
+MonotonePolygon.prototype.merge_run = function(v, u_l, u_r) {
+  var l = this.left[this.left.length-1][0]
+    , r = this.right[this.right.length-1][0]; 
+  if(l !== u_l) {
+    this.left.push([ l, v ]);
+    this.left.push([ u_l, v ]);
+  }
+  if(r !== u_r) {
+    this.right.push([ r, v ]);
+    this.right.push([ u_r, v ]);
+  }
+};
+
+
+return function(volume, dims) {
+  function f(i,j,k) {
+    return volume[i + dims[0] * (j + dims[1] * k)];
+  }
+  //Sweep over 3-axes
+  var vertices = [], faces = [];
+  for(var d=0; d<3; ++d) {
+    var i, j, k
+      , u = (d+1)%3   //u and v are orthogonal directions to d
+      , v = (d+2)%3
+      , x = new Int32Array(3)
+      , q = new Int32Array(3)
+      , runs = new Int32Array(2 * (dims[u]+1))
+      , frontier = new Int32Array(dims[u])  //Frontier is list of pointers to polygons
+      , next_frontier = new Int32Array(dims[u])
+      , left_index = new Int32Array(2 * dims[v])
+      , right_index = new Int32Array(2 * dims[v])
+      , stack = new Int32Array(24 * dims[v])
+      , delta = [[0,0], [0,0]];
+    //q points along d-direction
+    q[d] = 1;
+    //Initialize sentinel
+    for(x[d]=-1; x[d]<dims[d]; ) {
+      // --- Perform monotone polygon subdivision ---
+      var n = 0
+        , polygons = []
+        , nf = 0;
+      for(x[v]=0; x[v]<dims[v]; ++x[v]) {
+        //Make one pass over the u-scan line of the volume to run-length encode polygon
+        var nr = 0, p = 0, c = 0;
+        for(x[u]=0; x[u]<dims[u]; ++x[u], p = c) {
+          //Compute the type for this face
+          var a = (0    <= x[d]      ? f(x[0],      x[1],      x[2])      : 0)
+            , b = (x[d] <  dims[d]-1 ? f(x[0]+q[0], x[1]+q[1], x[2]+q[2]) : 0);
+          c = a;
+          if((!a) === (!b)) {
+            c = 0;
+          } else if(!a) {
+            c = -b;
+          }
+          //If cell type doesn't match, start a new run
+          if(p !== c) {
+            runs[nr++] = x[u];
+            runs[nr++] = c;
+          }
+        }
+        //Add sentinel run
+        runs[nr++] = dims[u];
+        runs[nr++] = 0;
+        //Update frontier by merging runs
+        var fp = 0;
+        for(var i=0, j=0; i<nf && j<nr-2; ) {
+          var p    = polygons[frontier[i]]
+            , p_l  = p.left[p.left.length-1][0]
+            , p_r  = p.right[p.right.length-1][0]
+            , p_c  = p.color
+            , r_l  = runs[j]    //Start of run
+            , r_r  = runs[j+2]  //End of run
+            , r_c  = runs[j+1]; //Color of run
+          //Check if we can merge run with polygon
+          if(r_r > p_l && p_r > r_l && r_c === p_c) {
+            //Merge run
+            p.merge_run(x[v], r_l, r_r);
+            //Insert polygon into frontier
+            next_frontier[fp++] = frontier[i];
+            ++i;
+            j += 2;
+          } else {
+            //Check if we need to advance the run pointer
+            if(r_r <= p_r) {
+              if(!!r_c) {
+                var n_poly = new MonotonePolygon(r_c, x[v], r_l, r_r);
+                next_frontier[fp++] = polygons.length;
+                polygons.push(n_poly);
+              }
+              j += 2;
+            }
+            //Check if we need to advance the frontier pointer
+            if(p_r <= r_r) {
+              p.close_off(x[v]);
+              ++i;
+            }
+          }
+        }
+        //Close off any residual polygons
+        for(; i<nf; ++i) {
+          polygons[frontier[i]].close_off(x[v]);
+        }
+        //Add any extra runs to frontier
+        for(; j<nr-2; j+=2) {
+          var r_l  = runs[j]
+            , r_r  = runs[j+2]
+            , r_c  = runs[j+1];
+          if(!!r_c) {
+            var n_poly = new MonotonePolygon(r_c, x[v], r_l, r_r);
+            next_frontier[fp++] = polygons.length;
+            polygons.push(n_poly);
+          }
+        }
+        //Swap frontiers
+        var tmp = next_frontier;
+        next_frontier = frontier;
+        frontier = tmp;
+        nf = fp;
+      }
+      //Close off frontier
+      for(var i=0; i<nf; ++i) {
+        var p = polygons[frontier[i]];
+        p.close_off(dims[v]);
+      }
+      // --- Monotone subdivision of polygon is complete at this point ---
+      
+      x[d]++;
+      
+      //Now we just need to triangulate each monotone polygon
+      for(var i=0; i<polygons.length; ++i) {
+        var p = polygons[i]
+          , c = p.color
+          , flipped = false;
+        if(c < 0) {
+          flipped = true;
+          c = -c;
+        }
+        for(var j=0; j<p.left.length; ++j) {
+          left_index[j] = vertices.length;
+          var y = [0.0,0.0,0.0]
+            , z = p.left[j];
+          y[d] = x[d];
+          y[u] = z[0];
+          y[v] = z[1];
+          vertices.push(y);
+        }
+        for(var j=0; j<p.right.length; ++j) {
+          right_index[j] = vertices.length;
+          var y = [0.0,0.0,0.0]
+            , z = p.right[j];
+          y[d] = x[d];
+          y[u] = z[0];
+          y[v] = z[1];
+          vertices.push(y);
+        }
+        //Triangulate the monotone polygon
+        var bottom = 0
+          , top = 0
+          , l_i = 1
+          , r_i = 1
+          , side = true;  //true = right, false = left
+        
+        stack[top++] = left_index[0];
+        stack[top++] = p.left[0][0];
+        stack[top++] = p.left[0][1];
+        
+        stack[top++] = right_index[0];
+        stack[top++] = p.right[0][0];
+        stack[top++] = p.right[0][1];
+        
+        while(l_i < p.left.length || r_i < p.right.length) {
+          //Compute next side
+          var n_side = false;
+          if(l_i === p.left.length) {
+            n_side = true;
+          } else if(r_i !== p.right.length) {
+            var l = p.left[l_i]
+              , r = p.right[r_i];
+            n_side = l[1] > r[1];
+          }
+          var idx = n_side ? right_index[r_i] : left_index[l_i]
+            , vert = n_side ? p.right[r_i] : p.left[l_i];
+          if(n_side !== side) {
+            //Opposite side
+            while(bottom+3 < top) {
+              if(flipped === n_side) {
+                faces.push([ stack[bottom], stack[bottom+3], idx, c]);
+              } else {
+                faces.push([ stack[bottom+3], stack[bottom], idx, c]);              
+              }
+              bottom += 3;
+            }
+          } else {
+            //Same side
+            while(bottom+3 < top) {
+              //Compute convexity
+              for(var j=0; j<2; ++j)
+              for(var k=0; k<2; ++k) {
+                delta[j][k] = stack[top-3*(j+1)+k+1] - vert[k];
+              }
+              var det = delta[0][0] * delta[1][1] - delta[1][0] * delta[0][1];
+              if(n_side === (det > 0)) {
+                break;
+              }
+              if(det !== 0) {
+                if(flipped === n_side) {
+                  faces.push([ stack[top-3], stack[top-6], idx, c ]);
+                } else {
+                  faces.push([ stack[top-6], stack[top-3], idx, c ]);
+                }
+              }
+              top -= 3;
+            }
+          }
+          //Push vertex
+          stack[top++] = idx;
+          stack[top++] = vert[0];
+          stack[top++] = vert[1];
+          //Update loop index
+          if(n_side) {
+            ++r_i;
+          } else {
+            ++l_i;
+          }
+          side = n_side;
+        }
+      }
+    }
+  }
+  return { vertices:vertices, faces:faces };
+}
+})();
+
+if(exports) {
+  exports.mesher = MonotoneMesh;
+}
+
+},{}],75:[function(require,module,exports){
+//The stupidest possible way to generate a Minecraft mesh (I think)
+function StupidMesh(volume, dims) {
+  var vertices = [], faces = [], x = [0,0,0], n = 0;
+  for(x[2]=0; x[2]<dims[2]; ++x[2])
+  for(x[1]=0; x[1]<dims[1]; ++x[1])
+  for(x[0]=0; x[0]<dims[0]; ++x[0], ++n)
+  if(!!volume[n]) {
+    for(var d=0; d<3; ++d) {
+      var t = [x[0], x[1], x[2]]
+        , u = [0,0,0]
+        , v = [0,0,0];
+      u[(d+1)%3] = 1;
+      v[(d+2)%3] = 1;
+      for(var s=0; s<2; ++s) {
+        t[d] = x[d] + s;
+        var tmp = u;
+        u = v;
+        v = tmp;
+        var vertex_count = vertices.length;
+        vertices.push([t[0],           t[1],           t[2]          ]);
+        vertices.push([t[0]+u[0],      t[1]+u[1],      t[2]+u[2]     ]);
+        vertices.push([t[0]+u[0]+v[0], t[1]+u[1]+v[1], t[2]+u[2]+v[2]]);
+        vertices.push([t[0]     +v[0], t[1]     +v[1], t[2]     +v[2]]);
+        faces.push([vertex_count, vertex_count+1, vertex_count+2, vertex_count+3, volume[n]]);
+      }
+    }
+  }
+  return { vertices:vertices, faces:faces };
+}
+
+
+if(exports) {
+  exports.mesher = StupidMesh;
+}
+
+},{}]},{},[31]);
