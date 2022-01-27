@@ -13,7 +13,7 @@
   "author": "Eric Griffis <dedbox@gmail.com> (https://dedbox.github.io/)",
   "license": "UNLICENSED",
   "devDependencies": {
-    "three": "^0.109.0",
+    "three": "^0.137.0",
     "voxel-engine": "^0.20.2",
     "voxel-player": "^0.1.0"
   }
